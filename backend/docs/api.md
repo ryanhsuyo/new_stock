@@ -1,0 +1,943 @@
+# API 端點總覽
+
+FastAPI 後端，所有端點皆以 `/api` 為前綴。  
+互動文件（Swagger UI）：`http://localhost:9000/docs`
+
+---
+
+## 訊號與推薦
+
+### `GET /api/stocks/recommendations`
+
+取得目前的推薦買入清單（由最近一次 `run_signals` 產生）。
+
+**回應**（`StockRecommendation[]`）：
+
+```json
+[
+  {
+    "stock_id": "2330",
+    "name": "台積電",
+    "price": 850.0,
+    "change_pct": 1.5,
+    "score": 75,
+    "reason": "長線偏多，突破頸線，量能配合",
+    "risk_warning": "接近前高壓力，注意量能是否持續"
+  }
+]
+```
+
+---
+
+### `GET /api/stocks/{code}/analysis`
+
+取得指定股票的深度技術分析（即時計算，包含 K 線資料供圖表使用）。
+
+**路徑參數**：
+- `code`：股票代碼（如 `2330`）
+
+**查詢參數**：
+- `as_of`（選填）：基準日 `YYYY-MM-DD`，預設為 `ohlcv.csv` 最新日期
+
+**回應**（`StockAnalysis`）：
+
+```json
+{
+  "code": "2330",
+  "stock_id": "2330",
+  "name": "台積電",
+  "as_of": "2026-04-11",
+  "data_ok": true,
+  "data_missing_reason": null,
+  "is_stale": false,
+  "stale_days": 3,
+  "close": 850.0,
+  "ma5": 845.0,
+  "ma20": 820.0,
+  "ma60": 790.0,
+  "rsi14": 62.5,
+  "vol_ratio": 1.3,
+  "long_trend": "up",
+  "short_trend": "up",
+  "signal": "entry_confirmed",
+  "score": 75,
+  "reasons": ["長線偏多", "突破頸線"],
+  "risk_notes": ["接近前高壓力"],
+  "no_buy_reason": null,
+  "support_lines": [
+    { "label": "近20日低", "price": 810.0, "type": "static" },
+    { "label": "MA20", "price": 820.0, "type": "dynamic" }
+  ],
+  "resistance_lines": [
+    { "label": "近20日高", "price": 860.0, "type": "static" }
+  ],
+  "uptrend_line": { "valid": true, "p1": {"date": "...", "price": 780.0}, "p2": {...}, "note": "" },
+  "downtrend_line": { "valid": false, "p1": null, "p2": null, "note": "" },
+  "pattern": {
+    "pattern_type": "w_bottom",
+    "pattern_status": "confirmed",
+    "neckline": 840.0,
+    "note": ""
+  },
+  "ohlcv": [
+    { "date": "2026-04-11", "open": 845.0, "high": 855.0, "low": 843.0, "close": 850.0, "volume": 25000000 }
+  ]
+}
+```
+
+---
+
+### `GET /api/stocks/signals/status`
+
+取得訊號輸出檔案的狀態（是否存在、最後修改時間、輸出基準日與背景重算狀態）。
+
+**回應**：
+
+```json
+{
+  "run_status": "idle",
+  "run_error": null,
+  "out_dir": "/path/to/backend/out",
+  "out_files": {
+    "summary_json": {
+      "exists": true,
+      "path": "/path/to/backend/out/summary.json",
+      "last_modified": "2026-05-22T15:35:00",
+      "as_of": "2026-05-22",
+      "generated_at": "2026-05-22T15:35:00"
+    },
+    "universe_report_csv": {
+      "exists": true,
+      "path": "/path/to/backend/out/universe_report.csv",
+      "last_modified": "2026-05-22T15:35:00"
+    },
+    "daily_brief_json": {
+      "exists": true,
+      "path": "/path/to/backend/out/daily_brief.json",
+      "last_modified": "2026-05-22T15:35:00",
+      "as_of": "2026-05-22",
+      "generated_at": "2026-05-22T15:35:00",
+      "status_label": "資料最新",
+      "update_required": false
+    }
+  },
+  "data_files": {
+    "leaders_json": { "exists": true, "path": "/path/to/backend/data/leaders.json" },
+    "ohlcv_csv": { "exists": true, "path": "/path/to/backend/data/ohlcv.csv" },
+    "market_notes_json": { "exists": true, "path": "/path/to/backend/data/market_notes.json", "optional": true },
+    "fundamentals_json": { "exists": true, "path": "/path/to/backend/data/fundamentals.json", "optional": true },
+    "positions_json": { "exists": true, "path": "/path/to/backend/data/positions.json", "optional": true }
+  }
+}
+```
+
+**`run_status` 可能值**：
+- `idle`：尚未在目前後端程序觸發背景重算
+- `running`：訊號正在背景重算，前端應輪詢本 endpoint
+- `success`：最近一次背景重算完成
+- `failed`：最近一次背景重算失敗，錯誤在 `run_error`
+
+`daily_brief_json.update_required=true` 時，代表每日作戰表可回顧但不應直接作為當日盤後決策依據，需先執行更新 / 重算。
+
+若 `summary_json` 或 `daily_brief_json` 檔案存在但 JSON 解析失敗，對應檔案資訊會包含 `parse_error`；前端應顯示解析失敗，而不是只把檔案存在視為正常。
+
+---
+
+### `POST /api/stocks/signals/run`
+
+觸發訊號計算（非同步背景執行，立即回傳）。
+
+**請求 Body**（選填）：
+
+```json
+{ "as_of_date": "2026-04-11" }
+```
+
+空 body `{}` 表示使用 `ohlcv.csv` 最新日期。
+
+**回應**：
+
+```json
+{ "status": "started", "as_of_date": "2026-04-11" }
+```
+
+---
+
+### `GET /api/stocks/signals/summary`
+
+取得最新 `summary.json` 全文內容。
+
+---
+
+### `GET /api/stocks/signals/daily-brief`
+
+取得最新 `daily_brief.json` 全文內容，包含每日作戰表資料狀態、建議水位、汰弱留強分類與隔日任務。
+
+重點欄位：
+
+- `data_status`：資料最新日、覆蓋率、是否 stale、是否需要更新
+- `position_guidance`：建議持股水位與風險語氣
+- `rotation_plan`：續抱、等回測、可進場、優先減碼、暫不碰五桶
+- `tomorrow_tasks`：隔日可執行任務，包含觀察價、進場計畫、失效條件與停利 / 出場計畫
+
+---
+
+### `GET /api/stocks/signals/universe_report`
+
+下載最新 `universe_report.csv`（`FileResponse`）。
+
+---
+
+### `GET /api/stocks/market-notes`
+
+列出人工盤後筆記，依日期新到舊排序。
+
+---
+
+### `POST /api/stocks/market-notes`
+
+新增或覆蓋指定日期的人工盤後筆記。相同 `date` 會覆蓋既有筆記，寫入 `backend/data/market_notes.json`。
+
+驗證規則：
+
+- `date` 必須是 `YYYY-MM-DD`
+- `title` 不可空白
+- `headline` 不可空白
+
+**請求 Body**：
+
+```json
+{
+  "date": "2026-05-20",
+  "title": "5/20 盤後風控筆記",
+  "risk_level": "caution",
+  "headline": "大盤仍需觀察 MA10，強勢股汰弱留強。",
+  "position_guidance": "短線水位依系統大盤濾網，不追價。",
+  "market_actions": ["確認 TSE/OTC 是否守住 MA10", "弱勢股優先處理"],
+  "index_notes": [],
+  "stock_notes": [],
+  "rules": []
+}
+```
+
+**回應**：
+
+```json
+{
+  "saved": { "date": "2026-05-20", "title": "5/20 盤後風控筆記" },
+  "count": 3,
+  "replaced": false,
+  "signals_rerun_required": true,
+  "next_step": "POST /api/stocks/signals/run"
+}
+```
+
+寫入筆記只更新 `market_notes.json`；若要讓 Dashboard / `summary.json` 套用新筆記，需再呼叫 `POST /api/stocks/signals/run`。
+
+---
+
+## 交易紀錄
+
+### `GET /api/trades`
+
+列出所有交易紀錄，按時間升冪排列。
+
+**回應**（`TradeRecord[]`）：
+
+```json
+[
+  {
+    "id": "uuid-...",
+    "stock_id": "2330",
+    "name": "台積電",
+    "trade_type": "buy",
+    "date": "2026-03-15",
+    "price": 820.0,
+    "shares": 1000,
+    "gross_amount": 820000,
+    "fee": 1168,
+    "tax": 0,
+    "net_amount": 821168,
+    "note": "突破頸線買入",
+    "created_at": "2026-03-15T10:30:00"
+  }
+]
+```
+
+> 交易金額預設以台股手續費 0.1425% 計算；賣出另扣證交稅 0.3%。可在 `backend/data/settings.json` 調整 `brokerage_discount` 與 `min_brokerage_fee`。`net_amount` 買進代表實付成本，賣出代表扣費稅後實收。舊交易若沒有這些欄位，持倉與統計會依同一規則即時計算。
+
+---
+
+### `POST /api/trades/buy`
+
+新增買入紀錄。
+
+**請求 Body**（`BuyRequest`）：
+
+```json
+{
+  "stock_id": "2330",
+  "name": "台積電",
+  "date": "2026-03-15",
+  "price": 820.0,
+  "shares": 1000,
+  "note": "突破頸線買入"
+}
+```
+
+**驗證**：`shares > 0`、`price > 0`  
+**回應**：`201 Created`，`TradeRecord`
+
+---
+
+### `POST /api/trades/sell`
+
+新增賣出紀錄。
+
+**請求 Body**（`SellRequest`）：
+
+```json
+{
+  "stock_id": "2330",
+  "date": "2026-04-11",
+  "price": 850.0,
+  "shares": 500,
+  "note": "停利部分出場"
+}
+```
+
+**驗證**：`shares > 0`、`price > 0`、持股數量足夠  
+**回應**：`201 Created`，`TradeRecord`  
+**錯誤**：`400 Bad Request`（持股不足）
+
+---
+
+### `POST /api/trades/import`
+
+整批匯入真實交易紀錄並覆蓋 `backend/data/trades.json`。匯入前會先驗證整批資料，全部通過後才備份舊檔到 `backend/data/backups/trades_*.json`，再寫入新檔。
+
+**請求 Body**（`TradeImportRequest`）：
+
+```json
+{
+  "mode": "replace",
+  "backup": true,
+  "trades": [
+    {
+      "id": "real-001",
+      "stock_id": "2330",
+      "name": "台積電",
+      "trade_type": "buy",
+      "date": "2026-05-19",
+      "price": 1000,
+      "shares": 1000,
+      "note": "真實成交",
+      "created_at": "2026-05-19T09:00:00"
+    }
+  ]
+}
+```
+
+`trades[]` 也可以使用簡化格式，只帶真實成交必要欄位：
+
+```json
+{
+  "trades": [
+    {
+      "stock_id": "2330",
+      "trade_type": "buy",
+      "date": "2026-05-19",
+      "price": 1000,
+      "shares": 1000,
+      "note": "真實成交"
+    }
+  ]
+}
+```
+
+**驗證**：交易清單不可為空、`id` 不可重複、`price > 0`、`shares > 0`、賣出不可超過前面累計持股。若 `id` / `created_at` 未提供，系統會自動產生；若 `name` 未提供，優先用 `stock_names.json`，找不到則用代碼；若 `gross_amount` / `fee` / `tax` / `net_amount` 未提供，系統會依目前手續費設定補齊。
+
+**回應**：
+
+```json
+{
+  "imported_count": 1,
+  "buy_count": 1,
+  "sell_count": 0,
+  "backup_path": "/Users/ryan/Desktop/code/new_stock/backend/data/backups/trades_20260519T230000000000.json",
+  "warnings": [
+    "自動補齊 id 1 筆",
+    "自動補齊 created_at 1 筆",
+    "自動補齊金額欄位 1 筆"
+  ]
+}
+```
+
+**錯誤**：`400 Bad Request`（資料為空、重複 id、價格/股數不合法、賣出超過持股）
+
+---
+
+### `POST /api/trades/import/validate`
+
+正式匯入前的完整驗證報告。使用與 `POST /api/trades/import` 相同的請求 Body，但不會備份、不會覆蓋 `trades.json`；與 preview 不同的是，validate 會一次回傳所有可檢出的錯誤，不會遇到第一個錯誤就停止。
+
+**錯誤回應範例**：
+
+```json
+{
+  "valid": false,
+  "error_count": 4,
+  "errors": [
+    "第 1 筆交易價格必須大於 0",
+    "第 2 筆交易 id 重複：b1",
+    "第 2 筆交易股數必須大於 0",
+    "第 3 筆 2303 可賣出股數不足，目前累計持有 0 股"
+  ],
+  "imported_count": 3,
+  "buy_count": 2,
+  "sell_count": 1,
+  "positions_preview": [],
+  "warnings": [
+    "自動補齊 created_at 3 筆",
+    "自動補齊金額欄位 3 筆"
+  ]
+}
+```
+
+**成功回應**：`valid: true`、`error_count: 0`，並回傳 `positions_preview` 供確認。
+
+---
+
+### `POST /api/trades/import/preview`
+
+正式匯入前的預檢。使用與 `POST /api/trades/import` 相同的請求 Body 與驗證規則，但不會備份、不會覆蓋 `trades.json`。回應會多帶 `positions_preview`，用來確認匯入後剩餘持股與均價。
+
+**回應重點**：
+
+```json
+{
+  "imported_count": 2,
+  "buy_count": 1,
+  "sell_count": 1,
+  "backup_path": null,
+  "warnings": [
+    "自動補齊 id 2 筆",
+    "自動補齊 created_at 2 筆",
+    "自動補齊金額欄位 2 筆"
+  ],
+  "positions_preview": [
+    {
+      "stock_id": "2330",
+      "name": "台積電",
+      "total_shares": 1000,
+      "avg_cost": 100.14,
+      "total_cost": 100142,
+      "current_price": 120,
+      "current_value": 119529,
+      "unrealized_pnl": 19387,
+      "return_rate": 19.36
+    }
+  ]
+}
+```
+
+**使用順序**：先呼叫 validate 看完整錯誤清單，再呼叫 preview 確認匯入後持倉摘要，最後呼叫 import 正式覆蓋。
+
+---
+
+### `POST /api/trades/clear`
+
+明確清空交易紀錄。這是唯一允許把 `trades.json` 清成空陣列的流程；匯入空清單仍會被拒絕。預設會先備份舊檔到 `backend/data/backups/trades_*.json`。
+
+**請求 Body**：
+
+```json
+{
+  "confirm": "CLEAR_TRADES",
+  "backup": true
+}
+```
+
+**回應**：
+
+```json
+{
+  "cleared_count": 12,
+  "backup_path": "/Users/ryan/Desktop/code/new_stock/backend/data/backups/trades_20260519T230000000000.json",
+  "warnings": []
+}
+```
+
+**錯誤**：`400 Bad Request`（`confirm` 不是 `CLEAR_TRADES`）
+
+---
+
+### `GET /api/trades/backups`
+
+列出交易紀錄備份檔。只會列出 `backend/data/backups/trades_*.json`。
+
+**回應**：
+
+```json
+[
+  {
+    "filename": "trades_20260520T090000000000.json",
+    "path": "/Users/ryan/Desktop/code/new_stock/backend/data/backups/trades_20260520T090000000000.json",
+    "size_bytes": 2112,
+    "trade_count": 12,
+    "modified_at": "2026-05-20T09:00:00"
+  }
+]
+```
+
+---
+
+### `POST /api/trades/backups/restore`
+
+從指定備份檔還原交易紀錄。還原前會先備份目前的 `trades.json`，避免還原動作本身不可逆。
+
+**請求 Body**：
+
+```json
+{
+  "filename": "trades_20260520T090000000000.json",
+  "confirm": "RESTORE_TRADES"
+}
+```
+
+**回應**：
+
+```json
+{
+  "restored_from": "trades_20260520T090000000000.json",
+  "restored_count": 12,
+  "backup_path": "/Users/ryan/Desktop/code/new_stock/backend/data/backups/trades_20260520T100000000000.json",
+  "warnings": []
+}
+```
+
+**錯誤**：`400 Bad Request`（檔名不合法或確認字串錯誤）、`404 Not Found`（找不到備份）
+
+---
+
+## 投資組合
+
+### `GET /api/portfolio`
+
+取得目前持倉列表，包含即時估算損益。
+
+**回應**（`Position[]`）：
+
+```json
+[
+  {
+    "stock_id": "2330",
+    "name": "台積電",
+    "total_shares": 1000,
+    "avg_cost": 820.0,
+    "total_cost": 820000,
+    "current_price": 850.0,
+    "current_value": 846376,
+    "unrealized_pnl": 30000,
+    "return_rate": 3.66
+  }
+]
+```
+
+> `current_price` 來自 `ohlcv.csv` 最新收盤價；`current_value` 為估算賣出扣除手續費與證交稅後的淨值。
+
+---
+
+### `GET /api/portfolio/analysis`
+
+取得持倉 + 技術分析合併結果，依訊號緊急度排序。
+
+**回應**（`HoldingAnalysis[]`）：
+
+```json
+[
+  {
+    "avg_cost": 820.0,
+    "shares": 1000,
+    "unrealized_pnl": 30000,
+    "return_rate": 3.66,
+    "analysis": { "...": "StockAnalysis 完整內容" }
+  }
+]
+```
+
+**排序**：`exit_warning` → `invalidated` → `take_profit_warning` → `hold` → `watchlist` → `ready_to_enter` → `entry_confirmed` → `DATA_MISSING`
+
+---
+
+### `GET /api/portfolio/summary`
+
+取得投組摘要統計。
+
+**回應**（`PortfolioSummary`）：
+
+```json
+{
+  "total_positions": 5,
+  "total_cost": 1500000,
+  "total_market_value": 1650000,
+  "total_unrealized_pnl": 150000,
+  "hold_count": 3,
+  "take_profit_warning_count": 1,
+  "exit_warning_count": 1,
+  "invalidated_count": 0
+}
+```
+
+---
+
+## 統計
+
+### `GET /api/stats?period={period}`
+
+取得交易統計數據。
+
+**查詢參數**：
+- `period`：`monthly`（本月）或 `all`（全期）
+
+**回應**（`Stats`）：
+
+```json
+{
+  "period": "monthly",
+  "buy_count": 3,
+  "sell_count": 2,
+  "realized_pnl": 15000,
+  "unrealized_pnl": 30000,
+  "win_rate": 0.67
+}
+```
+
+---
+
+## 系統狀態
+
+### `GET /api/system/data-status`
+
+取得最近一次資料更新的執行狀態與資料新鮮度。
+
+**回應**（`DataStatus`）：
+
+```json
+{
+  "last_run_started_at": "2026-04-11T15:30:00",
+  "last_run_finished_at": "2026-04-11T15:35:00",
+  "last_run_status": "success",
+  "last_error": null,
+  "last_error_summary": null,
+  "last_warning": null,
+  "last_warning_summary": null,
+  "last_data_as_of": "2026-04-11",
+  "is_stale": false,
+  "stale_days": 3
+}
+```
+
+**`last_run_status` 可能值**：
+- `success`：最近一次更新成功
+- `failed`：最近一次更新失敗
+- `running`：目前正在更新中
+- `stale`：更新流程跑完，但資料最新日仍過期；需檢查資料源 / 網路 / backfill SKIP 原因
+- `null`：從未執行過
+
+> 當 `is_stale: true` 時，表示資料距今超過 3 個交易日，前端會顯示警示 Banner。
+
+若 `summary.json.as_of` 比 `update_status.json.last_data_as_of` 新，API 會以較新的 `summary.json.as_of` 作為 `last_data_as_of`，並重新計算 `is_stale` / `stale_days`。這是為了支援手動 backfill 後再單獨重算 signals 的流程。
+
+---
+
+### `GET /api/system/workflow-status`
+
+PM 視角的每日工作流狀態。此 endpoint 彙整 data-status、signals/status 與 fundamentals-status，回傳「現在能不能用這份資料做交易判斷」與下一步優先行動。
+
+**回應**（`WorkflowStatus`）：
+
+```json
+{
+  "overall_status": "blocked",
+  "can_trade_today": false,
+  "headline": "今日交易前仍有必要前置工作",
+  "data_as_of": "2026-05-19",
+  "next_actions": [
+    {
+      "key": "update_data",
+      "title": "先更新日線與訊號資料",
+      "detail": "資料最新日 2026-05-19，已落後 3 天。",
+      "priority": 95,
+      "severity": "danger",
+      "action_type": "update_data",
+      "command": "python3 scripts/daily_update.py --months 1"
+    }
+  ],
+  "close_checklist": [
+    {
+      "key": "update_data",
+      "title": "更新日線 / 籌碼 / 基本面模板",
+      "detail": "確保 ohlcv、籌碼與 fundamentals 匯入流程是今天可用版本。",
+      "status": "todo",
+      "action_type": "update_data",
+      "priority": 100
+    }
+  ],
+  "portfolio_tasks": [
+    {
+      "code": "2337",
+      "name": "旺宏",
+      "action": "exit",
+      "label": "出場處理",
+      "reason": "跌破 MA10",
+      "key_price": "MA10 175",
+      "invalidation": "重新站回 MA20",
+      "priority": 100,
+      "severity": "danger",
+      "holding_shares": 1000,
+      "holding_position_pct": 18.2,
+      "journal_recorded": true
+    }
+  ],
+  "workflow_metrics": {
+    "blocker_count": 1,
+    "warning_count": 0,
+    "todo_step_count": 1,
+    "blocked_step_count": 3,
+    "done_step_count": 2,
+    "portfolio_task_count": 2,
+    "portfolio_danger_count": 1,
+    "decision_journal_today_count": 1,
+    "portfolio_tasks_without_journal_count": 1
+  },
+  "decision_guardrails": {
+    "can_use_trade_outputs": false,
+    "message": "資料最新日 2026-05-19，已落後 3 天；候選股報告、每日作戰表與技術訊號只能回顧，不可作為今天進出場依據。",
+    "blocked_outputs": ["daily_brief", "universe_report", "technical_signals"],
+    "required_action": "python3 scripts/daily_update.py --months 1"
+  },
+  "checks": {
+    "data": { "status": "success", "is_stale": true, "last_data_as_of": "2026-05-19" },
+    "signals": { "status": "idle", "reports_ready": true },
+    "fundamentals": { "complete_count": 8, "total_codes": 20, "coverage_pct": 40.0 },
+    "decision_journal": {
+      "as_of": "2026-05-19",
+      "today_count": 1,
+      "portfolio_tasks_without_journal_count": 1,
+      "missing_portfolio_codes": ["2408"],
+      "parse_error": null
+    }
+  }
+}
+```
+
+**`overall_status` 可能值**：
+- `ready`：資料、訊號、每日作戰表都可用
+- `warning`：短線可操作，但有低優先資料待補，例如基本面覆蓋不足
+- `blocked`：交易判斷前必須先處理資料過期、報表缺失或 JSON 解析失敗
+- `running`：資料更新或訊號計算正在執行中
+
+`close_checklist` 固定回傳收盤流程六步：`update_data`、`market_note`、`run_signals`、`daily_brief`、`universe_report`、`portfolio_risk`。`status` 可為 `done`、`todo`、`blocked`、`running`。
+
+`portfolio_tasks` 由 `universe_report.csv` 中目前持股列產生，排序以 `exit` / `reduce` 優先，再看 `daily_priority`。此欄位只整理既有持股任務，不另建新交易訊號。`journal_recorded` 只表示該持股待辦在 `data_as_of` 是否已有決策日誌，不代表交易已執行。
+
+`workflow_metrics` 是 Dashboard KPI，用既有 `next_actions`、`close_checklist`、`portfolio_tasks` 與決策日誌覆蓋率推導，不應另建買賣判斷。`decision_journal_today_count` 以 `data_as_of` 對齊今天持股待辦已記錄的股票數，`portfolio_tasks_without_journal_count` 代表尚未復盤記錄的持股待辦數。
+
+`decision_guardrails` 是交易輸出使用閘門。當 `can_use_trade_outputs=false` 時，前端應把 `blocked_outputs` 顯示為「只能回顧、不可作為今天交易依據」，並優先引導使用者執行 `required_action`。
+
+---
+
+### `GET /api/system/fundamentals-priority-fill`
+
+下載目前基本面優先補資料 CSV（`fundamentals_priority_fill.csv`）。內容由 `fundamental_service` 依 `fundamentals-status.next_fill_targets` 產生，供手動補齊 `fundamentals.csv` 使用。
+
+**回應**：`text/csv`
+
+---
+
+### `GET /api/system/fundamentals-status`
+
+基本面覆蓋率與補資料操作狀態。Dashboard 應使用 `priority_fill_readiness` 決定是否允許預覽或正式合併。
+
+`priority_fill_readiness.status`：
+- `not_generated`：尚未產生補資料 CSV。
+- `empty`：CSV 已產生但尚未填任何基本面欄位，可預覽，不可正式合併。
+- `invalid`：CSV 有非數字、空白代號或重複代號等錯誤，不可預覽或合併。
+- `ready_to_preview`：CSV 已有可合併欄位，可先預覽，再正式合併。
+
+**片段回應**：
+
+```json
+{
+  "coverage_pct": 0.0,
+  "priority_fill_readiness": {
+    "status": "empty",
+    "can_preview": true,
+    "can_merge": false,
+    "message": "補資料 CSV 有 20 檔，但尚未填任何基本面欄位。",
+    "suggested_action": "先填 ROE、現金流、負債、成長與估值欄位，再按預覽合併。",
+    "filled_code_count": 0,
+    "filled_field_count": 0,
+    "row_count": 20
+  }
+}
+```
+
+---
+
+### `POST /api/system/fundamentals-priority-fill/merge`
+
+預覽或正式合併 `fundamentals_priority_fill.csv` 回 `backend/data/fundamentals.csv`。正式合併後會同步匯入 `backend/data/fundamentals.json`。
+
+**請求 Body**：
+
+```json
+{ "dry_run": true, "confirm": null }
+```
+
+正式合併時需使用：
+
+```json
+{ "dry_run": false, "confirm": "MERGE_PRIORITY_FUNDAMENTALS" }
+```
+
+**回應**：
+
+```json
+{
+  "dry_run": true,
+  "updated_code_count": 1,
+  "updated_codes": ["2408"],
+  "updated_field_count": 2,
+  "added_count": 0,
+  "added_codes": [],
+  "csv_path": "/path/to/backend/data/fundamentals.csv",
+  "source": "/path/to/backend/out/fundamentals_priority_fill.csv",
+  "json_path": null,
+  "imported_count": null,
+  "validation": { "valid": true }
+}
+```
+
+---
+
+## 決策日誌
+
+### `GET /api/decision-journal`
+
+讀取最近的決策日誌。這是復盤資料，不是交易紀錄，不會改動持倉、現金或 `trades.json`。
+
+**查詢參數**：
+- `limit`：回傳筆數，預設 100，最大 500
+- `code`：選填，指定股票代號
+- `date`：選填，指定決策日期（`YYYY-MM-DD`）
+- `decision`：選填，指定決策分類；允許 `buy`、`sell`、`hold`、`skip`、`reduce`、`watch`
+
+**回應**（`DecisionJournalEntry[]`）：
+
+```json
+[
+  {
+    "id": "f0a1...",
+    "date": "2026-05-22",
+    "code": "2330",
+    "name": "台積電",
+    "decision": "hold",
+    "reason": "守住 MA10，尚未跌破關鍵支撐。",
+    "price": 2310.0,
+    "shares": 1000,
+    "key_price": "MA10 2280",
+    "invalidation": "跌破 MA10 且爆量長黑",
+    "source": "manual",
+    "created_at": "2026-05-22T15:30:00",
+    "updated_at": null,
+    "workflow_status": "ready",
+    "workflow_headline": "資料與訊號已就緒"
+  }
+]
+```
+
+---
+
+### `POST /api/decision-journal`
+
+新增一筆決策日誌。允許的 `decision`：`buy`、`sell`、`hold`、`skip`、`reduce`、`watch`。
+
+**請求 Body**：
+
+```json
+{
+  "date": "2026-05-22",
+  "code": "2330",
+  "name": "台積電",
+  "decision": "hold",
+  "reason": "守住 MA10，尚未跌破關鍵支撐。",
+  "price": 2310,
+  "shares": 1000,
+  "key_price": "MA10 2280",
+  "invalidation": "跌破 MA10 且爆量長黑"
+}
+```
+
+建立時會擷取當下 `workflow-status` 的 `overall_status` 與 `headline`，用來日後復盤。
+
+---
+
+### `GET /api/decision-journal/summary`
+
+取得指定日期的決策日誌統計。這只做復盤摘要，不推論新的買賣訊號。
+
+**查詢參數**：
+- `date`：選填，`YYYY-MM-DD`；未提供時使用目前日誌中最新日期
+
+**回應**：
+
+```json
+{
+  "date": "2026-05-22",
+  "total_count": 3,
+  "by_decision": { "hold": 1, "reduce": 2 },
+  "recent_codes": ["2303", "2408", "2337"]
+}
+```
+
+---
+
+### `PUT /api/decision-journal/{entry_id}`
+
+更新單筆決策日誌內容。更新時會保留原本 `id`、`created_at`、`workflow_status` 與 `workflow_headline`，只修改日期、代號、名稱、決策、理由、價格、股數、關鍵價與失效條件等復盤內容，並寫入 `updated_at`。
+
+**請求 Body** 同 `POST /api/decision-journal`。
+
+找不到指定 id 時回傳 404。
+
+---
+
+### `DELETE /api/decision-journal/{entry_id}`
+
+刪除單筆決策日誌。這只會移除復盤紀錄，不會改動交易紀錄、持倉、現金或訊號輸出。
+
+**回應**：
+
+```json
+{ "deleted": "f0a1..." }
+```
+
+找不到指定 id 時回傳 404。
+
+---
+
+## 錯誤格式
+
+所有錯誤回應格式統一：
+
+```json
+{ "detail": "錯誤說明文字" }
+```
+
+或含結構化細節：
+
+```json
+{ "detail": { "message": "持股不足", "available": 500, "requested": 1000 } }
+```

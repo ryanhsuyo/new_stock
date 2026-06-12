@@ -1,0 +1,32 @@
+# cron 排程範例（macOS / Linux 通用）
+#
+# 用法：
+#   1. 執行 crontab -e 打開編輯器
+#   2. 貼入下方其中一行（調整路徑後）
+#   3. 儲存退出
+#
+# 注意：
+#   - cron 在 macOS 上需要「完整磁碟存取」權限（系統設定 > 隱私與安全性 > 完整磁碟存取 > Terminal）
+#   - 建議 macOS 優先使用 setup_schedule.sh（launchd），比 cron 更可靠
+#   - PATH 在 cron 環境中通常很短，必須使用絕對路徑
+
+# ── 格式說明 ──────────────────────────────────────────────────────────────
+# 分 時 日 月 星期  指令
+# *  *  *  *  *    /path/to/command
+
+# ── 範例：每日 15:30 執行（台股收盤後） ──────────────────────────────────
+# 請將 /ABSOLUTE/PATH/TO 替換為實際路徑
+
+30 15 * * * /usr/local/bin/python3 /ABSOLUTE/PATH/TO/backend/scripts/daily_update.py --months 1 --log-file /ABSOLUTE/PATH/TO/backend/out/update.log
+
+# ── 取得絕對路徑的方式 ────────────────────────────────────────────────────
+# 在終端機執行：
+#   which python3                     → Python 路徑
+#   cd backend && pwd                 → backend 目錄絕對路徑
+
+# ── 驗證 cron 是否成功安裝 ───────────────────────────────────────────────
+#   crontab -l                        → 列出目前所有排程
+#   tail -f /path/to/backend/out/update.log   → 監看 log
+
+# ── 僅在平日執行（週一到週五） ───────────────────────────────────────────
+# 30 15 * * 1-5 /usr/local/bin/python3 /ABSOLUTE/PATH/TO/backend/scripts/daily_update.py --months 1

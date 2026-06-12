@@ -1,0 +1,36 @@
+# OS / local editor
+.DS_Store
+.env
+.env.*
+.claude/
+
+# Python caches / virtualenvs
+**/__pycache__/
+*.py[cod]
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.venv/
+venv/
+
+# Frontend dependencies / build output
+node_modules/
+frontend/node_modules/
+frontend/dist/
+frontend/.vite/
+
+# Generated outputs
+backend/out/
+
+# Legacy or local root-level data snapshots
+/data/
+
+# Local/generated market and trading data. Track only small project-required
+# config/sample files below.
+backend/data/*
+!backend/data/leaders.json
+!backend/data/stock_names.json
+!backend/data/stock_markets.json
+!backend/data/settings.json
+!backend/data/fundamentals.example.json
+!backend/data/ai_chip_supply_chain_watchlist.csv
