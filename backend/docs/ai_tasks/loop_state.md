@@ -12,9 +12,9 @@ Rules:
 
 ## Current State
 
-Active phase: none
+Active phase: D1.0
 
-Loop mode: stopped after approved phase completion
+Loop mode: active backend-only explainability phase
 
 Last completed phase:
 
@@ -22,7 +22,8 @@ Last completed phase:
 
 Current phase status:
 
-* No active phase.
+* `D1.0_daily_check_today_scan_explainability.md` is active.
+* Scope is backend/docs/tests only; do not use external data or modify frontend.
 
 ## Completed Phase History
 
@@ -75,7 +76,7 @@ Current phase status:
 
 ## Next Phase Candidates
 
-None selected. A new phase requires an explicit request or roadmap selection.
+* D1.0 — Improve Daily Check / Today Scan explainability without external data.
 
 ## Last Verification
 
@@ -105,4 +106,4 @@ None selected. A new phase requires an explicit request or roadmap selection.
 
 ## Last Stop Reason
 
-R9.2 completed; the fundamentals priority import flow now includes a generated external-data template, dry-run preview, apply command, workflow payload hints, and regression coverage. The next meaningful blocker is still real fundamentals data; do not fabricate values.
+D1.0 is active so heartbeats can continue safe backend-only development. The external fundamentals data blocker remains; do not fabricate values.

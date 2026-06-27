@@ -86,13 +86,13 @@ Hard-stop examples:
 
 ## 6. Active Phase
 
-Phase ID: none
+Phase ID: D1.0
 
-Phase name: No active phase
+Phase name: Daily Check / Today Scan Explainability
 
 Active phase file:
 
-None. R9.2 is complete; fundamentals priority import now has a template / dry-run / apply flow, and the next meaningful blocker is real external fundamentals data.
+`backend/docs/ai_tasks/D1.0_daily_check_today_scan_explainability.md`
 
 ## 7. Required Reading
 
