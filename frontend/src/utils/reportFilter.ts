@@ -12,7 +12,7 @@ export type SignalFilter =
   | 'DATA_MISSING'
 
 export type MarketFilter = 'all' | 'TWSE' | 'TPEX' | 'ETF'
-export type PlanFilter = 'all' | 'core' | 'old_wang' | 'buffett' | 'confluence' | 'no_entry'
+export type PlanFilter = 'all' | 'steady_momentum' | 'old_wang' | 'confluence' | 'no_entry'
 export type HoldingFilter = 'all' | 'holding' | 'not_holding'
 
 export function hasOldWangTag(item: UniverseReportItem): boolean {
@@ -23,13 +23,16 @@ export function hasCoreEntry(item: UniverseReportItem): boolean {
   return item.internal_signal === 'entry_confirmed' || item.internal_signal === 'ready_to_enter'
 }
 
+export function hasSteadyMomentum(item: UniverseReportItem): boolean {
+  return item.steady_momentum_flag === true || item.steady_momentum_tag === 'steady_momentum_v1'
+}
+
 export function resolvePlan(item: UniverseReportItem): Exclude<PlanFilter, 'all'> {
-  const core = hasCoreEntry(item)
+  const steadyMomentum = hasSteadyMomentum(item)
   const oldWang = hasOldWangTag(item)
-  if (core && oldWang) return 'confluence'
-  if (core) return 'core'
+  if (steadyMomentum && oldWang) return 'confluence'
+  if (steadyMomentum) return 'steady_momentum'
   if (oldWang) return 'old_wang'
-  if (item.buffett_flag) return 'buffett'
   return 'no_entry'
 }
 

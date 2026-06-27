@@ -38,17 +38,63 @@ Hard rules:
 
 Do not stop after completing only one small item unless a Stop Condition applies.
 
-## 4. Active Phase
+## 4. Auto-Loop Protocol
 
-Phase ID: H2.5
+When the active phase is complete, do not stop by default.
 
-Phase name: Homepage Contract & Documentation Reconciliation
+Instead:
+
+1. Update the completed phase status and checklist.
+2. Read `backend/docs/homepage_pm_roadmap.md`.
+3. Read `backend/docs/ai_tasks/loop_state.md`.
+4. Pick the next highest-priority incomplete roadmap item that can be done safely.
+5. Create a compact phase file under `backend/docs/ai_tasks/`.
+6. Update Active Phase in this file.
+7. Update `backend/docs/ai_tasks/loop_state.md`.
+8. Continue from the first `Status: todo` task in the new phase.
+
+If there are multiple reasonable next phases, choose the one with the smallest safe product value slice.
+
+Do not auto-loop into work that needs:
+
+* A product decision.
+* Large refactoring.
+* New dependencies.
+* Changes to trades, holdings, cash, or formal trading records.
+* Manual editing of generated `backend/out/*` files.
+
+## 5. Soft-Block Protocol
+
+Some tasks are useful but not required to keep progress moving.
+
+If an optional task is blocked, mark it `Status: soft-blocked`, record the reason, and continue to the next safe task or phase.
+
+Soft-block examples:
+
+* Browser screenshot access is denied.
+* Mobile viewport control is unavailable.
+* A visual check cannot run, but `npm run build` still passes.
+* A documentation-only improvement has no live data to demonstrate.
+
+Hard-stop examples:
+
+* Backend tests fail and the safe fix is unclear.
+* Frontend build fails.
+* A task risks modifying trades, holdings, cash, or private data.
+* A product decision is required.
+* A required dependency, credential, or permission is missing for core functionality.
+
+## 6. Active Phase
+
+Phase ID: none
+
+Phase name: No active phase
 
 Active phase file:
 
-`backend/docs/ai_tasks/H2.5_homepage_contract.md`
+None. R9.2 is complete; fundamentals priority import now has a template / dry-run / apply flow, and the next meaningful blocker is real external fundamentals data.
 
-## 5. Required Reading
+## 7. Required Reading
 
 Before changing code, read:
 
@@ -58,22 +104,23 @@ Before changing code, read:
 * `backend/docs/signal_rules.md`
 * `backend/docs/homepage_pm_roadmap.md`
 * `backend/docs/ai_execution_plan.md`
+* `backend/docs/ai_tasks/loop_state.md`
 * Active phase file listed above
 
 Task files should reference these docs instead of copying their full content.
 
-## 6. Stop Conditions
+## 8. Stop Conditions
 
 Stop and report if:
 
-* All tasks in the active phase are complete.
 * A product decision is required.
 * A test/build failure occurs and the safe fix is unclear.
 * Required local data, credentials, or permissions are missing.
 * The change would require large refactoring outside the active phase.
 * Git baseline is missing and it is unclear whether `backend/data/**` or generated files should be tracked.
+* No safe next phase can be selected after reading the roadmap and loop state.
 
-## 7. Report Format
+## 9. Report Format
 
 When stopping, report:
 
@@ -84,7 +131,7 @@ When stopping, report:
 * Remaining tasks
 * Suggested next prompt or commit message
 
-## 8. File Size Rule
+## 10. File Size Rule
 
 * Keep each AI-facing markdown file under 200 lines.
 * If a file approaches 200 lines, split details into `backend/docs/ai_tasks/*.md`.

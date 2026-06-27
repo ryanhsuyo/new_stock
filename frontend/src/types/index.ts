@@ -7,6 +7,8 @@ export interface ChipMetrics {
   major_investor_net_buy: number | null
 }
 
+export type RecommendationStrategy = 'steady_momentum' | 'old_wang'
+
 export type DailyChecklistStatus = 'pass' | 'warn' | 'fail' | 'info'
 export type DailyChecklistCategory = 'market' | 'setup' | 'risk' | 'action' | string
 
@@ -296,7 +298,11 @@ export interface TodayFocusItem {
   name: string
   label: string
   reason: string
+  short_reason?: string
+  detail_reason?: string
   next_action: string
+  action_label?: string
+  primary_metric?: string
   severity: 'danger' | 'warning' | 'info' | 'success' | string
   source: 'portfolio' | 'universe_report' | 'daily_check' | 'pm_worklist' | 'workflow' | string
   price_basis: string
@@ -328,6 +334,7 @@ export interface DailyCheckAction {
     endpoint?: string
     dry_run?: boolean
     confirm_message?: string
+    preview_items?: string[]
     expected_outputs?: string[]
   }
 }
@@ -509,17 +516,22 @@ export interface StockRecommendation {
   old_wang_volume_high_price: number | null
   old_wang_all_ma_reclaim: boolean | null
   old_wang_parabolic_ma10_hold: boolean | null
-  buffett_flag: boolean | null
-  buffett_tag: string | null
-  buffett_score: number | null
-  buffett_signal: string | null
-  buffett_reason: string | null
-  buffett_data_ok: boolean | null
-  buffett_data_missing_reason: string | null
-  buffett_quality_score: number | null
-  buffett_value_score: number | null
-  buffett_safety_score: number | null
-  buffett_growth_score: number | null
+  steady_momentum_flag: boolean | null
+  steady_momentum_tag: string | null
+  steady_momentum_score: number | null
+  steady_momentum_signal: string | null
+  steady_momentum_reason: string | null
+  fundamental_flag: boolean | null
+  fundamental_tag: string | null
+  fundamental_score: number | null
+  fundamental_signal: string | null
+  fundamental_reason: string | null
+  fundamental_data_ok: boolean | null
+  fundamental_data_missing_reason: string | null
+  fundamental_quality_score: number | null
+  fundamental_value_score: number | null
+  fundamental_safety_score: number | null
+  fundamental_growth_score: number | null
   daily_checklist?: DailyChecklistItem[]
 }
 
@@ -750,6 +762,11 @@ export interface StockAnalysis {
   old_wang_volume_high_price?: number | null
   old_wang_all_ma_reclaim?: boolean
   old_wang_parabolic_ma10_hold?: boolean
+  steady_momentum_flag?: boolean
+  steady_momentum_tag?: string | null
+  steady_momentum_score?: number | null
+  steady_momentum_signal?: string
+  steady_momentum_reason?: string
   daily_action?: string
   daily_action_label?: string
   daily_action_identity?: string
@@ -949,19 +966,19 @@ export interface FundamentalsPriorityMergeResult {
   }>
   warning_count?: number
   warnings?: Array<Record<string, unknown>>
-  buffett_preview?: Array<{
+  fundamental_preview?: Array<{
     code: string
     name: string
-    buffett_flag: boolean
-    buffett_score?: number | null
-    buffett_signal?: string | null
-    buffett_data_ok: boolean
-    buffett_reason?: string | null
-    buffett_data_missing_reason?: string | null
-    buffett_quality_score?: number | null
-    buffett_value_score?: number | null
-    buffett_safety_score?: number | null
-    buffett_growth_score?: number | null
+    fundamental_flag: boolean
+    fundamental_score?: number | null
+    fundamental_signal?: string | null
+    fundamental_data_ok: boolean
+    fundamental_reason?: string | null
+    fundamental_data_missing_reason?: string | null
+    fundamental_quality_score?: number | null
+    fundamental_value_score?: number | null
+    fundamental_safety_score?: number | null
+    fundamental_growth_score?: number | null
   }>
   signals_refresh_required?: boolean
   next_action_label?: string | null
@@ -1155,17 +1172,22 @@ export interface UniverseReportItem {
   old_wang_volume_high_price?: number | null
   old_wang_all_ma_reclaim?: boolean
   old_wang_parabolic_ma10_hold?: boolean
-  buffett_flag?: boolean
-  buffett_tag?: string
-  buffett_score?: number | null
-  buffett_signal?: string
-  buffett_reason?: string
-  buffett_data_ok?: boolean
-  buffett_data_missing_reason?: string
-  buffett_quality_score?: number | null
-  buffett_value_score?: number | null
-  buffett_safety_score?: number | null
-  buffett_growth_score?: number | null
+  steady_momentum_flag?: boolean
+  steady_momentum_tag?: string | null
+  steady_momentum_score?: number | null
+  steady_momentum_signal?: string
+  steady_momentum_reason?: string
+  fundamental_flag?: boolean
+  fundamental_tag?: string
+  fundamental_score?: number | null
+  fundamental_signal?: string
+  fundamental_reason?: string
+  fundamental_data_ok?: boolean
+  fundamental_data_missing_reason?: string
+  fundamental_quality_score?: number | null
+  fundamental_value_score?: number | null
+  fundamental_safety_score?: number | null
+  fundamental_growth_score?: number | null
   daily_action?: string
   daily_action_label?: string
   daily_action_identity?: string

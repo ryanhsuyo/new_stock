@@ -5,6 +5,11 @@ def test_daily_brief_groups_keep_strong_no_chase_and_trim_weak():
     summary = {
         "as_of": "2026-05-14",
         "generated_at": "2026-05-14T15:20:00",
+        "rules_version": "rules-test",
+        "rules_metadata": {
+            "version": "rules-test",
+            "strategy_profile": "two_strategy_daily_v1",
+        },
         "universe_size": 5,
         "data_ok_count": 4,
         "data_missing_count": 1,
@@ -38,7 +43,7 @@ def test_daily_brief_groups_keep_strong_no_chase_and_trim_weak():
                 "data_missing": False,
                 "internal_signal": "watchlist",
                 "strategy_alignment": "strong_alignment",
-                "aligned_strategies": ["old_wang", "buffett"],
+                "aligned_strategies": ["old_wang", "fundamentals"],
                 "strategy_conflict_notes": [],
                 "old_wang_flag": True,
                 "old_wang_score": 96,
@@ -56,7 +61,12 @@ def test_daily_brief_groups_keep_strong_no_chase_and_trim_weak():
                 "stop_price": 312.1,
                 "target_price": 353.0,
                 "price_plan_note": "高檔強勢股，持有者看 MA10，不追價",
-                "buffett_data_ok": False,
+                "support_source": "recent_20d_low",
+                "resistance_source": "recent_20d_high",
+                "entry_source": "",
+                "stop_source": "MA10",
+                "target_source": "resistance_price",
+                "fundamental_data_ok": False,
             },
             {
                 "code": "2472",
@@ -82,7 +92,12 @@ def test_daily_brief_groups_keep_strong_no_chase_and_trim_weak():
                 "stop_price": 62.0,
                 "target_price": 74.0,
                 "price_plan_note": "等回測 MA10 且守住再評估",
-                "buffett_data_ok": False,
+                "support_source": "recent_20d_low",
+                "resistance_source": "recent_20d_high",
+                "entry_source": "MA20",
+                "stop_source": "support_price",
+                "target_source": "resistance_price",
+                "fundamental_data_ok": False,
             },
             {
                 "code": "2344",
@@ -108,7 +123,12 @@ def test_daily_brief_groups_keep_strong_no_chase_and_trim_weak():
                 "stop_price": 110.0,
                 "target_price": 136.0,
                 "price_plan_note": "等回測 MA5 / MA10，不追價",
-                "buffett_data_ok": False,
+                "support_source": "recent_20d_low",
+                "resistance_source": "recent_20d_high",
+                "entry_source": "MA20",
+                "stop_source": "MA20",
+                "target_source": "resistance_price",
+                "fundamental_data_ok": False,
             },
             {
                 "code": "3324",
@@ -118,7 +138,7 @@ def test_daily_brief_groups_keep_strong_no_chase_and_trim_weak():
                 "internal_signal": "exit_warning",
                 "strategy_alignment": "conflict",
                 "aligned_strategies": ["old_wang"],
-                "strategy_conflict_notes": ["核心技術已轉風險，老王訊號不可覆蓋出場"],
+                "strategy_conflict_notes": ["內部技術訊號已轉風險，老王訊號不可覆蓋出場"],
                 "score": 42,
                 "no_buy_reason": "收盤跌破 MA60，長線偏空",
                 "daily_action": "exit",
@@ -130,7 +150,12 @@ def test_daily_brief_groups_keep_strong_no_chase_and_trim_weak():
                 "stop_price": 1042.8,
                 "target_price": 1120.0,
                 "price_plan_note": "長線破線，先處理風險",
-                "buffett_data_ok": False,
+                "support_source": "recent_20d_low",
+                "resistance_source": "recent_20d_high",
+                "entry_source": "",
+                "stop_source": "MA60",
+                "target_source": "resistance_price",
+                "fundamental_data_ok": False,
             },
             {
                 "code": "00919",
@@ -157,13 +182,20 @@ def test_daily_brief_groups_keep_strong_no_chase_and_trim_weak():
                 "stop_price": None,
                 "target_price": None,
                 "price_plan_note": "條件不足，暫不建立部位",
-                "buffett_data_ok": False,
+                "support_source": "",
+                "resistance_source": "",
+                "entry_source": "",
+                "stop_source": "",
+                "target_source": "",
+                "fundamental_data_ok": False,
             },
         ],
     }
 
     brief = build_daily_brief(summary)
 
+    assert brief["rules_version"] == "rules-test"
+    assert brief["rules_metadata"]["strategy_profile"] == "two_strategy_daily_v1"
     assert brief["position_guidance"]["target_level"] == "五成"
     assert brief["manual_playbook"]["target_position_pct"] == 50
     assert brief["manual_playbook"]["focus_sectors"] == ["記憶體"]
@@ -173,6 +205,7 @@ def test_daily_brief_groups_keep_strong_no_chase_and_trim_weak():
     assert review["items"][0]["decision_hint"] == "續抱觀察"
     assert review["items"][1]["bucket"] == "wait_pullback"
     assert review["items"][1]["entry_plan"] == "116 - 121"
+    assert review["items"][1]["entry_source"] == "MA20"
     assert review["items"][2]["found"] is False
     assert review["items"][2]["decision_hint"] == "不在追蹤清單"
     assert review["summary"]["continue_hold_count"] == 1
@@ -182,10 +215,11 @@ def test_daily_brief_groups_keep_strong_no_chase_and_trim_weak():
     assert {"2408", "2472"}.issubset({item["code"] for item in brief["no_chase"]})
     assert brief["trim_weak"][0]["code"] == "3324"
     assert brief["sector_focus"][0]["sector"] == "記憶體面板"
-    assert brief["buffett_status"]["missing"] == 5
+    assert brief["fundamental_status"]["missing"] == 5
     assert {item["code"] for item in brief["rotation_plan"]["continue_hold"]} == {"2408"}
     assert {item["code"] for item in brief["rotation_plan"]["wait_pullback"]} == {"2344", "2472"}
     assert brief["rotation_plan"]["priority_reduce"][0]["code"] == "3324"
+    assert brief["rotation_plan"]["priority_reduce"][0]["stop_source"] == "MA60"
     assert {item["code"] for item in brief["rotation_plan"]["avoid_no_chase"]} == {"00919"}
     assert brief["rotation_plan"]["summary"]["priority_reduce_count"] == 1
     rotation_codes = []
@@ -199,6 +233,8 @@ def test_daily_brief_groups_keep_strong_no_chase_and_trim_weak():
     assert task_by_code["2408"]["exit_plan"] == "目標/壓力 353"
     assert task_by_code["2472"]["bucket"] == "wait_pullback"
     assert task_by_code["2472"]["entry_plan"] == "64 - 68"
+    assert task_by_code["2472"]["entry_source"] == "MA20"
+    assert task_by_code["2472"]["stop_source"] == "support_price"
     assert task_by_code["3324"]["bucket"] == "priority_reduce"
     assert task_by_code["3324"]["trigger_action"] == "出場處理"
     assert task_by_code["00919"]["bucket"] == "avoid_no_chase"

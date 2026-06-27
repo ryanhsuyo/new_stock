@@ -185,7 +185,8 @@ def _build_close_checklist(
     signal_status: dict,
     reports_ready: bool,
 ) -> list[dict]:
-    data_running = data_status.get("last_run_status") == "running"
+    data_run_status = data_status.get("last_run_status")
+    data_running = data_run_status == "running"
     signals_running = signal_status.get("run_status") == "running"
     summary_ready = _file_exists(signal_status, "summary_json") and not _file_parse_error(signal_status, "summary_json")
     daily_ready = (
@@ -196,7 +197,8 @@ def _build_close_checklist(
     universe_ready = _file_exists(signal_status, "universe_report_csv") and not _file_parse_error(signal_status, "universe_report_csv")
     note_status = signal_status.get("manual_note_status") or {}
 
-    data_step = "running" if data_running else ("todo" if data_status.get("is_stale") or data_status.get("last_run_status") == "failed" else "done")
+    data_needs_update = data_status.get("is_stale") or data_run_status in {"failed", "stalled"}
+    data_step = "running" if data_running else ("todo" if data_needs_update else "done")
     note_step = "todo" if note_status.get("update_required") else "done"
     signal_step = "running" if signals_running else ("done" if reports_ready else "todo")
     daily_step = "done" if daily_ready else ("blocked" if not summary_ready or data_step in ("todo", "running") else "todo")
@@ -554,7 +556,16 @@ def _build_readiness_review(
 
     data_as_of = data_status.get("last_data_as_of") or "未知"
     stale_days = data_status.get("stale_days")
-    if data_status.get("last_run_status") == "failed":
+    data_run_status = data_status.get("last_run_status")
+    if data_run_status == "stalled":
+        data_section = _review_section(
+            "data",
+            "資料日",
+            "blocked",
+            data_status.get("last_error_summary") or data_status.get("last_error") or "資料更新執行過久，可能已中斷；請重新啟動每日更新。",
+            "restart_stalled_update",
+        )
+    elif data_run_status == "failed":
         data_section = _review_section(
             "data",
             "資料日",
@@ -674,14 +685,14 @@ def _build_readiness_review(
     if total <= 0 or complete >= total:
         fundamental_section = _review_section(
             "fundamentals",
-            "巴菲特基本面",
+            "基本面避雷資料",
             "ready",
             f"基本面完整 {complete}/{total} 檔，覆蓋率 {coverage:.1f}%。",
         )
     elif fill_readiness.get("status") == "invalid":
         fundamental_section = _review_section(
             "fundamentals",
-            "巴菲特基本面",
+            "基本面避雷資料",
             "blocked",
             "priority CSV 有格式問題，需先修正後再預覽合併。",
             "fix_fundamentals_csv",
@@ -689,7 +700,7 @@ def _build_readiness_review(
     elif fill_readiness.get("can_merge"):
         fundamental_section = _review_section(
             "fundamentals",
-            "巴菲特基本面",
+            "基本面避雷資料",
             "warning",
             f"已有 {int(fill_readiness.get('complete_code_count') or 0)} 檔可合併，合併後需重跑訊號。",
             "merge_fundamentals",
@@ -697,7 +708,7 @@ def _build_readiness_review(
     else:
         fundamental_section = _review_section(
             "fundamentals",
-            "巴菲特基本面",
+            "基本面避雷資料",
             "warning",
             f"基本面完整 {complete}/{total} 檔，覆蓋率 {coverage:.1f}%。",
             "fill_fundamentals",
@@ -769,7 +780,8 @@ def get_workflow_status() -> dict:
     hard_blocked = False
     running = False
 
-    data_running = data_status.get("last_run_status") == "running"
+    data_run_status = data_status.get("last_run_status")
+    data_running = data_run_status == "running"
     signals_running = signal_status.get("run_status") == "running"
     if data_running or signals_running:
         running = True
@@ -782,7 +794,20 @@ def get_workflow_status() -> dict:
             action_type="wait",
         ))
 
-    if data_status.get("last_run_status") == "failed":
+    if data_run_status == "stalled":
+        hard_blocked = True
+        actions.append(_action(
+            key="restart_stalled_update",
+            title="資料更新可能卡住，重新啟動",
+            detail=data_status.get("last_error_summary") or data_status.get("last_error") or "資料更新執行過久，可能已中斷；請重新啟動每日更新。",
+            priority=99,
+            severity="danger",
+            action_type="update_data",
+            command="python3 scripts/daily_update.py --months 1",
+            success_check="確認 data_as_of 更新到最新交易日，且 summary.json / universe_report.csv / daily_brief.json 都已重新產生。",
+            expected_outputs=DAILY_UPDATE_OUTPUTS,
+        ))
+    elif data_run_status == "failed":
         hard_blocked = True
         actions.append(_action(
             key="fix_data_update",
@@ -940,7 +965,7 @@ def get_workflow_status() -> dict:
             issue = _format_fundamentals_csv_issue(priority_validation)
             actions.append(_action(
                 key="fix_fundamentals_csv",
-                title="修正巴菲特補資料 CSV",
+                title="修正基本面避雷補資料 CSV",
                 detail=f"{issue}。修正後再預覽合併。",
                 priority=63,
                 severity="danger",
@@ -952,8 +977,8 @@ def get_workflow_status() -> dict:
             label = fill_guide.get("next_action_label") or f"可先預覽合併 {ready_count} 檔"
             actions.append(_action(
                 key="merge_fundamentals",
-                title="合併巴菲特基本面補資料",
-                detail=f"{label}；合併後需重新產生訊號，Buffett 候選才會進正式 summary / report。",
+                title="合併基本面避雷補資料",
+                detail=f"{label}；合併後需重新產生訊號，基本面避雷結果才會進正式 summary / report。",
                 priority=62,
                 severity="warning",
                 action_type="fundamentals",
@@ -963,7 +988,7 @@ def get_workflow_status() -> dict:
             suggestion = fill_readiness.get("suggested_action") or "先補齊優先 CSV，再預覽合併。"
             actions.append(_action(
                 key="fill_fundamentals",
-                title="補齊巴菲特基本面資料",
+                title="補齊基本面避雷資料",
                 detail=f"目前完整 {complete}/{total} 檔，覆蓋率 {coverage:.1f}%。{suggestion}",
                 priority=35,
                 severity="warning",

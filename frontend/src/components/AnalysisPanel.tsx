@@ -90,7 +90,7 @@ function getStrategyPlan(data: StockAnalysis) {
       title: '雙重共振',
       cls: 'plan-strong',
       advice: data.signal === 'entry_confirmed' ? '可小量試單' : '等區間分批',
-      detail: '核心買點 + 老王均線支撐',
+      detail: '日線買點 + 老王均線支撐',
     }
   }
   if (oldWang) {
@@ -107,7 +107,7 @@ function getStrategyPlan(data: StockAnalysis) {
   }
   if (core) {
     return {
-      title: '核心策略',
+      title: '日線買點',
       cls: 'plan-core',
       advice: data.signal === 'entry_confirmed' ? '可小量試單' : '等區間分批',
       detail: data.price_plan_note || '依進場區間執行',

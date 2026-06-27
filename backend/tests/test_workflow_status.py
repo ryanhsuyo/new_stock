@@ -8,6 +8,7 @@ PM 視角：Dashboard 不只顯示檔案狀態，也要能告訴使用者目前�
 
 def test_workflow_status_prioritizes_stale_data(client, monkeypatch):
     import app.services.workflow_service as svc
+    from app.services.workflow_outputs import DAILY_UPDATE_OUTPUTS
 
     monkeypatch.setattr(svc, "get_data_status", lambda: {
         "last_run_status": "success",
@@ -40,14 +41,7 @@ def test_workflow_status_prioritizes_stale_data(client, monkeypatch):
     assert body["next_actions"][0]["key"] == "update_data"
     assert body["next_actions"][0]["action_type"] == "update_data"
     assert body["next_actions"][0]["success_check"] == "確認 data_as_of 更新到最新交易日，且 summary.json / universe_report.csv / daily_brief.json 都已重新產生。"
-    assert body["next_actions"][0]["expected_outputs"] == [
-        "backend/data/ohlcv.csv",
-        "backend/out/update_status.json",
-        "backend/out/summary.json",
-        "backend/out/universe_report.csv",
-        "backend/out/daily_brief.json",
-        "backend/out/daily_check.json",
-    ]
+    assert body["next_actions"][0]["expected_outputs"] == DAILY_UPDATE_OUTPUTS
     assert body["next_actions"][0]["action_payload"] == {
         "kind": "command",
         "command": "python3 scripts/daily_update.py --months 1",
@@ -59,14 +53,7 @@ def test_workflow_status_prioritizes_stale_data(client, monkeypatch):
     assert "universe_report" in body["decision_guardrails"]["blocked_outputs"]
     assert "technical_signals" in body["decision_guardrails"]["blocked_outputs"]
     assert "資料最新日 2026-05-19" in body["decision_guardrails"]["message"]
-    assert body["decision_guardrails"]["required_action_expected_outputs"] == [
-        "backend/data/ohlcv.csv",
-        "backend/out/update_status.json",
-        "backend/out/summary.json",
-        "backend/out/universe_report.csv",
-        "backend/out/daily_brief.json",
-        "backend/out/daily_check.json",
-    ]
+    assert body["decision_guardrails"]["required_action_expected_outputs"] == DAILY_UPDATE_OUTPUTS
     assert body["decision_guardrails"]["action_payload"] == {
         "kind": "command",
         "command": "python3 scripts/daily_update.py --months 1",
@@ -84,8 +71,46 @@ def test_workflow_status_prioritizes_stale_data(client, monkeypatch):
     }
 
 
+def test_workflow_status_treats_stalled_update_as_blocker(client, monkeypatch):
+    import app.services.workflow_service as svc
+
+    monkeypatch.setattr(svc, "get_data_status", lambda: {
+        "last_run_status": "stalled",
+        "last_run_started_at": "2026-06-25T00:00:00",
+        "last_data_as_of": "2026-06-24",
+        "is_stale": False,
+        "stale_days": 1,
+        "last_error_summary": "資料更新執行超過 2 小時，可能已中斷",
+    })
+    monkeypatch.setattr(svc, "get_signals_status", lambda: {
+        "run_status": "idle",
+        "run_error": None,
+        "manual_note_status": None,
+        "out_files": {
+            "summary_json": {"exists": True, "parse_error": None},
+            "universe_report_csv": {"exists": True},
+            "daily_brief_json": {"exists": True, "update_required": False, "parse_error": None},
+        },
+    })
+    monkeypatch.setattr(svc, "get_fundamentals_status", lambda: {
+        "total_codes": 10,
+        "complete_count": 10,
+        "coverage_pct": 100.0,
+    })
+    monkeypatch.setattr(svc, "get_universe_report_json", lambda: [])
+
+    body = client.get("/api/system/workflow-status").json()
+
+    assert body["overall_status"] == "blocked"
+    assert body["can_trade_today"] is False
+    assert body["next_actions"][0]["key"] == "restart_stalled_update"
+    assert body["next_actions"][0]["title"] == "資料更新可能卡住，重新啟動"
+    assert body["next_actions"][0]["severity"] == "danger"
+
+
 def test_workflow_status_flags_missing_reports(client, monkeypatch):
     import app.services.workflow_service as svc
+    from app.services.workflow_outputs import SIGNAL_OUTPUTS
 
     monkeypatch.setattr(svc, "get_data_status", lambda: {
         "last_run_status": "success",
@@ -117,12 +142,7 @@ def test_workflow_status_flags_missing_reports(client, monkeypatch):
     assert body["next_actions"][0]["key"] == "run_signals"
     assert body["next_actions"][0]["action_type"] == "run_signals"
     assert body["next_actions"][0]["success_check"] == "確認 summary.json、universe_report.csv、daily_brief.json 都存在且可解析。"
-    assert body["next_actions"][0]["expected_outputs"] == [
-        "backend/out/summary.json",
-        "backend/out/universe_report.csv",
-        "backend/out/daily_brief.json",
-        "backend/out/daily_check.json",
-    ]
+    assert body["next_actions"][0]["expected_outputs"] == SIGNAL_OUTPUTS
     assert body["readiness_review"]["top_blocker_key"] == "reports"
     assert body["readiness_review"]["sections"][1]["status"] == "blocked"
     assert body["readiness_review"]["sections"][1]["next_action_key"] == "run_signals"
@@ -130,6 +150,7 @@ def test_workflow_status_flags_missing_reports(client, monkeypatch):
 
 def test_workflow_status_blocks_when_output_dates_lag_data(client, monkeypatch):
     import app.services.workflow_service as svc
+    from app.services.workflow_outputs import SIGNAL_OUTPUTS
 
     monkeypatch.setattr(svc, "get_data_status", lambda: {
         "last_run_status": "success",
@@ -168,12 +189,7 @@ def test_workflow_status_blocks_when_output_dates_lag_data(client, monkeypatch):
     assert body["decision_guardrails"]["required_action_copy_command"].endswith(
         "backend\npython3 scripts/run_signals.py"
     )
-    assert body["decision_guardrails"]["required_action_expected_outputs"] == [
-        "backend/out/summary.json",
-        "backend/out/universe_report.csv",
-        "backend/out/daily_brief.json",
-        "backend/out/daily_check.json",
-    ]
+    assert body["decision_guardrails"]["required_action_expected_outputs"] == SIGNAL_OUTPUTS
     assert body["decision_guardrails"]["action_payload"] == {
         "kind": "command",
         "command": "python3 scripts/run_signals.py",
@@ -344,7 +360,7 @@ def test_workflow_status_promotes_ready_fundamentals_merge_action(client, monkey
     body = client.get("/api/system/workflow-status").json()
 
     action = next(item for item in body["next_actions"] if item["key"] == "merge_fundamentals")
-    assert action["title"] == "合併巴菲特基本面補資料"
+    assert action["title"] == "合併基本面避雷補資料"
     assert "2 檔" in action["detail"]
     assert action["command"] == "POST /api/system/fundamentals-priority-fill/merge"
     assert action["action_payload"] == {

@@ -21,23 +21,33 @@ signals_service.py — 日訊號計算服務（v2：支撐壓力 + 長短線趨�
 """
 
 import csv
+import hashlib
 import json
+import logging
+import multiprocessing
+import os
 import re
 import threading
 from collections import Counter
+from collections.abc import Mapping
 from datetime import datetime, timedelta
 from pathlib import Path
 
 from app.services.pattern_service import detect_pattern as _detect_pattern
-from app.services.buffett_service import BUFFETT_NAME, BUFFETT_TAG, evaluate_buffett_indicator
+from app.services.fundamental_guard_service import evaluate_fundamental_guard
 from app.services.daily_brief_service import write_daily_brief
 from app.services.fundamental_service import write_fundamentals_report, write_priority_fill_csv
+from app.services.rules_metadata_service import RULES_VERSION, build_rules_metadata
+from app.services.signal_alert_service import write_signal_alerts
+from app.services.signal_snapshot_service import write_snapshot_and_review
+from app.services.today_scan_service import write_today_scan_report
 from app.storage.chip_store import get_chip_metrics
 from app.storage.fundamental_store import load_fundamentals
 from app.storage.fundamental_store import FUNDAMENTALS_PATH
 from app.storage.atomic_write import atomic_write_text
 from app.storage.json_store import load_trades
 from app.storage.name_store import load_stock_names
+from app.storage.market_store import derive_market, load_stock_markets
 from app.storage.settings_store import load_trading_settings
 
 # ---------------------------------------------------------------------------
@@ -59,9 +69,14 @@ RSI_PERIOD  = 14
 SR_LOOKBACK = 20     # 支撐壓力回看天數（不含今日）
 BENCHMARK_CODE = "0050"  # 第一版以台灣 50 ETF 代理大盤環境 / 相對強度
 CORE_STRATEGY_ID = "core_technical_v2"
-CORE_STRATEGY_NAME = "核心技術策略V2"
 OLD_WANG_TAG = "old_wang_market_chip_rotation"
 OLD_WANG_TAG_NAME = "老王大盤籌碼輪動"
+STEADY_MOMENTUM_TAG = "steady_momentum_v1"
+STEADY_MOMENTUM_NAME = "穩健動能策略"
+DEFAULT_SIGNAL_STOCK_TIMEOUT_SECONDS = 20.0
+OLD_WANG_MA10_TOLERANCE_PCT = 0.002
+
+log = logging.getLogger(__name__)
 
 # 內部 7 狀態 → (外部 signal, entry_type)
 _EXT_MAP: dict[str, tuple[str, str]] = {
@@ -78,6 +93,7 @@ _EXT_MAP: dict[str, tuple[str, str]] = {
 # universe_report.csv 欄位順序（新 + 舊相容）
 _REPORT_FIELDS = [
     "code", "name", "data_ok", "data_missing",
+    "calculation_status", "calculation_error",
     "signal", "internal_signal", "entry_type", "score",
     "trend_score", "entry_score", "risk_score",
     "position_size_pct", "position_size_note",
@@ -99,11 +115,13 @@ _REPORT_FIELDS = [
     "old_wang_previous_high_state", "old_wang_previous_high_price",
     "old_wang_volume_high_breakout", "old_wang_volume_high_price",
     "old_wang_all_ma_reclaim", "old_wang_parabolic_ma10_hold",
-    "buffett_flag", "buffett_tag", "buffett_score", "buffett_signal",
-    "buffett_reason", "buffett_data_ok", "buffett_data_missing_reason",
-    "buffett_quality_score", "buffett_value_score", "buffett_safety_score",
-    "buffett_growth_score", "buffett_data_completeness_pct",
-    "buffett_missing_fields", "buffett_scored_groups",
+    "steady_momentum_flag", "steady_momentum_tag", "steady_momentum_score",
+    "steady_momentum_signal", "steady_momentum_reason",
+    "fundamental_flag", "fundamental_tag", "fundamental_score", "fundamental_signal",
+    "fundamental_reason", "fundamental_data_ok", "fundamental_data_missing_reason",
+    "fundamental_quality_score", "fundamental_value_score", "fundamental_safety_score",
+    "fundamental_growth_score", "fundamental_data_completeness_pct",
+    "fundamental_missing_fields", "fundamental_scored_groups",
     "daily_action", "daily_action_label", "daily_action_identity",
     "daily_action_reason", "daily_key_price", "daily_invalidation",
     "daily_priority", "daily_checklist",
@@ -111,6 +129,8 @@ _REPORT_FIELDS = [
     "entry_price_low", "entry_price_high",
     "stop_price", "target_price", "risk_pct", "reward_pct", "reward_risk_ratio",
     "price_plan_note",
+    "support_source", "resistance_source",
+    "entry_source", "stop_source", "target_source",
     "support_price", "resistance_price",
     "pattern_type", "pattern_status",
     "no_buy_reason", "risk_note",
@@ -230,15 +250,15 @@ def get_universe_report_json() -> list[dict] | None:
         "old_wang_volume_low_support", "old_wang_previous_high_risk",
         "old_wang_volume_high_breakout", "old_wang_all_ma_reclaim",
         "old_wang_parabolic_ma10_hold",
-        "buffett_flag", "buffett_data_ok",
+        "fundamental_flag", "fundamental_data_ok",
     }
     int_fields   = {"score", "trend_score", "entry_score", "risk_score", "volume",
                     "position_size_pct", "holding_shares",
                     "relative_strength_score", "old_wang_score", "sector_score",
                     "old_wang_ma_break_count", "old_wang_raw_score",
-                    "buffett_score", "buffett_quality_score", "buffett_value_score",
-                    "buffett_safety_score", "buffett_growth_score",
-                    "buffett_data_completeness_pct", "daily_priority"}
+                    "fundamental_score", "fundamental_quality_score", "fundamental_value_score",
+                    "fundamental_safety_score", "fundamental_growth_score",
+                    "fundamental_data_completeness_pct", "daily_priority"}
     float_fields = {"close", "ma5", "ma10", "ma20", "ma60", "rsi14", "vol_ratio",
                     "entry_price_low", "entry_price_high",
                     "support_price", "resistance_price",
@@ -530,11 +550,13 @@ def _load_positions() -> dict:
                     "shares": remaining,
                     "avg_cost": round(stat["cost"] / stat["shares"], 2),
                 }
-    except Exception as exc:
-        print(f"[WARN] trades 持股推算失敗，改用 positions.json 備援: {exc}")
 
-    if holdings:
         return {"cash": 0, "holdings": holdings, "source": "trades"}
+    except Exception as exc:
+        log.warning(
+            "trades position calculation failed; trying positions.json fallback: %s",
+            exc,
+        )
 
     if POSITIONS_PATH.exists():
         with POSITIONS_PATH.open(encoding="utf-8") as f:
@@ -690,31 +712,45 @@ def _reward_risk(
     resistance_price: float | None,
     ma20: float | None,
     ma60: float | None,
-) -> tuple[float | None, float | None, float | None, float | None, float | None]:
+) -> tuple[
+    float | None, float | None, float | None, float | None, float | None, str, str
+]:
     """
     以支撐/均線估算停損，以壓力/區間高度估算目標。
     這是入場品質濾網，不是價格預測。
     """
-    stop_candidates = [p for p in (support_price, ma20, ma60) if p is not None and p < close]
+    stop_candidates = [
+        (p, source)
+        for p, source in (
+            (support_price, "support_price"),
+            (ma20, "MA20"),
+            (ma60, "MA60"),
+        )
+        if p is not None and p < close
+    ]
     if not stop_candidates:
-        return None, None, None, None, None
+        return None, None, None, None, None, "", ""
 
-    stop_price = round(max(stop_candidates) * 0.98, 2)
+    stop_anchor, stop_source = max(stop_candidates, key=lambda item: item[0])
+    stop_price = round(stop_anchor * 0.98, 2)
     if stop_price <= 0 or stop_price >= close:
-        return None, None, None, None, None
+        return None, None, None, None, None, "", ""
 
     if resistance_price is not None and resistance_price > close:
         target_price = resistance_price
+        target_source = "resistance_price"
     elif resistance_price is not None and support_price is not None and resistance_price > support_price:
         target_price = close + (resistance_price - support_price) * 0.5
+        target_source = "support_resistance_range_extension"
     else:
         target_price = close * 1.1
+        target_source = "10pct_above_close"
 
     target_price = round(target_price, 2)
     risk_pct = round((close / stop_price - 1) * 100, 2)
     reward_pct = round((target_price / close - 1) * 100, 2)
     rr = round(reward_pct / risk_pct, 2) if risk_pct > 0 else None
-    return stop_price, target_price, risk_pct, reward_pct, rr
+    return stop_price, target_price, risk_pct, reward_pct, rr, stop_source, target_source
 
 
 def _entry_price_plan(
@@ -727,7 +763,7 @@ def _entry_price_plan(
     resistance_price: float | None,
     ma20: float | None,
     ma60: float | None,
-) -> tuple[float | None, float | None, str]:
+) -> tuple[float | None, float | None, str, str]:
     """
     產生可操作的進場價格區間。
 
@@ -737,37 +773,49 @@ def _entry_price_plan(
       - 準備進場 / 觀察中多頭：以 MA20 / 支撐附近回測區為區間
     """
     if long_trend == "down" or stage == "stage_4" or internal_signal in ("exit_warning", "invalidated"):
-        return None, None, "目前不建議新進場；先等收盤重新站上 MA60 或重新形成多頭結構"
+        return None, None, "目前不建議新進場；先等收盤重新站上 MA60 或重新形成多頭結構", ""
 
     if internal_signal == "take_profit_warning":
-        return None, None, "目前偏停利區，不建議追價；等待回測 MA20 或支撐區再評估"
+        return None, None, "目前偏停利區，不建議追價；等待回測 MA20 或支撐區再評估", ""
 
     if internal_signal == "entry_confirmed":
         if resistance_price is not None and close > resistance_price:
             low = max(resistance_price * 0.99, close * 0.97)
             high = close * 1.02
             note = "突破確認後，可等回測壓力轉支撐或最新收盤附近小幅分批"
+            entry_source = "resistance_retest_or_close"
         else:
             low = close * 0.98
             high = close * 1.02
             note = "突破確認後，僅適合最新收盤附近小幅分批，避免追高過深"
-        return round(min(low, close), 2), round(max(high, close), 2), note
+            entry_source = "latest_close_breakout"
+        return round(min(low, close), 2), round(max(high, close), 2), note, entry_source
 
     pullback_candidates = [
-        p for p in (ma20, support_price, ma60)
+        (p, source)
+        for p, source in (
+            (ma20, "MA20"),
+            (support_price, "support_price"),
+            (ma60, "MA60"),
+        )
         if p is not None and p > 0 and p <= close * 1.03
     ]
     if pullback_candidates:
-        anchor = max(pullback_candidates)
+        anchor, entry_source = max(pullback_candidates, key=lambda item: item[0])
         low = anchor * 0.98
         high = min(anchor * 1.05, close * 1.02)
         note = "可等回測 MA20 / 支撐附近且未跌破時分批進場"
-        return round(low, 2), round(max(low, high), 2), note
+        return round(low, 2), round(max(low, high), 2), note, entry_source
 
     if long_trend == "up" and ma20 is not None:
-        return round(ma20 * 0.98, 2), round(ma20 * 1.03, 2), "長線偏多但最新收盤離支撐較遠，等待回測 MA20 附近"
+        return (
+            round(ma20 * 0.98, 2),
+            round(ma20 * 1.03, 2),
+            "長線偏多但最新收盤離支撐較遠，等待回測 MA20 附近",
+            "MA20",
+        )
 
-    return None, None, "趨勢尚未給出清楚進場區間，先列入觀察"
+    return None, None, "趨勢尚未給出清楚進場區間，先列入觀察", ""
 
 
 def _position_size_plan(
@@ -796,19 +844,101 @@ def _position_size_plan(
 
     if internal_signal in ("entry_confirmed", "ready_to_enter"):
         if rr >= 1.5 and risk_score <= 60:
-            return 20, "核心策略成立，初始部位 10-20%"
-        return 10, "核心策略成立但風險報酬不足，僅小部位 5-10%"
+            return 20, "日線買點成立，初始部位 10-20%"
+        return 10, "日線買點成立但風險報酬不足，僅小部位 5-10%"
 
     if old_wang_flag:
-        return 5, "老王觀察成立但核心買點未成立，先觀察或 5% 試單"
+        return 5, "老王觀察成立但日線買點未成立，先觀察或 5% 試單"
 
     return 0, "條件未完整成立，等待下一次收盤確認"
+
+
+def _steady_momentum_indicator(
+    *,
+    close: float,
+    ma20: float | None,
+    ma60: float | None,
+    long_trend: str,
+    stage: str,
+    market_filter: str,
+    relative_strength_score: int | None,
+    trend_score: int,
+    entry_score: int,
+    risk_score: int,
+    reward_risk_ratio: float | None,
+    rsi14: float | None,
+    fundamental_guard: dict,
+) -> dict:
+    trend_part = round(max(0, min(100, trend_score)) * 0.25)
+    rs_part = round(max(0, min(100, relative_strength_score or 50)) * 0.20)
+    entry_part = round(max(0, min(100, entry_score)) * 0.20)
+
+    if reward_risk_ratio is None:
+        rr_part = 8
+    elif reward_risk_ratio >= 2:
+        rr_part = 15
+    elif reward_risk_ratio >= 1.5:
+        rr_part = 12
+    elif reward_risk_ratio >= 1.2:
+        rr_part = 7
+    else:
+        rr_part = 0
+
+    heat_part = 10
+    if rsi14 is not None:
+        if rsi14 > 75:
+            heat_part = 0
+        elif rsi14 > 70:
+            heat_part = 4
+    if ma20 is not None and ma20 > 0 and close > ma20 * 1.12:
+        heat_part = min(heat_part, 4)
+    elif ma20 is not None and ma20 > 0 and close > ma20 * 1.08:
+        heat_part = min(heat_part, 7)
+
+    if fundamental_guard.get("fundamental_data_ok"):
+        available = [
+            fundamental_guard.get("fundamental_quality_score"),
+            fundamental_guard.get("fundamental_safety_score"),
+            fundamental_guard.get("fundamental_growth_score"),
+        ]
+        available = [v for v in available if isinstance(v, (int, float))]
+        fundamental_part = round(sum(available) / len(available) * 0.10) if available else 6
+    else:
+        fundamental_part = 6
+
+    score = max(0, min(100, trend_part + rs_part + entry_part + rr_part + heat_part + fundamental_part))
+    hard_block = (
+        long_trend == "down"
+        or stage == "stage_4"
+        or market_filter == "block"
+        or risk_score > 70
+    )
+    flag = score >= 75 and not hard_block
+
+    parts = [
+        f"趨勢{trend_part}/25",
+        f"相對強度{rs_part}/20",
+        f"進場位置{entry_part}/20",
+        f"風險報酬{rr_part}/15",
+        f"過熱控制{heat_part}/10",
+        f"基本面避雷{fundamental_part}/10",
+    ]
+    if hard_block:
+        parts.append("風險閘門未通過")
+
+    return {
+        "steady_momentum_flag": flag,
+        "steady_momentum_tag": STEADY_MOMENTUM_TAG if flag else "",
+        "steady_momentum_score": score,
+        "steady_momentum_signal": "穩健動能候選" if flag else "未達穩健動能門檻",
+        "steady_momentum_reason": "；".join(parts),
+    }
 
 
 def _strategy_alignment(
     internal_signal: str,
     old_wang_flag: bool,
-    buffett_flag: bool,
+    steady_momentum_flag: bool,
 ) -> dict:
     core_positive = {"entry_confirmed", "ready_to_enter", "hold"}
     core_risk = {"take_profit_warning", "exit_warning", "invalidated", "DATA_MISSING"}
@@ -820,18 +950,18 @@ def _strategy_alignment(
         aligned.append("core")
     if old_wang_flag:
         aligned.append("old_wang")
-    if buffett_flag:
-        aligned.append("buffett")
+    if steady_momentum_flag:
+        aligned.append("steady_momentum")
 
-    if internal_signal in {"exit_warning", "invalidated"} and (old_wang_flag or buffett_flag):
-        notes.append("核心技術已轉風險，老王或巴菲特訊號不可覆蓋出場/失效")
-    elif internal_signal == "take_profit_warning" and (old_wang_flag or buffett_flag):
-        notes.append("核心進入停利觀察，其他策略只作續抱參考，不追價")
+    if internal_signal in {"exit_warning", "invalidated"} and (old_wang_flag or steady_momentum_flag):
+        notes.append("內部技術訊號已轉風險，老王或穩健動能訊號不可覆蓋出場/失效")
+    elif internal_signal == "take_profit_warning" and (old_wang_flag or steady_momentum_flag):
+        notes.append("內部技術訊號進入停利觀察，其他策略只作續抱參考，不追價")
 
     if old_wang_flag and internal_signal not in core_positive and internal_signal not in core_risk:
-        notes.append("老王短波段轉強，但核心尚未確認買點")
-    if buffett_flag and internal_signal in {"exit_warning", "invalidated", "take_profit_warning"}:
-        notes.append("巴菲特品質價值成立，但短線技術位置不適合加碼")
+        notes.append("老王短波段轉強，但日線買點尚未確認")
+    if steady_momentum_flag and internal_signal in {"exit_warning", "invalidated", "take_profit_warning"}:
+        notes.append("穩健動能成立，但短線技術位置不適合加碼")
 
     if notes and internal_signal in {"exit_warning", "invalidated", "take_profit_warning"}:
         alignment = "conflict"
@@ -910,7 +1040,7 @@ def _daily_decision_plan(sig: dict) -> dict:
         return build("hold", "續抱", reason, f"跌破 {key_price}", 70)
 
     if core_buy and old_wang and not hot:
-        return build("enter", "可小試", "核心買點與老王旗標共振，可依區間小量", f"跌破 {stop}", 90)
+        return build("enter", "可小試", "日線買點與老王旗標共振，可依區間小量", f"跌破 {stop}", 90)
 
     if core_buy:
         reason = "突破成立但仍需控量" if sig.get("entry_type") == "breakout" else "進場條件成立，可分批"
@@ -920,12 +1050,12 @@ def _daily_decision_plan(sig: dict) -> dict:
         reason = "老王旗標成立但短線過熱，不追高" if hot else "老王旗標成立，等 5/10 或支撐確認"
         return build("wait_pullback", "等回測", reason, f"跌破 {key_price}", 82)
 
-    if sig.get("buffett_flag"):
+    if sig.get("fundamental_flag"):
         return build(
             "long_watch",
             "長期觀察",
-            "Buffett 品質價值成立，但短線還沒有買點",
-            sig.get("buffett_reason") or "基本面資料轉弱",
+            "基本面避雷資料良好，但短線還沒有買點",
+            sig.get("fundamental_reason") or "基本面避雷資料轉弱",
             55,
         )
 
@@ -1060,6 +1190,32 @@ def _old_wang_market_index_state(rows: list[dict]) -> dict:
     }
 
 
+def _old_wang_market_context_for_index(index_code: str, state: dict) -> dict:
+    if state["breaks_volume_low"]:
+        regime = "risk"
+        market_filter = "block"
+        reason = f"{index_code} 跌破爆大量低點，老王大盤濾網轉風險"
+    elif state["holds_short_ma"] and state["holds_volume_low"]:
+        regime = "strong"
+        market_filter = "allow"
+        reason = f"{index_code} 守 MA5/MA10 與爆大量低點"
+    elif state["holds_short_ma"]:
+        regime = "caution"
+        market_filter = "caution"
+        reason = f"{index_code} 守短均線，但爆大量低點支撐未完全確認"
+    else:
+        regime = "risk"
+        market_filter = "block"
+        reason = f"{index_code} 未能守住 MA5/MA10"
+
+    return {
+        "old_wang_market_regime": regime,
+        "old_wang_market_filter": market_filter,
+        "old_wang_market_source": index_code,
+        "old_wang_market_reason": reason,
+    }
+
+
 def _old_wang_market_context(ohlcv: dict[str, list[dict]], base_filter: str) -> dict:
     index_codes = [code for code in ("TSE", "OTC") if ohlcv.get(code)]
     use_tse_otc = (
@@ -1068,6 +1224,10 @@ def _old_wang_market_context(ohlcv: dict[str, list[dict]], base_filter: str) -> 
     )
     if use_tse_otc:
         states = {code: _old_wang_market_index_state(ohlcv[code]) for code in index_codes}
+        by_exchange = {
+            "TWSE": _old_wang_market_context_for_index("TSE", states["TSE"]),
+            "TPEX": _old_wang_market_context_for_index("OTC", states["OTC"]),
+        }
         if any(state["breaks_volume_low"] for state in states.values()):
             regime = "risk"
             market_filter = "block"
@@ -1090,6 +1250,7 @@ def _old_wang_market_context(ohlcv: dict[str, list[dict]], base_filter: str) -> 
             "old_wang_market_filter": market_filter,
             "old_wang_market_source": "TSE/OTC",
             "old_wang_market_reason": reason,
+            "old_wang_market_by_exchange": by_exchange,
         }
 
     benchmark_rows = ohlcv.get(BENCHMARK_CODE)
@@ -1112,11 +1273,18 @@ def _old_wang_market_context(ohlcv: dict[str, list[dict]], base_filter: str) -> 
             market_filter = "block" if base_filter == "block" else "caution"
             reason = f"{BENCHMARK_CODE} 未守 MA5/MA10，老王大盤濾網轉保守"
 
-        return {
+        fallback_context = {
             "old_wang_market_regime": regime,
             "old_wang_market_filter": market_filter,
             "old_wang_market_source": BENCHMARK_CODE,
             "old_wang_market_reason": reason,
+        }
+        return {
+            **fallback_context,
+            "old_wang_market_by_exchange": {
+                "TWSE": fallback_context,
+                "TPEX": fallback_context,
+            },
         }
 
     return {
@@ -1124,6 +1292,7 @@ def _old_wang_market_context(ohlcv: dict[str, list[dict]], base_filter: str) -> 
         "old_wang_market_filter": "neutral",
         "old_wang_market_source": "none",
         "old_wang_market_reason": "缺少 TSE/OTC 與 0050 資料，老王大盤濾網採中性",
+        "old_wang_market_by_exchange": {},
     }
 
 
@@ -1754,6 +1923,15 @@ def _old_wang_flag(
             score += 8
             ma_signal = "above_ma10"
             reasons.append("波段仍站上 MA10")
+        elif (
+            ma20 is not None
+            and close >= ma5
+            and close >= ma20
+            and close >= ma10 * (1 - OLD_WANG_MA10_TOLERANCE_PCT)
+        ):
+            score += 3
+            ma_signal = "near_ma10"
+            reasons.append("收盤貼近 MA10（0.2% 內），以準站回觀察")
         else:
             score -= 15
             ma_signal = "below_ma10"
@@ -1895,19 +2073,64 @@ def _old_wang_flag(
         calibrated_score = raw_score
 
     score = max(0, min(96, round(calibrated_score)))
+    stands_above_short_mas = (
+        ma5 is not None
+        and ma10 is not None
+        and ma20 is not None
+        and close >= ma5
+        and close >= ma10 * (1 - OLD_WANG_MA10_TOLERANCE_PCT)
+        and close >= ma20
+    )
+    has_strong_setup = any(
+        signal in primary_signals
+        for signal in (
+            "all_ma_reclaim",
+            "gap_up_support",
+            "previous_high_breakout",
+            "volume_high_breakout",
+            "volume_low_support",
+            "leader_breakout",
+        )
+    )
+    market_block_override = (
+        market_filter == "block"
+        and sector_hot
+        and stands_above_short_mas
+        and has_strong_setup
+        and raw_score >= 70
+    )
+    chip_against_override = (
+        chip_signal == "against"
+        and stands_above_short_mas
+        and has_strong_setup
+        and raw_score >= 90
+    )
+    volume_or_structure_ok = (
+        volume_signal == "confirmed"
+        or bullish_gap_support
+        or volume_low.get("support")
+        or (
+            stands_above_short_mas
+            and any(signal in primary_signals for signal in ("all_ma_reclaim", "previous_high_breakout", "volume_high_breakout"))
+        )
+    )
     flag = (
         raw_score >= 70
-        and market_filter != "block"
+        and (market_filter != "block" or market_block_override)
         and long_trend != "down"
         and not breakdown
         and sector != "ETF"
         and bool(primary_signals)
         and not bearish_gap_pressure
-        and (volume_signal == "confirmed" or bullish_gap_support or volume_low.get("support"))
+        and volume_or_structure_ok
         and ma_signal != "below_ma10"
         and not previous_high_risk
-        and chip_signal != "against"
+        and (chip_signal != "against" or chip_against_override)
     )
+    if market_block_override:
+        reasons.append("大盤風險下僅列強型態觀察")
+    if chip_against_override:
+        reasons.append("籌碼逆風，降級觀察")
 
     badges: list[str] = []
     if sector_hot:
@@ -2047,6 +2270,239 @@ def _short_trend(closes: list[float], ma20: float | None, ma60: float | None) ->
 # 訊號計算主體
 # ---------------------------------------------------------------------------
 
+def _resolve_stock_timeout_seconds(env: Mapping[str, str] | None = None) -> float:
+    source = os.environ if env is None else env
+    raw_value = source.get("SIGNAL_STOCK_TIMEOUT_SECONDS")
+    if raw_value is None or not str(raw_value).strip():
+        return DEFAULT_SIGNAL_STOCK_TIMEOUT_SECONDS
+    try:
+        value = float(raw_value)
+    except (TypeError, ValueError):
+        log.warning(
+            "SIGNAL_STOCK_TIMEOUT_SECONDS=%r is invalid; using %.1f seconds",
+            raw_value,
+            DEFAULT_SIGNAL_STOCK_TIMEOUT_SECONDS,
+        )
+        return DEFAULT_SIGNAL_STOCK_TIMEOUT_SECONDS
+    if value <= 0:
+        log.warning(
+            "SIGNAL_STOCK_TIMEOUT_SECONDS must be positive; using %.1f seconds",
+            DEFAULT_SIGNAL_STOCK_TIMEOUT_SECONDS,
+        )
+        return DEFAULT_SIGNAL_STOCK_TIMEOUT_SECONDS
+    return value
+
+
+def _build_unavailable_signal(
+    code: str,
+    rows: list[dict],
+    context: dict | None,
+    *,
+    reason: str,
+    calculation_status: str,
+    calculation_error: str,
+) -> dict:
+    context = context or {}
+    market_filter = context.get("market_filter", "neutral")
+    if calculation_status == "data_missing":
+        fundamental_guard = evaluate_fundamental_guard(
+            code,
+            context.get("fundamentals", {}).get(code),
+        )
+        position_size_note = "資料不足，不建議新進場"
+        price_plan_note = "資料不足，無法估算進出場價格"
+        risk_note = "資料不足，無法分析"
+    else:
+        fundamental_guard = {
+            "fundamental_flag": False,
+            "fundamental_tag": "",
+            "fundamental_score": 0,
+            "fundamental_signal": "",
+            "fundamental_reason": "計算未完成，不評估基本面策略",
+            "fundamental_data_ok": False,
+            "fundamental_data_missing_reason": reason,
+            "fundamental_quality_score": 0,
+            "fundamental_value_score": 0,
+            "fundamental_safety_score": 0,
+            "fundamental_growth_score": 0,
+            "fundamental_data_completeness_pct": 0,
+            "fundamental_missing_fields": [],
+            "fundamental_scored_groups": [],
+        }
+        position_size_note = "計算未完成，不建議新進場"
+        price_plan_note = "計算未完成，無法估算進出場價格"
+        risk_note = "計算未完成，不可使用此列做交易判斷"
+
+    closes = [row["close"] for row in rows]
+    return {
+        "code": code,
+        "name": _stock_name(code),
+        "data_ok": False,
+        "data_missing": True,
+        "calculation_status": calculation_status,
+        "calculation_error": calculation_error,
+        "signal": "DATA_MISSING",
+        "internal_signal": "DATA_MISSING",
+        "entry_type": "",
+        "score": 0,
+        "trend_score": 0,
+        "entry_score": 0,
+        "risk_score": 0,
+        "position_size_pct": 0,
+        "position_size_note": position_size_note,
+        "holding_shares": 0,
+        "holding_avg_cost": None,
+        "holding_position_pct": 0.0,
+        "long_trend": "unknown",
+        "short_trend": "unknown",
+        "market_regime": context.get("market_regime", "unknown"),
+        "market_filter": market_filter,
+        "old_wang_market_regime": context.get("old_wang_market_regime", "unknown"),
+        "old_wang_market_filter": context.get("old_wang_market_filter", market_filter),
+        "old_wang_market_source": context.get("old_wang_market_source", ""),
+        "old_wang_market_reason": context.get("old_wang_market_reason", ""),
+        "relative_strength_score": None,
+        "relative_strength_60d": None,
+        "relative_strength_120d": None,
+        "stage": "unknown",
+        "strategy_tags": "",
+        "strategy_alignment": "no_alignment",
+        "aligned_strategies": [],
+        "strategy_conflict_notes": [],
+        "old_wang_flag": False,
+        "old_wang_tag": "",
+        "old_wang_score": 0,
+        "old_wang_signal": "",
+        "old_wang_badges": [],
+        "old_wang_reason": "",
+        "old_wang_sector": "",
+        "sector_score": None,
+        "old_wang_volume_signal": "unknown",
+        "old_wang_gap_type": "none",
+        "old_wang_gap_support": None,
+        "old_wang_gap_resistance": None,
+        "old_wang_gap_note": "",
+        "old_wang_ma_signal": "unknown",
+        "old_wang_volume_low_support": False,
+        "old_wang_volume_low_price": None,
+        "old_wang_support_state": "unknown",
+        "old_wang_ma_break_count": 0,
+        "old_wang_previous_high_risk": False,
+        "old_wang_chip_signal": "unknown",
+        "old_wang_raw_score": 0,
+        "old_wang_previous_high_state": "none",
+        "old_wang_previous_high_price": None,
+        "old_wang_volume_high_breakout": False,
+        "old_wang_volume_high_price": None,
+        "old_wang_all_ma_reclaim": False,
+        "old_wang_parabolic_ma10_hold": False,
+        "steady_momentum_flag": False,
+        "steady_momentum_tag": "",
+        "steady_momentum_score": 0,
+        "steady_momentum_signal": "",
+        "steady_momentum_reason": "資料不足，不評估穩健動能策略",
+        **fundamental_guard,
+        "entry_price_low": None,
+        "entry_price_high": None,
+        "data_as_of": rows[-1]["date"] if rows else None,
+        "stop_price": None,
+        "target_price": None,
+        "risk_pct": None,
+        "reward_pct": None,
+        "reward_risk_ratio": None,
+        "price_plan_note": price_plan_note,
+        "support_source": "",
+        "resistance_source": "",
+        "entry_source": "",
+        "stop_source": "",
+        "target_source": "",
+        "support_price": None,
+        "resistance_price": None,
+        "pattern_type": "none",
+        "pattern_status": "none",
+        "no_buy_reason": reason,
+        "risk_note": risk_note,
+        "close": closes[-1] if closes else None,
+        "ma5": None,
+        "ma10": None,
+        "ma20": None,
+        "ma60": None,
+        "rsi14": None,
+        "volume": rows[-1]["volume"] if rows else None,
+        "vol_ratio": None,
+        "reasons": [reason],
+    }
+
+
+def _compute_signal_task(args: tuple[str, list[dict], dict, dict]) -> dict:
+    return _compute_signal(*args)
+
+
+def _spawn_signal_pool():
+    return multiprocessing.get_context("spawn").Pool(processes=1)
+
+
+def _run_signal_batch(
+    codes: list[str],
+    ohlcv: dict[str, list[dict]],
+    positions: dict,
+    context: dict,
+    *,
+    timeout_seconds: float,
+    pool_factory=None,
+) -> list[dict]:
+    factory = pool_factory or _spawn_signal_pool
+    pool = factory()
+    signals: list[dict] = []
+
+    try:
+        for code in codes:
+            rows = ohlcv.get(code, [])
+            result = pool.apply_async(
+                _compute_signal_task,
+                ((code, rows, positions, context),),
+            )
+            try:
+                signals.append(result.get(timeout=timeout_seconds))
+            except multiprocessing.TimeoutError:
+                log.error(
+                    "signal timeout code=%s timeout=%ss step=compute_signal; "
+                    "continue with next stock",
+                    code,
+                    f"{timeout_seconds:g}",
+                )
+                pool.terminate()
+                pool.join()
+                pool = None
+
+                reason = f"訊號計算逾時（超過 {timeout_seconds:g} 秒）"
+                signals.append(
+                    _build_unavailable_signal(
+                        code,
+                        rows,
+                        context,
+                        reason=reason,
+                        calculation_status="timeout",
+                        calculation_error=reason,
+                    )
+                )
+                pool = factory()
+            except BaseException:
+                pool.terminate()
+                pool.join()
+                pool = None
+                raise
+
+        pool.close()
+        pool.join()
+        pool = None
+        return signals
+    finally:
+        if pool is not None:
+            pool.terminate()
+            pool.join()
+
+
 def _compute_signal(
     code: str,
     rows: list[dict],
@@ -2074,76 +2530,45 @@ def _compute_signal(
     context = context or {}
     market_regime = context.get("market_regime", "unknown")
     market_filter = context.get("market_filter", "neutral")
-    old_wang_market_filter = context.get("old_wang_market_filter", market_filter)
+    stock_markets = context.get("stock_markets") or {}
+    exchange = derive_market(code, stock_markets.get(code))
+    old_wang_exchange_context = (
+        context.get("old_wang_market_by_exchange", {}).get(exchange)
+        if exchange in ("TWSE", "TPEX")
+        else None
+    )
+    old_wang_market_regime = (
+        old_wang_exchange_context.get("old_wang_market_regime")
+        if old_wang_exchange_context
+        else context.get("old_wang_market_regime", "unknown")
+    )
+    old_wang_market_filter = (
+        old_wang_exchange_context.get("old_wang_market_filter")
+        if old_wang_exchange_context
+        else context.get("old_wang_market_filter", market_filter)
+    )
+    old_wang_market_source = (
+        old_wang_exchange_context.get("old_wang_market_source")
+        if old_wang_exchange_context
+        else context.get("old_wang_market_source", "")
+    )
+    old_wang_market_reason = (
+        old_wang_exchange_context.get("old_wang_market_reason")
+        if old_wang_exchange_context
+        else context.get("old_wang_market_reason", "")
+    )
 
     # ── DATA_MISSING ──────────────────────────────────────────────────────
     if len(closes) < MIN_ROWS:
         reason = f"資料不足（僅 {len(closes)} 日，需 {MIN_ROWS} 日）"
-        buffett = evaluate_buffett_indicator(code, context.get("fundamentals", {}).get(code))
-        return {
-            "code": code, "name": name,
-            "data_ok": False, "data_missing": True,
-            "signal": "DATA_MISSING", "internal_signal": "DATA_MISSING",
-            "entry_type": "",
-            "score": 0,
-            "trend_score": 0, "entry_score": 0, "risk_score": 0,
-            "position_size_pct": 0, "position_size_note": "資料不足，不建議新進場",
-            "holding_shares": 0, "holding_avg_cost": None, "holding_position_pct": 0.0,
-            "long_trend": "unknown", "short_trend": "unknown",
-            "market_regime": market_regime, "market_filter": market_filter,
-            "old_wang_market_regime": context.get("old_wang_market_regime", "unknown"),
-            "old_wang_market_filter": old_wang_market_filter,
-            "old_wang_market_source": context.get("old_wang_market_source", ""),
-            "old_wang_market_reason": context.get("old_wang_market_reason", ""),
-            "relative_strength_score": None,
-            "relative_strength_60d": None, "relative_strength_120d": None,
-            "stage": "unknown",
-            "strategy_tags": "",
-            "strategy_alignment": "no_alignment",
-            "aligned_strategies": [],
-            "strategy_conflict_notes": [],
-            "old_wang_flag": False,
-            "old_wang_tag": "",
-            "old_wang_score": 0,
-            "old_wang_signal": "",
-            "old_wang_badges": [],
-            "old_wang_reason": "",
-            "old_wang_sector": "",
-            "sector_score": None,
-            "old_wang_volume_signal": "unknown",
-            "old_wang_gap_type": "none",
-            "old_wang_gap_support": None,
-            "old_wang_gap_resistance": None,
-            "old_wang_gap_note": "",
-            "old_wang_ma_signal": "unknown",
-            "old_wang_volume_low_support": False,
-            "old_wang_volume_low_price": None,
-            "old_wang_support_state": "unknown",
-            "old_wang_ma_break_count": 0,
-            "old_wang_previous_high_risk": False,
-            "old_wang_chip_signal": "unknown",
-            "old_wang_raw_score": 0,
-            "old_wang_previous_high_state": "none",
-            "old_wang_previous_high_price": None,
-            "old_wang_volume_high_breakout": False,
-            "old_wang_volume_high_price": None,
-            "old_wang_all_ma_reclaim": False,
-            "old_wang_parabolic_ma10_hold": False,
-            **buffett,
-            "entry_price_low": None, "entry_price_high": None,
-            "data_as_of": rows[-1]["date"] if rows else None,
-            "stop_price": None, "target_price": None,
-            "risk_pct": None, "reward_pct": None, "reward_risk_ratio": None,
-            "price_plan_note": "資料不足，無法估算進出場價格",
-            "support_price": None, "resistance_price": None,
-            "pattern_type": "none", "pattern_status": "none",
-            "no_buy_reason": reason,
-            "risk_note": "資料不足，無法分析",
-            "close": closes[-1] if closes else None,
-            "ma5": None, "ma10": None, "ma20": None, "ma60": None,
-            "rsi14": None, "volume": rows[-1]["volume"] if rows else None, "vol_ratio": None,
-            "reasons": [reason],
-        }
+        return _build_unavailable_signal(
+            code,
+            rows,
+            context,
+            reason=reason,
+            calculation_status="data_missing",
+            calculation_error=reason,
+        )
 
     # ── 計算指標 ──────────────────────────────────────────────────────────
     close  = closes[-1]
@@ -2164,13 +2589,23 @@ def _compute_signal(
     gap = _gap_context(rows)
     volume_low = _volume_low_context(rows, ma5)
     previous_high = _previous_high_context(rows)
-    chip = get_chip_metrics(code)
+    chip = {} if context.get("core_backtest") else get_chip_metrics(code)
 
     rs_score, rs60, rs120 = _relative_strength(
         closes,
         context.get("benchmark_rows"),
     )
-    stop_price, target_price, risk_pct, reward_pct, reward_risk_ratio = _reward_risk(
+    support_source = "recent_20d_low" if support_price is not None else ""
+    resistance_source = "recent_20d_high" if resistance_price is not None else ""
+    (
+        stop_price,
+        target_price,
+        risk_pct,
+        reward_pct,
+        reward_risk_ratio,
+        stop_source,
+        target_source,
+    ) = _reward_risk(
         close, support_price, resistance_price, ma20, ma60
     )
 
@@ -2275,7 +2710,7 @@ def _compute_signal(
         previous_close=closes[-2] if len(closes) >= 2 else None,
         previous_high=previous_high,
     )
-    buffett = evaluate_buffett_indicator(
+    fundamental_guard = evaluate_fundamental_guard(
         code,
         context.get("fundamentals", {}).get(code),
     )
@@ -2361,6 +2796,15 @@ def _compute_signal(
         elif pat.pattern_status == "confirmed":
             score -= 20
             risks.append(f"M頂確認跌破頸線 {pat.neckline}")
+        elif pat.pattern_status == "failed":
+            reasons.append(pat.note)
+    elif pat.pattern_type == "head_and_shoulders_top":
+        if pat.pattern_status == "forming":
+            score -= 10
+            risks.append(f"頭肩頂形成中（頸線 {pat.neckline}，注意跌破）")
+        elif pat.pattern_status == "confirmed":
+            score -= 20
+            risks.append(f"頭肩頂確認跌破頸線 {pat.neckline}")
         elif pat.pattern_status == "failed":
             reasons.append(pat.note)
     elif pat.pattern_type == "head_and_shoulders_bottom":
@@ -2469,6 +2913,22 @@ def _compute_signal(
     if reward_risk_ratio is not None and reward_risk_ratio < 1.2:
         risk_score += 10
     risk_score = max(0, min(100, risk_score))
+
+    steady_momentum = _steady_momentum_indicator(
+        close=close,
+        ma20=ma20,
+        ma60=ma60,
+        long_trend=long_t,
+        stage=stage,
+        market_filter=market_filter,
+        relative_strength_score=rs_score,
+        trend_score=trend_score,
+        entry_score=entry_score,
+        risk_score=risk_score,
+        reward_risk_ratio=reward_risk_ratio,
+        rsi14=rsi14,
+        fundamental_guard=fundamental_guard,
+    )
 
     risk_note = "；".join(risks) if risks else "—"
 
@@ -2582,14 +3042,14 @@ def _compute_signal(
     strategy_tags = [CORE_STRATEGY_ID]
     if old_wang["old_wang_flag"]:
         strategy_tags.append(OLD_WANG_TAG)
-    if buffett["buffett_flag"]:
-        strategy_tags.append(BUFFETT_TAG)
+    if steady_momentum["steady_momentum_flag"]:
+        strategy_tags.append(STEADY_MOMENTUM_TAG)
     alignment = _strategy_alignment(
         internal_signal=internal,
         old_wang_flag=old_wang["old_wang_flag"],
-        buffett_flag=buffett["buffett_flag"],
+        steady_momentum_flag=steady_momentum["steady_momentum_flag"],
     )
-    entry_price_low, entry_price_high, price_plan_note = _entry_price_plan(
+    entry_price_low, entry_price_high, price_plan_note, entry_source = _entry_price_plan(
         internal_signal=internal,
         close=close,
         long_trend=long_t,
@@ -2612,6 +3072,8 @@ def _compute_signal(
         "code":          code,
         "data_ok":       True,
         "data_missing":  False,
+        "calculation_status": "ok",
+        "calculation_error": "",
         "signal":        ext_signal,    # BUY / SELL / HOLD / DATA_MISSING
         "entry_type":    entry_type,    # pullback / breakout / squeeze / ""
         "no_buy_reason": no_buy_reason,
@@ -2639,10 +3101,10 @@ def _compute_signal(
         "short_trend":     short_t,
         "market_regime":   market_regime,
         "market_filter":   market_filter,
-        "old_wang_market_regime": context.get("old_wang_market_regime", "unknown"),
+        "old_wang_market_regime": old_wang_market_regime,
         "old_wang_market_filter": old_wang_market_filter,
-        "old_wang_market_source": context.get("old_wang_market_source", ""),
-        "old_wang_market_reason": context.get("old_wang_market_reason", ""),
+        "old_wang_market_source": old_wang_market_source,
+        "old_wang_market_reason": old_wang_market_reason,
         "relative_strength_score": rs_score,
         "relative_strength_60d":   rs60,
         "relative_strength_120d":  rs120,
@@ -2678,20 +3140,25 @@ def _compute_signal(
         "old_wang_volume_high_price": old_wang["old_wang_volume_high_price"],
         "old_wang_all_ma_reclaim": old_wang["old_wang_all_ma_reclaim"],
         "old_wang_parabolic_ma10_hold": old_wang["old_wang_parabolic_ma10_hold"],
-        "buffett_flag": buffett["buffett_flag"],
-        "buffett_tag": buffett["buffett_tag"],
-        "buffett_score": buffett["buffett_score"],
-        "buffett_signal": buffett["buffett_signal"],
-        "buffett_reason": buffett["buffett_reason"],
-        "buffett_data_ok": buffett["buffett_data_ok"],
-        "buffett_data_missing_reason": buffett["buffett_data_missing_reason"],
-        "buffett_quality_score": buffett["buffett_quality_score"],
-        "buffett_value_score": buffett["buffett_value_score"],
-        "buffett_safety_score": buffett["buffett_safety_score"],
-        "buffett_growth_score": buffett["buffett_growth_score"],
-        "buffett_data_completeness_pct": buffett["buffett_data_completeness_pct"],
-        "buffett_missing_fields": buffett["buffett_missing_fields"],
-        "buffett_scored_groups": buffett["buffett_scored_groups"],
+        "steady_momentum_flag": steady_momentum["steady_momentum_flag"],
+        "steady_momentum_tag": steady_momentum["steady_momentum_tag"],
+        "steady_momentum_score": steady_momentum["steady_momentum_score"],
+        "steady_momentum_signal": steady_momentum["steady_momentum_signal"],
+        "steady_momentum_reason": steady_momentum["steady_momentum_reason"],
+        "fundamental_flag": fundamental_guard["fundamental_flag"],
+        "fundamental_tag": fundamental_guard["fundamental_tag"],
+        "fundamental_score": fundamental_guard["fundamental_score"],
+        "fundamental_signal": fundamental_guard["fundamental_signal"],
+        "fundamental_reason": fundamental_guard["fundamental_reason"],
+        "fundamental_data_ok": fundamental_guard["fundamental_data_ok"],
+        "fundamental_data_missing_reason": fundamental_guard["fundamental_data_missing_reason"],
+        "fundamental_quality_score": fundamental_guard["fundamental_quality_score"],
+        "fundamental_value_score": fundamental_guard["fundamental_value_score"],
+        "fundamental_safety_score": fundamental_guard["fundamental_safety_score"],
+        "fundamental_growth_score": fundamental_guard["fundamental_growth_score"],
+        "fundamental_data_completeness_pct": fundamental_guard["fundamental_data_completeness_pct"],
+        "fundamental_missing_fields": fundamental_guard["fundamental_missing_fields"],
+        "fundamental_scored_groups": fundamental_guard["fundamental_scored_groups"],
         "data_as_of":      data_as_of,
         "entry_price_low": entry_price_low,
         "entry_price_high": entry_price_high,
@@ -2701,6 +3168,11 @@ def _compute_signal(
         "reward_pct":      reward_pct,
         "reward_risk_ratio": reward_risk_ratio,
         "price_plan_note": price_plan_note,
+        "support_source":  support_source,
+        "resistance_source": resistance_source,
+        "entry_source":    entry_source,
+        "stop_source":     stop_source,
+        "target_source":   target_source,
         "support_price":   support_price,
         "resistance_price": resistance_price,
         "pattern_type":    pattern_type,
@@ -2739,7 +3211,7 @@ def _write_previous_summary(previous: dict | None) -> Path | None:
 def _recommended_codes(summary: dict) -> set[str]:
     buckets = summary.get("recommendation_buckets") or {}
     codes: set[str] = set()
-    for key in ("core", "old_wang", "buffett"):
+    for key in ("old_wang", "steady_momentum"):
         for item in buckets.get(key) or []:
             if item.get("code"):
                 codes.add(str(item.get("code")))
@@ -2751,13 +3223,13 @@ def _compute_change_report(previous: dict | None, current_signals: list[dict]) -
     與前一次 summary 比較，產生日更/重算後的變化報告。
 
     比較基準：
-      - 推薦新增/移出：用三方案推薦桶 core / old_wang / buffett 的聯集
+      - 推薦新增/移出：用兩方案推薦桶 old_wang / steady_momentum 的聯集
       - 狀態變化：用 signals[*].internal_signal
     """
     current_by_code = {s["code"]: s for s in current_signals if s.get("code")}
     current_recommended = {
         code for code, sig in current_by_code.items()
-        if sig.get("signal") == "BUY" or sig.get("old_wang_flag") or sig.get("buffett_flag")
+        if sig.get("old_wang_flag") or sig.get("steady_momentum_flag")
     }
 
     if not previous:
@@ -2867,7 +3339,17 @@ def _write_universe_report(signals: list[dict]) -> Path:
 # 主入口
 # ---------------------------------------------------------------------------
 
-def run_daily_signals(as_of_date: str | None = None) -> dict:
+def _build_signal_lineage(generated_at: str) -> dict:
+    digest = hashlib.sha1(generated_at.encode("utf-8")).hexdigest()[:8]
+    compact_time = generated_at.replace("-", "").replace(":", "")
+    return {
+        "batch_id": f"signals-{compact_time}-{digest}",
+        "source": "run_daily_signals",
+        "run_started_at": generated_at,
+    }
+
+
+def run_daily_signals(as_of_date: str | None = None, lineage: dict | None = None) -> dict:
     """
     計算全宇宙股票訊號，寫出 summary.json 與 universe_report.csv。
 
@@ -2889,24 +3371,31 @@ def run_daily_signals(as_of_date: str | None = None) -> dict:
     _reload_name_cache()  # 確保 backfill 後名稱立即生效
     generated_at = datetime.now().strftime("%Y-%m-%dT%H:%M:%S")
     previous_summary = get_summary()
+    run_lineage = dict(lineage or _build_signal_lineage(generated_at))
+    if not run_lineage.get("batch_id"):
+        run_lineage["batch_id"] = _build_signal_lineage(generated_at)["batch_id"]
 
     codes     = _load_leaders()
     leader_groups = _load_leader_groups()
     ohlcv     = _load_ohlcv(as_of_date)
     positions = _load_positions()
     context   = _market_context(ohlcv)
+    context["stock_markets"] = load_stock_markets()
     context["sector_rotation"] = _sector_rotation_context(leader_groups, ohlcv)
     context["fundamentals"] = load_fundamentals()
     actual_as_of = _latest_data_date(codes, ohlcv) or as_of_date
 
-    signals: list[dict]     = []
+    timeout_seconds = _resolve_stock_timeout_seconds()
+    signals = _run_signal_batch(
+        codes,
+        ohlcv,
+        positions,
+        context,
+        timeout_seconds=timeout_seconds,
+    )
     no_buy_counter: Counter = Counter()
 
-    for code in codes:
-        rows = ohlcv.get(code, [])
-        sig  = _compute_signal(code, rows, positions, context)
-        signals.append(sig)
-
+    for sig in signals:
         # 統計未進場原因（BUY 以外）
         if sig["signal"] != "BUY" and sig["no_buy_reason"]:
             no_buy_counter[sig["no_buy_reason"]] += 1
@@ -2916,6 +3405,9 @@ def run_daily_signals(as_of_date: str | None = None) -> dict:
 
     # 資料完整的股票
     data_ok_signals = [s for s in signals if s["data_ok"]]
+    calculation_timeout_codes = [
+        s["code"] for s in signals if s.get("calculation_status") == "timeout"
+    ]
 
     # data_ok_counts（中文鍵，維持舊 API 契約）
     data_ok_counts = {
@@ -2963,16 +3455,19 @@ def run_daily_signals(as_of_date: str | None = None) -> dict:
             "strategy_alignment": s.get("strategy_alignment"),
             "aligned_strategies": s.get("aligned_strategies"),
             "strategy_conflict_notes": s.get("strategy_conflict_notes"),
-            "buffett_score": s.get("buffett_score"),
-            "buffett_signal": s.get("buffett_signal"),
-            "buffett_reason": s.get("buffett_reason"),
-            "buffett_quality_score": s.get("buffett_quality_score"),
-            "buffett_value_score": s.get("buffett_value_score"),
-            "buffett_safety_score": s.get("buffett_safety_score"),
-            "buffett_growth_score": s.get("buffett_growth_score"),
-            "buffett_data_completeness_pct": s.get("buffett_data_completeness_pct"),
-            "buffett_missing_fields": s.get("buffett_missing_fields"),
-            "buffett_scored_groups": s.get("buffett_scored_groups"),
+            "fundamental_score": s.get("fundamental_score"),
+            "fundamental_signal": s.get("fundamental_signal"),
+            "fundamental_reason": s.get("fundamental_reason"),
+            "fundamental_quality_score": s.get("fundamental_quality_score"),
+            "fundamental_value_score": s.get("fundamental_value_score"),
+            "fundamental_safety_score": s.get("fundamental_safety_score"),
+            "fundamental_growth_score": s.get("fundamental_growth_score"),
+            "fundamental_data_completeness_pct": s.get("fundamental_data_completeness_pct"),
+            "fundamental_missing_fields": s.get("fundamental_missing_fields"),
+            "fundamental_scored_groups": s.get("fundamental_scored_groups"),
+            "steady_momentum_score": s.get("steady_momentum_score"),
+            "steady_momentum_signal": s.get("steady_momentum_signal"),
+            "steady_momentum_reason": s.get("steady_momentum_reason"),
             "old_wang_score": s.get("old_wang_score"),
             "old_wang_signal": s.get("old_wang_signal"),
             "old_wang_badges": s.get("old_wang_badges"),
@@ -3007,33 +3502,38 @@ def run_daily_signals(as_of_date: str | None = None) -> dict:
             "daily_key_price": s.get("daily_key_price"),
             "daily_invalidation": s.get("daily_invalidation"),
             "daily_checklist": s.get("daily_checklist"),
+            "entry_price_low": s.get("entry_price_low"),
+            "entry_price_high": s.get("entry_price_high"),
+            "stop_price": s.get("stop_price"),
+            "target_price": s.get("target_price"),
+            "price_plan_note": s.get("price_plan_note"),
+            "support_source": s.get("support_source"),
+            "resistance_source": s.get("resistance_source"),
+            "entry_source": s.get("entry_source"),
+            "stop_source": s.get("stop_source"),
+            "target_source": s.get("target_source"),
             "reason": (
                 s.get("old_wang_reason")
                 if source == OLD_WANG_TAG
-                else s.get("buffett_reason")
-                if source == BUFFETT_TAG
+                else s.get("steady_momentum_reason")
+                if source == STEADY_MOMENTUM_TAG
                 else s.get("no_buy_reason", "")
             ),
         }
 
-    core_recommendations = [
-        _pick_fields(s, CORE_STRATEGY_ID)
-        for s in data_ok_signals
-        if s.get("signal") == "BUY"
-    ]
     old_wang_recommendations = [
         _pick_fields(s, OLD_WANG_TAG)
         for s in data_ok_signals
         if s.get("old_wang_flag")
     ]
-    buffett_recommendations = [
-        _pick_fields(s, BUFFETT_TAG)
+    steady_momentum_recommendations = [
+        _pick_fields(s, STEADY_MOMENTUM_TAG)
         for s in data_ok_signals
-        if s.get("buffett_flag")
+        if s.get("steady_momentum_flag")
     ]
-    buffett_recommendations = sorted(
-        buffett_recommendations,
-        key=lambda s: (s.get("buffett_score") or 0, s.get("score") or 0),
+    steady_momentum_recommendations = sorted(
+        steady_momentum_recommendations,
+        key=lambda s: (s.get("steady_momentum_score") or 0, s.get("score") or 0),
         reverse=True,
     )
 
@@ -3041,9 +3541,16 @@ def run_daily_signals(as_of_date: str | None = None) -> dict:
         "as_of":               actual_as_of if requested_as_of is None else as_of_date,
         "requested_as_of":      requested_as_of,
         "generated_at":        generated_at,
+        "rules_version":        RULES_VERSION,
+        "rules_metadata":       build_rules_metadata(),
+        "batch_id":            run_lineage["batch_id"],
+        "lineage":             run_lineage,
         "universe_size":       len(codes),
         "data_ok_count":       len(data_ok_signals),
         "data_missing_count":  len(codes) - len(data_ok_signals),
+        "calculation_timeout_seconds": timeout_seconds,
+        "calculation_timeout_count": len(calculation_timeout_codes),
+        "calculation_timeout_codes": calculation_timeout_codes,
         "data_ok_counts":      data_ok_counts,       # 舊 API 契約（中文鍵）
         "signal_counts":       signal_counts,         # 新增（7 狀態，可觀測性）
         "market_context": {
@@ -3058,26 +3565,20 @@ def run_daily_signals(as_of_date: str | None = None) -> dict:
         },
         "manual_market_note": _market_note_for_date(actual_as_of if requested_as_of is None else as_of_date),
         "strategy_catalog": {
-            CORE_STRATEGY_ID: {
-                "name": CORE_STRATEGY_NAME,
-                "role": "主訊號",
-                "description": "支撐壓力、長短線趨勢、突破/跌破、型態、相對強度與風險報酬的核心規則。",
-            },
             OLD_WANG_TAG: {
                 "name": OLD_WANG_TAG_NAME,
-                "role": "輔助旗標",
-                "description": "大盤濾網未封鎖時，尋找強勢族群內的突破、守低點反彈與補漲候選；不覆蓋原本 BUY/SELL/HOLD。",
+                "role": "短波段攻擊策略",
+                "description": "用上市/櫃買大盤濾網、族群輪動、短均線、跳空、爆大量低點/高點與前高突破，尋找短線資金發動標的。",
             },
-            BUFFETT_TAG: {
-                "name": BUFFETT_NAME,
-                "role": "長期品質價值指標",
-                "description": "以 ROE、現金流、財務安全、成長與估值建立長期觀察分數；資料不足時只顯示缺資料，不用技術線型代替基本面。",
+            STEADY_MOMENTUM_TAG: {
+                "name": STEADY_MOMENTUM_NAME,
+                "role": "穩健主線策略",
+                "description": "以中期趨勢、相對強度、進場位置、風險報酬、過熱控制與基本面避雷建立 100 分穩健動能候選。",
             },
         },
         "recommendation_buckets": {
-            "core": core_recommendations[:30],
             "old_wang": old_wang_recommendations[:30],
-            "buffett": buffett_recommendations[:30],
+            "steady_momentum": steady_momentum_recommendations[:30],
         },
         "change_report": _compute_change_report(previous_summary, signals),
         "high_score_non_buy": high_score_non_buy[:20],
@@ -3090,14 +3591,30 @@ def run_daily_signals(as_of_date: str | None = None) -> dict:
     summary_path = _write_summary(result)
     report_path  = _write_universe_report(signals)
     brief_path   = write_daily_brief(result, _OUT)
+    today_scan_path = write_today_scan_report(_OUT)
+    snapshot_outputs = write_snapshot_and_review(result, _OUT)
+    snapshot_review = json.loads(snapshot_outputs["review_path"].read_text(encoding="utf-8"))
+    alert_path = write_signal_alerts(snapshot_review, _OUT)
+    signal_alerts = json.loads(alert_path.read_text(encoding="utf-8"))
     priority_fundamentals_path = write_priority_fill_csv(_OUT)
     fundamentals_path = write_fundamentals_report(_OUT)
 
     result["out_dir"]       = str(_OUT)
+    result["signal_alert_count"] = int(signal_alerts.get("alert_count") or 0)
+    result["signal_alert_summary"] = {
+        "status": signal_alerts.get("status"),
+        "message": signal_alerts.get("message"),
+        "severity_counts": signal_alerts.get("severity_counts") or {},
+    }
     result["files_written"] = [
         summary_path.name,
         report_path.name,
         brief_path.name,
+        today_scan_path.name,
+        f"today_scans/today_scan_{result['as_of']}.json",
+        snapshot_outputs["review_path"].name,
+        str(snapshot_outputs["snapshot_path"].relative_to(_OUT)),
+        alert_path.name,
         fundamentals_path.name,
         priority_fundamentals_path.name,
     ]

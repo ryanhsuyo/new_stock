@@ -4,8 +4,8 @@ import DailyChecklist from '../components/DailyChecklist'
 import type { DataStatus, DecisionJournalCreate, DecisionJournalDecision, DecisionJournalEntry, SignalsStatus, SignalsSummary, UniverseReportItem } from '../types'
 import {
   filterReport,
-  hasCoreEntry,
   hasOldWangTag,
+  hasSteadyMomentum,
   resolveMarket,
   type MarketFilter,
   type PlanFilter,
@@ -199,9 +199,8 @@ const MARKET_FILTER_LABEL: Record<string, string> = {
 const PLAN_FILTER_LABEL: Record<string, string> = {
   all: '全部方案',
   confluence: '雙重共振',
-  core: '核心策略',
-  old_wang: '老王策略',
-  buffett: '巴菲特長期',
+  steady_momentum: '穩健動能',
+  old_wang: '老王短波段',
   no_entry: '暫不進場',
 }
 
@@ -342,7 +341,7 @@ const getDailyDecision = (item: UniverseReportItem): DailyDecision => {
 
   const held = isHeld(item)
   const oldWang = hasOldWangTag(item)
-  const coreBuy = hasCoreEntry(item)
+  const steadyMomentum = hasSteadyMomentum(item)
   const hot = item.rsi14 != null && item.rsi14 > 75
   const keySupport = getKeySupport(item)
   const stop = item.stop_price != null ? fmtPrice(item.stop_price) : keySupport
@@ -398,13 +397,13 @@ const getDailyDecision = (item: UniverseReportItem): DailyDecision => {
     }
   }
 
-  if (coreBuy && oldWang && !hot) {
+  if (steadyMomentum && oldWang && !hot) {
     return {
       action: 'enter',
       label: '可小試',
       cls: 'decision-enter',
       identity: '未持有',
-      oneLine: '核心買點與老王旗標共振，可依區間小量',
+      oneLine: '穩健動能與老王旗標共振，可依區間小量',
       keyPrice: item.entry_price_low != null && item.entry_price_high != null
         ? `${fmtPrice(item.entry_price_low)}–${fmtPrice(item.entry_price_high)}`
         : keySupport,
@@ -413,13 +412,15 @@ const getDailyDecision = (item: UniverseReportItem): DailyDecision => {
     }
   }
 
-  if (coreBuy) {
+  if (steadyMomentum) {
     return {
       action: 'enter',
       label: '可小試',
       cls: 'decision-enter',
       identity: '未持有',
-      oneLine: item.entry_type === 'breakout' ? '突破成立但仍需控量' : '進場條件成立，可分批',
+      oneLine: steadyMomentum
+        ? '穩健動能成立，可分批規劃'
+        : item.entry_type === 'breakout' ? '突破成立但仍需控量' : '進場條件成立，可分批',
       keyPrice: item.entry_price_low != null && item.entry_price_high != null
         ? `${fmtPrice(item.entry_price_low)}–${fmtPrice(item.entry_price_high)}`
         : keySupport,
@@ -441,19 +442,6 @@ const getDailyDecision = (item: UniverseReportItem): DailyDecision => {
     }
   }
 
-  if (item.buffett_flag) {
-    return {
-      action: 'long_watch',
-      label: '長期觀察',
-      cls: 'decision-long',
-      identity: '未持有',
-      oneLine: 'Buffett 品質價值成立，但短線還沒有買點',
-      keyPrice: item.entry_price_low != null ? fmtPrice(item.entry_price_low) : keySupport,
-      invalidation: item.buffett_reason || '基本面資料轉弱',
-      priority: 55,
-    }
-  }
-
   return {
     action: 'avoid',
     label: item.internal_signal === 'watchlist' ? '先觀察' : '暫不碰',
@@ -466,34 +454,9 @@ const getDailyDecision = (item: UniverseReportItem): DailyDecision => {
   }
 }
 
-const getEntryDecision = (item: UniverseReportItem) => {
-  if (!item.data_ok || item.internal_signal === 'DATA_MISSING') {
-    return { text: '資料不足', cls: 'signal-badge sig-na' }
-  }
-  if (item.internal_signal === 'entry_confirmed') {
-    return { text: '可進場', cls: 'signal-badge sig-buy-strong' }
-  }
-  if (item.internal_signal === 'ready_to_enter') {
-    return { text: '準備進場', cls: 'signal-badge sig-buy' }
-  }
-  if (item.internal_signal === 'hold') {
-    return { text: '續抱', cls: 'signal-badge sig-hold' }
-  }
-  if (item.internal_signal === 'watchlist' && item.entry_price_low != null && item.entry_price_high != null) {
-    return { text: '等區間', cls: 'signal-badge sig-watch' }
-  }
-  if (item.internal_signal === 'take_profit_warning') {
-    return { text: '停利觀察', cls: 'signal-badge sig-caution' }
-  }
-  if (['exit_warning', 'invalidated'].includes(item.internal_signal)) {
-    return { text: '暫不進場', cls: 'signal-badge sig-sell' }
-  }
-  return { text: '觀察', cls: 'signal-badge sig-watch' }
-}
-
 const getRecommendedPlan = (item: UniverseReportItem) => {
   const oldWang = hasOldWangTag(item)
-  const coreBuy = hasCoreEntry(item)
+  const steadyMomentum = hasSteadyMomentum(item)
 
   if (!item.data_ok || item.internal_signal === 'DATA_MISSING') {
     return {
@@ -513,14 +476,14 @@ const getRecommendedPlan = (item: UniverseReportItem) => {
     }
   }
 
-  if (coreBuy && oldWang) {
+  if (steadyMomentum && oldWang) {
     return {
       title: '雙重共振',
       cls: 'plan-badge plan-strong',
       advice: item.entry_type === 'breakout' ? '可小量試單' : '等區間分批',
       detail: item.old_wang_support_state === 'short_stop_trend_intact'
-        ? '核心買點 + 老王均線支撐'
-        : '核心買點 + 老王 tag',
+        ? '穩健動能 + 老王均線支撐'
+        : '穩健動能 + 老王 tag',
     }
   }
 
@@ -537,21 +500,12 @@ const getRecommendedPlan = (item: UniverseReportItem) => {
     }
   }
 
-  if (coreBuy) {
+  if (steadyMomentum) {
     return {
-      title: '核心策略',
+      title: '穩健動能',
       cls: 'plan-badge plan-core',
       advice: item.entry_type === 'breakout' ? '可小量試單' : '等區間分批',
-      detail: item.price_plan_note || '依進場區間執行',
-    }
-  }
-
-  if (item.buffett_flag) {
-    return {
-      title: '巴菲特',
-      cls: 'plan-badge plan-buffett',
-      advice: '長期觀察',
-      detail: item.buffett_reason || '品質價值條件成立',
+      detail: item.steady_momentum_reason || item.price_plan_note || '依進場區間執行',
     }
   }
 
@@ -1808,9 +1762,8 @@ export default function UniverseReportPage({ onNavigateAnalysis, initialJournalF
           >
             <option value="all">全部</option>
             <option value="confluence">雙重共振</option>
-            <option value="core">核心策略</option>
-            <option value="old_wang">老王策略</option>
-            <option value="buffett">巴菲特長期</option>
+            <option value="steady_momentum">穩健動能</option>
+            <option value="old_wang">老王短波段</option>
             <option value="no_entry">暫不進場</option>
           </select>
         </div>
@@ -2020,7 +1973,6 @@ export default function UniverseReportPage({ onNavigateAnalysis, initialJournalF
             <tr>
               <th>代號 / 名稱</th>
               <th>市場</th>
-              <th>能否進場</th>
               <th>今日動作</th>
               <th>推薦方案 / 建議</th>
               <th>進場區間</th>
@@ -2030,7 +1982,6 @@ export default function UniverseReportPage({ onNavigateAnalysis, initialJournalF
               <th>收盤</th>
               <th>趨勢 / RSI</th>
               <th>型態</th>
-              <th>原因 / 不買理由</th>
               <th>詳細</th>
             </tr>
           </thead>
@@ -2039,7 +1990,6 @@ export default function UniverseReportPage({ onNavigateAnalysis, initialJournalF
               const market   = resolveMarket(item)
               const expanded = expandedCode === item.code
               const reasons  = item.reasons?.split(' | ').filter(Boolean) ?? []
-              const decision = getEntryDecision(item)
               const dailyDecision = getDailyDecision(item)
               const plan = getRecommendedPlan(item)
               const hasChecklist = (item.daily_checklist?.length ?? 0) > 0
@@ -2076,34 +2026,27 @@ export default function UniverseReportPage({ onNavigateAnalysis, initialJournalF
                       <span style={{ fontSize: 12, color: '#666' }}>{market}</span>
                     </td>
 
-                    {/* 能否進場 */}
-                    <td>
-                      <span className={decision.cls} style={{ fontSize: 12 }}>
-                        {decision.text}
-                      </span>
-                    </td>
-
                     <td className="daily-action-cell">
                       <div className="daily-action-badges">
                         <span className={`decision-badge ${dailyDecision.cls}`}>{dailyDecision.label}</span>
                         <span className={`journal-status-badge ${journalStatusClass}`}>{journalStatusLabel}</span>
                       </div>
-                      <strong>{dailyDecision.oneLine}</strong>
-                      <span>{dailyDecision.identity} · 關鍵 {dailyDecision.keyPrice}</span>
-                      <em>{dailyDecision.invalidation}</em>
+                      <strong title={dailyDecision.oneLine}>{dailyDecision.oneLine}</strong>
                     </td>
 
                     {/* 推薦方案 / 建議 */}
                     <td className="report-plan-cell">
                       <span className={plan.cls}>{plan.title}</span>
                       <strong>{plan.advice}</strong>
-                      <span>{plan.detail}</span>
                       <div className="report-plan-tags">
                         {hasOldWangTag(item) && item.old_wang_score != null && (
                           <em>老王 {item.old_wang_score}{item.old_wang_raw_score != null ? ` / 原始 ${item.old_wang_raw_score}` : ''}</em>
                         )}
-                        {item.buffett_flag && item.buffett_score != null && (
-                          <em>巴菲特 {item.buffett_score}</em>
+                        {item.steady_momentum_flag && item.steady_momentum_score != null && (
+                          <em>穩健動能 {item.steady_momentum_score}</em>
+                        )}
+                        {item.fundamental_data_ok && item.fundamental_quality_score != null && (
+                          <em>基本面避雷 品質 {item.fundamental_quality_score}</em>
                         )}
                         {item.holding_shares != null && item.holding_shares > 0 && (
                           <em>
@@ -2122,9 +2065,6 @@ export default function UniverseReportPage({ onNavigateAnalysis, initialJournalF
                       {item.entry_price_low != null && item.entry_price_high != null ? (
                         <>
                           <strong>{fmtPrice(item.entry_price_low)}–{fmtPrice(item.entry_price_high)}</strong>
-                          {item.price_plan_note && (
-                            <span>{item.price_plan_note}</span>
-                          )}
                           {entryDistance && (
                             <em className={`price-distance ${entryDistance.cls}`}>{entryDistance.label}</em>
                           )}
@@ -2140,6 +2080,7 @@ export default function UniverseReportPage({ onNavigateAnalysis, initialJournalF
                         <>
                           <strong>{fmtPrice(item.stop_price)}</strong>
                           {item.risk_pct != null && <span>風險 {item.risk_pct.toFixed(1)}%</span>}
+                          <span title={dailyDecision.invalidation}>失效 {dailyDecision.invalidation}</span>
                           {stopDistance && (
                             <em className={`price-distance ${stopDistance.cls}`}>{stopDistance.label}</em>
                           )}
@@ -2211,38 +2152,6 @@ export default function UniverseReportPage({ onNavigateAnalysis, initialJournalF
                       ) : <span style={{ color: '#bbb' }}>—</span>}
                     </td>
 
-                    {/* 原因 / 不買理由 */}
-                    <td className="report-reason-cell">
-                      {item.no_buy_reason ? (
-                        <span className="report-no-buy-reason">{item.no_buy_reason}</span>
-                      ) : reasons.length > 0 || hasChecklist ? (
-                        <button
-                          onClick={() => setExpandedCode(expanded ? null : item.code)}
-                          style={{
-                            fontSize: 12,
-                            color: '#1565c0',
-                            background: 'none',
-                            border: 'none',
-                            cursor: 'pointer',
-                            padding: 0,
-                          }}
-                        >
-                          {expanded ? '▲ 收起' : `▼ 檢查 ${hasChecklist ? item.daily_checklist?.length : reasons.length} 項`}
-                        </button>
-                      ) : <span style={{ color: '#bbb' }}>—</span>}
-                      {item.no_buy_reason && hasChecklist && (
-                        <button
-                          onClick={() => setExpandedCode(expanded ? null : item.code)}
-                          className="report-inline-toggle"
-                        >
-                          {expanded ? '收起檢查' : '展開檢查'}
-                        </button>
-                      )}
-                      {item.risk_note && item.risk_note !== '—' && item.risk_note !== '' ? (
-                        <span className="report-risk-note">{item.risk_note}</span>
-                      ) : null}
-                    </td>
-
                     {/* 詳細 */}
                     <td className="report-row-actions">
                       <button
@@ -2260,13 +2169,22 @@ export default function UniverseReportPage({ onNavigateAnalysis, initialJournalF
                       >
                         {alreadyRecorded ? '已記錄' : savingJournalCode === item.code ? '記錄中' : '記錄'}
                       </button>
+                      {(reasons.length > 0 || hasChecklist || item.no_buy_reason) && (
+                        <button
+                          className="btn btn-ghost btn-xs"
+                          onClick={() => setExpandedCode(expanded ? null : item.code)}
+                        >
+                          {expanded ? '收起' : '理由'}
+                        </button>
+                      )}
                     </td>
                   </tr>
 
                   {/* 展開：作戰檢查與 reasons 清單 */}
-                  {expanded && (reasons.length > 0 || (item.daily_checklist?.length ?? 0) > 0) && (
+                  {expanded && (reasons.length > 0 || (item.daily_checklist?.length ?? 0) > 0 || item.no_buy_reason) && (
                     <tr>
-                      <td colSpan={14} style={{ background: '#f5f7fa', padding: '8px 18px' }}>
+                      <td colSpan={12} style={{ background: '#f5f7fa', padding: '8px 18px' }}>
+                        {item.no_buy_reason && <p className="report-expanded-reason">{item.no_buy_reason}</p>}
                         <DailyChecklist items={item.daily_checklist} compact />
                         {reasons.length > 0 && (
                           <ul className="panel-list" style={{ margin: 0 }}>

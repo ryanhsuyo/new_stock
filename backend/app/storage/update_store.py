@@ -5,7 +5,7 @@ update_status.json 格式：
     {
         "last_run_started_at":  "2026-04-09T08:00:00",
         "last_run_finished_at": "2026-04-09T08:02:10",
-        "last_run_status":      "success",   # success | failed | running | stale
+        "last_run_status":      "success",   # success | failed | running | stalled | stale
         "last_error":           null,
         "last_warning":         null,
         "last_data_as_of":      "2026-04-09"

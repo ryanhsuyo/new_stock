@@ -82,6 +82,17 @@ npm run dev
 # http://localhost:5173
 ```
 
+### 同時啟動前後端
+
+```bash
+pnpm dev:all
+```
+
+預設會啟動：
+
+- 後端：`http://127.0.0.1:9000`
+- 前端：`http://127.0.0.1:5173`
+
 ---
 
 ## 資料準備（初次）
@@ -140,14 +151,18 @@ python3 scripts/doctor.py --json   # 給自動化或 AI agent 讀取
 ```
 
 `daily_update.py`、`run_signals.py` 與前端「立即更新資料」完成後會自動刷新 `backend/out/daily_check.json`。`daily_check.py` 可手動顯示資料日、交易輸出是否可用與 Top N 待辦；加 `--write-report` 可單獨重寫 Dashboard 讀取的快照。exit code：`0` 代表 OK、`1` 代表有警告但可回顧、`2` 代表有阻塞需先處理。
-Buffett 基本面會同時檢查 priority CSV 狀態；若 CSV 已可合併會提示合併與重算訊號，若有格式錯誤會列出第一筆問題並回傳阻塞。
+基本面避雷補資料會同時檢查 priority CSV 狀態；若 CSV 已可合併會提示合併與重算訊號，若有格式錯誤會列出第一筆問題並回傳阻塞。推薦策略固定只有老王 `old_wang` 與穩健動能 `steady_momentum`；基本面只作為穩健動能的避雷資料輔助。
 
-Buffett 補資料的終端流程：
+基本面避雷補資料的終端流程：
 
 ```bash
 cd backend
-python3 scripts/check_fundamentals.py --write-priority-csv --write-report
-# 填完 backend/out/fundamentals_priority_fill.csv 後先預覽
+python3 scripts/prepare_fundamentals_priority_import.py --write-template
+# 依 backend/out/fundamentals_priority_import_template.csv 整理真實外部資料後先 dry-run
+python3 scripts/prepare_fundamentals_priority_import.py /path/to/source.csv
+# dry-run 確認後才寫入 backend/out/fundamentals_priority_fill.csv
+python3 scripts/prepare_fundamentals_priority_import.py /path/to/source.csv --apply
+# 先預覽合併
 python3 scripts/merge_priority_fundamentals.py
 # 預覽確認可合併後再正式寫回
 python3 scripts/merge_priority_fundamentals.py --apply --confirm MERGE_PRIORITY_FUNDAMENTALS
@@ -207,7 +222,7 @@ new_stock/
 │   └── requirements.txt
 ├── frontend/
 │   └── src/
-│       ├── pages/               # 7 個頁面元件
+│       ├── pages/               # 9 個頁面元件
 │       ├── components/          # 可重用元件（StockChart、AnalysisPanel 等）
 │       ├── api/client.ts        # API 客戶端
 │       └── types/index.ts       # TypeScript 型別定義

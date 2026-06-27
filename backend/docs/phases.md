@@ -30,12 +30,12 @@
 - `scripts/backfill_ohlcv_twse.py`
   - 從 TWSE OpenAPI 按月份拉取 OHLCV
   - 節流（每次請求間隔 ~1.2 秒）
-  - TPEX 上櫃股票自動跳過並印出 SKIP 清單
+  - 第一版僅支援 TWSE；後續已補上 TPEX fallback（見 Phase 10）
   - 以 `(code, date)` 去重，merge 後寫回 `ohlcv.csv`
 - `backend/data/leaders.json`：股票代碼清單格式確立
 
-**已知限制**：
-- 只支援 TWSE 上市股票；TPEX 上櫃需另外處理
+**目前狀態**：
+- TWSE / TPEX 日線皆已支援；特殊商品或資料來源格式變動仍需另行確認
 - API 限速，大量回補耗時
 
 ---
@@ -79,7 +79,7 @@
 
 **完成項目**：
 - React 18 + TypeScript + Vite SPA
-- Tab 導航（7 個頁面，無 React Router）
+- Tab 導航（9 個頁面，無 React Router）
 - API 客戶端（`api/client.ts`）
 - TypeScript 型別定義（`types/index.ts`）
 - 基礎 CSS（台股漲紅跌綠色系）
@@ -173,6 +173,45 @@
 
 ---
 
+## Phase 11：Core 單股可信回測第一版
+
+**目標**：驗證既有 `core` 日線訊號的歷史交易結果，不以增加策略數量為目的。
+
+**完成項目**：
+- `services/backtest_service.py`：單股、單一多頭部位事件引擎
+- D 日收盤產生訊號，D+1 實際下一根日 K 開盤成交
+- 買賣不利滑價、正式手續費／折扣／最低費用與賣出證交稅
+- 歷史個股／0050 prefix 隔離，回測模式不讀目前籌碼或基本面
+- 交易明細、總報酬、最大回撤、勝率、平均損益與 buy-and-hold 基準
+- `scripts/run_backtest.py` 產生 `backtest_summary.json` / `backtest_trades.csv`
+- 固定測資覆蓋成交時序、成本、持股估值、強制平倉與 look-ahead guard
+
+**限制**：
+- 一次只回測一檔，不處理全市場同日訊號排序與資金配置
+- 不含股利、拆併股、限價／部分成交、放空與券商整合
+- 回測結果是規則驗證，不是獲利保證
+
+---
+
+## Phase 12：交易日、資料覆蓋率與 Lineage
+
+**目標**：讓每日資料輸入可稽核，避免休市日誤報與追蹤清單缺資料時仍顯示可交易。
+
+**完成項目**：
+- `trading_calendar_service.py`：週末、休市日與補班交易日判斷
+- `backend/data/trading_calendar.json` 可選本地覆寫；缺檔或壞檔退回週一至週五
+- `data_coverage_service.py`：產生 `backend/out/data_coverage_report.json`
+- 覆蓋率報告列出每檔 `ok` / `missing` / `insufficient` / `lagging` 與原因
+- `update_status.json`、`summary.json`、coverage report 共享 `batch_id` / `lineage`
+- `doctor.py`、Daily Check 與 Update Workflow 會讀 coverage report；coverage < 80% blocked
+- `daily_update.py` expected outputs 納入 `data_coverage_report.json`
+
+**限制**：
+- 第一版不自動下載官方休市日，需用本地 JSON 覆寫
+- coverage 門檻先固定 80%，尚未做成設定
+
+---
+
 ## 已知限制（跨階段）
 
 ### 資料層
@@ -183,17 +222,17 @@
 
 ### 訊號層
 - 需至少 60 根 K 棒才能計算 MA60；新股或資料不足時顯示 `DATA_MISSING`
-- 型態辨識已支援 W 底 / M 頂 / 頭肩底；型態新鮮度與距離權重仍可優化
-- 趨勢線只取兩個擺動點，較複雜的多點趨勢線未支援
+- 型態辨識已支援 W 底 / M 頂 / 頭肩底 / 頭肩頂；型態新鮮度與距離權重仍可優化
+- 趨勢線已支援三點以上觸碰驗證與破線失效，API 仍只回傳定義斜率的 `p1/p2`；尚未採回歸線或 `anchors[]`
 - 訊號 API 為背景觸發並透過 status 輪詢；CLI `run_signals.py` 仍是同步批次
 
 ### API 層
-- CORS 固定開放 `localhost:5173`，生產環境需修改
+- CORS 可用 `CORS_ALLOWED_ORIGINS` 設定明確來源；不接受 wildcard
 - 無認證機制，不適合直接暴露至公網
 - `POST /api/stocks/signals/run` 為背景觸發；進度請透過 `/api/stocks/signals/status` 查詢
 
 ### 前端層
-- Dashboard 已有 Decision Console 第一版；`Dashboard.tsx` 仍偏大，後續應以契約穩定後再拆分
+- Dashboard 已有 Decision Console、Today Focus、PM Worklist action payload 呈現第一版；`Dashboard.tsx` 仍偏大，後續應漸進拆分
 - Tab 導航不支援 URL 深連結（無法直接分享特定分析頁面）
 - 無登入機制，所有人共用同一份交易紀錄
 
@@ -208,11 +247,11 @@
 
 | 項目 | 優先度 | 說明 |
 |------|--------|------|
-| 候選股表格資訊密度 | 中 | 長理由需折疊，保留主要理由與詳細入口 |
-| 首頁截圖驗收 | 中 | 桌面 / 手機狀態需驗證不重疊、不空白 |
-| 頭肩頂型態 | 低 | 算法較複雜，先求可用 |
+| 候選股表格資訊密度 | 中 | 已固定股票身份欄並折疊長理由；後續可再優化欄位密度與手機閱讀 |
+| 首頁截圖驗收 | 已結案 | DOM / 溢出與 build 已驗證；正式截圖依 2026-06-19 使用者核准的環境限制豁免關閉 |
+| 頭肩頂型態 | 已完成 | 三擺盪高點、頸線、forming / confirmed / failed、分數與風險解釋皆有固定測試 |
 | 即時報價 | 低 | 需外部 WebSocket 或輪詢 |
-| 多點趨勢線 | 低 | 目前僅兩點趨勢線 |
+| 多點趨勢線 | 已完成 | 2% 容差、至少三觸點、風險方向破線失效，無多點候選時保留兩點 fallback |
 | 使用者認證 | 低 | 目前無登入機制 |
 | 行動版 RWD 優化 | 低 | 桌面版優先 |
 | LINE Notify / Email 通知 | 低 | `notify_service` 已有 stub |

@@ -19,7 +19,7 @@
 
 首頁應該是「決策工作台」，不是所有報表的集合頁。
 
-目前系統已經有大量後端輸出：`summary.json`、`universe_report.csv`、`daily_brief.json`、`daily_check.json`、Update Workflow、PM Worklist、持股分析、Buffett 基本面、候選股復盤。首頁的責任是整理這些資訊的優先順序，讓使用者先完成今天最重要的操作，再往下看細節。
+目前系統已經有大量後端輸出：`summary.json`、`universe_report.csv`、`daily_brief.json`、`daily_check.json`、Update Workflow、PM Worklist、持股分析、基本面避雷補資料、候選股復盤。首頁的責任是整理這些資訊的優先順序，讓使用者先完成今天最重要的操作，再往下看細節。
 
 首頁第一屏只回答四件事：
 
@@ -89,7 +89,7 @@
 1. 阻塞：資料過期、交易輸出不可用、Daily Check 過期。
 2. 持股風險：停利、停損、跌破關鍵支撐、需要補紀錄。
 3. 候選股：可小試、等回測、待復盤。
-4. 基本面：Buffett 資料不足、欄位缺漏。
+4. 基本面：基本面避雷資料不足、欄位缺漏。
 5. 維護：檔案健康、資料修復、醫生檢查。
 
 每個工作項目都應有：
@@ -230,7 +230,7 @@
 
 | ID | 優先級 | 類型 | 工作項目 | 驗收標準 |
 |----|--------|------|----------|----------|
-| HP-001 | P0 | Docs | 建立本 roadmap，作為首頁改善長期依據 | 文件存在且能指導後續實作 |
+| HP-001 | P0 | Docs | 建立本 roadmap，作為首頁改善長期依據 | 已完成：roadmap 已建立並持續用於 phase 選擇與狀態對帳 |
 | HP-002 | P0 | Backend | 確認 PM Worklist 第一筆可作為 Primary Action | 已完成：`/api/system/pm-worklist` 回傳單一最優先待辦與 action_payload |
 | HP-003 | P0 | Backend | 若沒有 primary_action，新增 service 層整理，不在 router 或 frontend 判斷 | 已完成：`pm_worklist_service` 產生 `primary_action`，router 只回傳 service 結果 |
 | HP-004 | P0 | Frontend | 首頁第一屏改為 Decision Console | 已完成第一版：新增 Status Strip、Primary Action、Market Posture、Today Focus；完整工作流明細仍保留下方 |
@@ -238,13 +238,13 @@
 | HP-006 | P1 | Frontend | PM Worklist 分組顯示 | 已完成第一版：Primary Action 下方依阻塞 / 資料修復、候選復盤、基本面、Daily Check / 維護分組 |
 | HP-007 | P1 | Frontend | Action Renderer 標準化 | 已完成第一版：PM Worklist 共用 action handler，支援 command / copy_text / api 導引與安全批次復盤 |
 | HP-008 | P1 | Backend | 確認 Today Focus 所需欄位穩定 | 已完成：`/api/system/pm-worklist.today_focus` 由後端 service 提供，每類最多 3 筆，含 reason / next_action / price_basis / as_of |
-| HP-009 | P1 | Frontend | 候選股表格降低資訊密度 | 長理由折疊，主要理由與詳細入口清楚 |
+| HP-009 | P1 | Frontend | 候選股表格降低資訊密度 | 已完成：重複進場 / 理由欄位收斂，長理由改為同列展開，保留價格計畫與詳細入口 |
 | HP-010 | P1 | Frontend | 持股風險摘要放在候選股之前 | 已完成後端契約與首頁第一版：Today Focus 依 portfolio_risk、entry_candidate、review_needed 排序，持股風險優先 |
-| HP-011 | P1 | Frontend | 人工盤後筆記改為 posture 摘要 | 顯示日期、是否過期、持股水位、風控條件 |
+| HP-011 | P1 | Frontend | 人工盤後筆記改為 posture 摘要 | 已完成：顯示筆記狀態、適用日期、過期原因、持股水位與風控摘要 |
 | HP-012 | P2 | Tests | 加首頁狀態 API fixture 測試 | 已完成第一版：pm-worklist 測試覆蓋 ready / blocked / empty 與 endpoint schema；後續可補瀏覽器截圖測試 |
-| HP-013 | P2 | E2E | 建立首頁截圖驗收 | 桌面與手機至少各一張，不重疊、不空白 |
+| HP-013 | P2 | E2E | 建立首頁截圖驗收 | 已結案：桌面與手機 DOM / 溢出驗收通過；in-app browser 無法載入 localhost，2026-06-19 經使用者同意以環境限制豁免正式截圖 |
 | HP-014 | P2 | Docs | 更新 daily runbook，加入首頁判讀順序 | 已完成：Daily Runbook 補上新版首頁判讀順序 |
-| HP-015 | P2 | Frontend | 行動版首頁簡化 | 手機第一屏只保留 Status、Primary Action、Focus |
+| HP-015 | P2 | Frontend | 行動版首頁簡化 | 已完成：手機第一屏保留 Status、Primary Action、Focus；Market Posture 改為下方折疊摘要 |
 
 ---
 
@@ -301,11 +301,8 @@
 
 ## 8. 下一個建議實作切點
 
-下一步建議先做 `HP-009`、`HP-011`、`HP-013`、`HP-015`：
+首頁 roadmap 的 HP-001 至 HP-015 已全部結案。
 
-1. 候選股表格降低資訊密度，長理由預設折疊，只保留主要理由與詳細入口。
-2. 人工盤後筆記進一步收斂成 posture 摘要，避免長文壓住 PM 工作台。
-3. 建立桌面與手機截圖驗收，確認第一屏沒有重疊或過量資訊。
-4. 行動版首頁只保留 Status、Primary Action、Today Focus。
+正式截圖未產生；HP-013 依 2026-06-19 使用者核准的環境限制豁免結案。
 
-這樣可以在既有後端契約穩定後，繼續改善閱讀負擔與實際可用性。
+後續新增首頁功能前，應重新建立獨立 phase 與產品決策。

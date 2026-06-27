@@ -249,6 +249,75 @@ def _find_swing_highs(rows: list[dict], window: int = 5) -> list[dict]:
 # 趨勢線建構
 # ---------------------------------------------------------------------------
 
+def _row_indexes_by_date(rows: list[dict]) -> dict[str, int]:
+    return {str(row["date"]): index for index, row in enumerate(rows)}
+
+
+def _select_multi_touch_pair(
+    rows: list[dict],
+    swings: list[dict],
+    *,
+    direction: str,
+    tolerance: float = 0.02,
+) -> tuple[dict, dict, int] | None:
+    if len(swings) < 3 or direction not in {"up", "down"}:
+        return None
+
+    row_indexes = _row_indexes_by_date(rows)
+    indexed_swings = []
+    for swing in swings:
+        index = row_indexes.get(str(swing.get("date")))
+        price = swing.get("price")
+        if index is None or not isinstance(price, (int, float)) or price <= 0:
+            return None
+        indexed_swings.append((index, swing))
+    if any(
+        left[0] >= right[0]
+        for left, right in zip(indexed_swings, indexed_swings[1:])
+    ):
+        return None
+
+    best = None
+    best_rank = None
+    for first in range(len(indexed_swings) - 1):
+        p1_index, p1 = indexed_swings[first]
+        p1_price = float(p1["price"])
+        for second in range(first + 1, len(indexed_swings)):
+            p2_index, p2 = indexed_swings[second]
+            p2_price = float(p2["price"])
+            if direction == "up" and p2_price <= p1_price:
+                continue
+            if direction == "down" and p2_price >= p1_price:
+                continue
+
+            slope = (p2_price - p1_price) / (p2_index - p1_index)
+            touches = 0
+            violated = False
+            for swing_index, swing in indexed_swings[first:]:
+                projected = p1_price + slope * (swing_index - p1_index)
+                if projected <= 0:
+                    violated = True
+                    break
+                price = float(swing["price"])
+                error = abs(price - projected) / projected
+                if direction == "up" and price < projected * (1 - tolerance):
+                    violated = True
+                    break
+                if direction == "down" and price > projected * (1 + tolerance):
+                    violated = True
+                    break
+                if error <= tolerance:
+                    touches += 1
+
+            if violated or touches < 3:
+                continue
+            rank = (touches, p2_index, p2_index - p1_index)
+            if best_rank is None or rank > best_rank:
+                best = (p1, p2, touches)
+                best_rank = rank
+
+    return best
+
 def _build_uptrend_line(rows: list[dict], window: int = 5) -> TrendLine:
     """
     上升趨勢線：連接最近兩個**遞增**擺盪低點（p1.price < p2.price）。
@@ -257,6 +326,16 @@ def _build_uptrend_line(rows: list[dict], window: int = 5) -> TrendLine:
     signal_rules.md §2.6：趨勢線只連有效高低點。
     """
     swings = _find_swing_lows(rows, window)
+
+    candidate = _select_multi_touch_pair(rows, swings, direction="up")
+    if candidate is not None:
+        p1, p2, touch_count = candidate
+        return TrendLine(
+            valid=True,
+            p1=PricePoint(date=p1["date"], price=p1["price"]),
+            p2=PricePoint(date=p2["date"], price=p2["price"]),
+            note=f"連接遞增擺盪低點，多點確認（{touch_count} 個有效觸點）",
+        )
 
     # 從最新往前找兩個遞增低點
     for i in range(len(swings) - 1, 0, -1):
@@ -282,6 +361,16 @@ def _build_downtrend_line(rows: list[dict], window: int = 5) -> TrendLine:
     下降趨勢線：連接最近兩個**遞減**擺盪高點（p1.price > p2.price）。
     """
     swings = _find_swing_highs(rows, window)
+
+    candidate = _select_multi_touch_pair(rows, swings, direction="down")
+    if candidate is not None:
+        p1, p2, touch_count = candidate
+        return TrendLine(
+            valid=True,
+            p1=PricePoint(date=p1["date"], price=p1["price"]),
+            p2=PricePoint(date=p2["date"], price=p2["price"]),
+            note=f"連接遞減擺盪高點，多點確認（{touch_count} 個有效觸點）",
+        )
 
     for i in range(len(swings) - 1, 0, -1):
         p2 = swings[i]

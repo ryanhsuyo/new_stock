@@ -1,5 +1,5 @@
 """
-pattern_service.py — W底 / M頂 / 頭肩底型態辨識（第一版）
+pattern_service.py — W底 / M頂 / 頭肩底 / 頭肩頂型態辨識（第一版）
 
 辨識規則
 --------
@@ -28,7 +28,13 @@ M頂 (m_top)：
      - failed    ：收盤 ＜ 頭部低點 × (1 - FAIL_TOL)
      - forming   ：其餘（右肩完成、頸線尚未突破）
 
-優先順序（多種都偵測到時）：以最後錨點日期較新者優先；同日期時 W底優先，其次頭肩底，再其次 M頂。
+頭肩頂 (head_and_shoulders_top)：
+  1. 找最近三個擺盪高點，第二個高點為頭且明顯高於左右肩
+  2. 左右肩差距需在 _SHOULDER_TOL 內
+  3. 頸線 = 左肩到頭、頭到右肩兩段低點的較低者
+  4. status 判斷：confirmed 跌破頸線、failed 突破頭部、其餘 forming
+
+優先順序（多種都偵測到時）：以最後錨點日期較新者優先；同日期時 W底、頭肩底、頭肩頂、M頂。
 
 注意：swing 偵測內部限定 rows[-120:]，pattern 配對最多往前查 MAX_PAIR_GAP = 3 個擺盪點。
 
@@ -47,6 +53,7 @@ _FAIL_TOL       = 0.03   # 有效失效跌破量：3%
 _MAX_PAIR_GAP   = 3      # 往前最多看幾個擺盪點（防止配對到太舊的點）
 _SHOULDER_TOL   = 0.10   # 頭肩底左右肩差距容忍：10%
 _HEAD_MIN_DROP  = 0.03   # 頭部需比左右肩至少低 3%
+_HEAD_MIN_RISE  = 0.03   # 頭部需比左右肩至少高 3%
 
 
 # ---------------------------------------------------------------------------
@@ -283,20 +290,83 @@ def _detect_head_and_shoulders_bottom(rows: list[dict], window: int = 5) -> dict
 
 
 # ---------------------------------------------------------------------------
+# 頭肩頂偵測
+# ---------------------------------------------------------------------------
+
+def _detect_head_and_shoulders_top(rows: list[dict], window: int = 5) -> dict:
+    swings = _swing_highs(rows, window)
+    if len(swings) < 3:
+        return {"found": False}
+
+    close = rows[-1]["close"]
+
+    for i in range(len(swings) - 1, 1, -1):
+        right = swings[i]
+        for h in range(i - 1, max(i - _MAX_PAIR_GAP - 1, 0), -1):
+            head = swings[h]
+            for l in range(h - 1, max(h - _MAX_PAIR_GAP - 1, -1), -1):
+                left = swings[l]
+                shoulder_base = (left["price"] + right["price"]) / 2
+
+                if shoulder_base <= 0:
+                    continue
+                if abs(left["price"] - right["price"]) / shoulder_base > _SHOULDER_TOL:
+                    continue
+                if head["price"] <= max(left["price"], right["price"]) * (1 + _HEAD_MIN_RISE):
+                    continue
+
+                idx_left = _date_idx(rows, left["date"])
+                idx_head = _date_idx(rows, head["date"])
+                idx_right = _date_idx(rows, right["date"])
+                if idx_left < 0 or idx_head <= idx_left or idx_right <= idx_head:
+                    continue
+
+                left_trough = min(r["low"] for r in rows[idx_left:idx_head + 1])
+                right_trough = min(r["low"] for r in rows[idx_head:idx_right + 1])
+                neckline = round(min(left_trough, right_trough), 2)
+                head_high = round(head["price"], 2)
+                shoulder_high = round(min(left["price"], right["price"]), 2)
+
+                if neckline > shoulder_high * (1 - _NECKLINE_MIN):
+                    continue
+
+                if close > head_high * (1 + _FAIL_TOL):
+                    status = "failed"
+                    note = f"頭肩頂失效：收盤 {close} 突破頭部高點 {head_high}（突破 {_FAIL_TOL*100:.0f}%）"
+                elif close <= neckline * (1 + _CONFIRM_TOL):
+                    status = "confirmed"
+                    note = f"頭肩頂確認：收盤 {close} 跌破頸線 {neckline}"
+                else:
+                    status = "forming"
+                    note = f"頭肩頂形成中：頭部 {head_high}，頸線 {neckline}，注意跌破"
+
+                return {
+                    "found": True,
+                    "p1": left, "p2": head, "p3": right,
+                    "neckline": neckline,
+                    "status": status,
+                    "note": note,
+                }
+
+    return {"found": False}
+
+
+# ---------------------------------------------------------------------------
 # 主入口
 # ---------------------------------------------------------------------------
 
 def detect_pattern(rows: list[dict], window: int = 5) -> PatternResult:
     """
-    偵測最近一個型態（W底 / M頂 / 頭肩底 / 無型態）。
+    偵測最近一個型態（W底 / M頂 / 頭肩底 / 頭肩頂 / 無型態）。
 
-    若多種都偵測到，以最後錨點日期較新者優先；同日期時 W底 優先。
+    若多種都偵測到，以最後錨點日期較新者優先；同日期依序為
+    W底、頭肩底、頭肩頂、M頂。
     """
     _NONE = PatternResult(
         pattern_type="none",
         pattern_status="none",
         neckline=None,
-        note="未偵測到 W底、M頂 或 頭肩底 型態",
+        note="未偵測到 W底、M頂、頭肩底或頭肩頂型態",
     )
 
     if len(rows) < 20:   # 太少資料直接回傳 none
@@ -310,14 +380,17 @@ def detect_pattern(rows: list[dict], window: int = 5) -> PatternResult:
     w = _detect_w_bottom(rows, window)
     m = _detect_m_top(rows, window)
     hsb = _detect_head_and_shoulders_bottom(rows, window)
+    hst = _detect_head_and_shoulders_top(rows, window)
 
     candidates = []
     if w["found"]:
         candidates.append(("w_bottom", w, w["p2"]["date"], 0))
     if hsb["found"]:
         candidates.append(("head_and_shoulders_bottom", hsb, hsb["p3"]["date"], 1))
+    if hst["found"]:
+        candidates.append(("head_and_shoulders_top", hst, hst["p3"]["date"], 2))
     if m["found"]:
-        candidates.append(("m_top", m, m["p2"]["date"], 2))
+        candidates.append(("m_top", m, m["p2"]["date"], 3))
 
     if not candidates:
         return _NONE

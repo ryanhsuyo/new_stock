@@ -20,7 +20,8 @@ from app.storage.chip_store import get_chip_metrics
 MOCK_PRICES: dict[str, float] = {}
 
 
-VALID_RECOMMENDATION_STRATEGIES = {"core", "old_wang", "buffett"}
+DEFAULT_RECOMMENDATION_STRATEGY = "steady_momentum"
+VALID_RECOMMENDATION_STRATEGIES = {"steady_momentum", "old_wang"}
 
 
 def _normalize_badges(value: object) -> list[str]:
@@ -31,18 +32,24 @@ def _normalize_badges(value: object) -> list[str]:
     return []
 
 
-def _load_signals(strategy: str = "core") -> list[dict]:
+def _normalize_strategy(strategy: str | None) -> str:
+    if strategy == "core":
+        return DEFAULT_RECOMMENDATION_STRATEGY
+    if strategy not in VALID_RECOMMENDATION_STRATEGIES:
+        return DEFAULT_RECOMMENDATION_STRATEGY
+    return strategy
+
+
+def _load_signals(strategy: str = DEFAULT_RECOMMENDATION_STRATEGY) -> list[dict]:
     """
     讀取 summary.json，回傳指定策略的訊號列表（依分數排序）。
 
-    - core：舊行為，只回傳 signal=="BUY"
     - old_wang：只回傳老王大盤籌碼輪動 tag 成立的標的
-    - buffett：只回傳巴菲特品質價值指標成立的標的
+    - steady_momentum：只回傳穩健動能成立的標的
 
     _OUT 動態取自 signals_service._OUT，確保與 monkeypatch 一致。
     """
-    if strategy not in VALID_RECOMMENDATION_STRATEGIES:
-        strategy = "core"
+    strategy = _normalize_strategy(strategy)
 
     path = _svc._OUT / "summary.json"
     if not path.exists():
@@ -53,16 +60,14 @@ def _load_signals(strategy: str = "core") -> list[dict]:
     signals = summary.get("signals", [])
     if strategy == "old_wang":
         hits = [s for s in signals if s.get("old_wang_flag")]
-    elif strategy == "buffett":
-        hits = [s for s in signals if s.get("buffett_flag")]
     else:
-        hits = [s for s in signals if s.get("signal") == "BUY"]
+        hits = [s for s in signals if s.get("steady_momentum_flag")]
 
     hits.sort(
         key=lambda s: (
+            s.get("steady_momentum_score", 0),
             s.get("entry_score", 0),
             s.get("old_wang_score", 0),
-            s.get("buffett_score", 0),
             s.get("score", 0),
         ),
         reverse=True,
@@ -76,7 +81,8 @@ def _signal_to_recommendation(sig: dict, strategy: str = "core") -> StockRecomme
     ma20      = sig.get("ma20")
     ma60      = sig.get("ma60")
     rsi14     = sig.get("rsi14")
-    score     = sig.get("buffett_score") if strategy == "buffett" else sig.get("score", 60)
+    strategy = _normalize_strategy(strategy)
+    score = sig.get("steady_momentum_score") if strategy == "steady_momentum" else sig.get("score", 60)
     score = score if score is not None else sig.get("score", 60)
     entry_score = sig.get("entry_score")
     trend_score = sig.get("trend_score")
@@ -102,10 +108,10 @@ def _signal_to_recommendation(sig: dict, strategy: str = "core") -> StockRecomme
         old_wang_signal = sig.get("old_wang_signal") or "old_wang"
         old_wang_reason = sig.get("old_wang_reason") or reason_text
         reason = f"[老王大盤籌碼輪動:{old_wang_signal}] {old_wang_reason}"
-    elif strategy == "buffett":
-        buffett_signal = sig.get("buffett_signal") or "buffett"
-        buffett_reason = sig.get("buffett_reason") or "巴菲特品質價值條件成立"
-        reason = f"[巴菲特品質價值:{buffett_signal}] {buffett_reason}"
+    elif strategy == "steady_momentum":
+        steady_signal = sig.get("steady_momentum_signal") or "steady_momentum"
+        steady_reason = sig.get("steady_momentum_reason") or reason_text
+        reason = f"[穩健動能:{steady_signal}] {steady_reason}"
 
     risk_raw = sig.get("risk_note", "")
     if not risk_raw or risk_raw == "—":
@@ -176,20 +182,25 @@ def _signal_to_recommendation(sig: dict, strategy: str = "core") -> StockRecomme
         old_wang_volume_high_price=sig.get("old_wang_volume_high_price"),
         old_wang_all_ma_reclaim=sig.get("old_wang_all_ma_reclaim"),
         old_wang_parabolic_ma10_hold=sig.get("old_wang_parabolic_ma10_hold"),
-        buffett_flag=sig.get("buffett_flag"),
-        buffett_tag=sig.get("buffett_tag") or None,
-        buffett_score=sig.get("buffett_score"),
-        buffett_signal=sig.get("buffett_signal"),
-        buffett_reason=sig.get("buffett_reason") or None,
-        buffett_data_ok=sig.get("buffett_data_ok"),
-        buffett_data_missing_reason=sig.get("buffett_data_missing_reason") or None,
-        buffett_quality_score=sig.get("buffett_quality_score"),
-        buffett_value_score=sig.get("buffett_value_score"),
-        buffett_safety_score=sig.get("buffett_safety_score"),
-        buffett_growth_score=sig.get("buffett_growth_score"),
-        buffett_data_completeness_pct=sig.get("buffett_data_completeness_pct"),
-        buffett_missing_fields=sig.get("buffett_missing_fields") or [],
-        buffett_scored_groups=sig.get("buffett_scored_groups") or [],
+        steady_momentum_flag=sig.get("steady_momentum_flag"),
+        steady_momentum_tag=sig.get("steady_momentum_tag") or None,
+        steady_momentum_score=sig.get("steady_momentum_score"),
+        steady_momentum_signal=sig.get("steady_momentum_signal"),
+        steady_momentum_reason=sig.get("steady_momentum_reason") or None,
+        fundamental_flag=sig.get("fundamental_flag"),
+        fundamental_tag=sig.get("fundamental_tag") or None,
+        fundamental_score=sig.get("fundamental_score"),
+        fundamental_signal=sig.get("fundamental_signal"),
+        fundamental_reason=sig.get("fundamental_reason") or None,
+        fundamental_data_ok=sig.get("fundamental_data_ok"),
+        fundamental_data_missing_reason=sig.get("fundamental_data_missing_reason") or None,
+        fundamental_quality_score=sig.get("fundamental_quality_score"),
+        fundamental_value_score=sig.get("fundamental_value_score"),
+        fundamental_safety_score=sig.get("fundamental_safety_score"),
+        fundamental_growth_score=sig.get("fundamental_growth_score"),
+        fundamental_data_completeness_pct=sig.get("fundamental_data_completeness_pct"),
+        fundamental_missing_fields=sig.get("fundamental_missing_fields") or [],
+        fundamental_scored_groups=sig.get("fundamental_scored_groups") or [],
         daily_checklist=sig.get("daily_checklist") or [],
     )
 
@@ -197,8 +208,9 @@ def _signal_to_recommendation(sig: dict, strategy: str = "core") -> StockRecomme
 def get_recommendations(
     sort_by: str | None = None,
     min_score: float | None = None,
-    strategy: str = "core",
+    strategy: str = DEFAULT_RECOMMENDATION_STRATEGY,
 ) -> list[StockRecommendation]:
+    strategy = _normalize_strategy(strategy)
     signals = _load_signals(strategy)
     return [_signal_to_recommendation(s, strategy=strategy) for s in signals]
 

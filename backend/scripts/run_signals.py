@@ -10,6 +10,7 @@ run_signals.py — 執行日訊號計算並列印摘要
     summary.json          — 含 signal_counts / no_buy_reason_counts
     universe_report.csv   — 每支股票的完整分析結果
     daily_brief.json      — 每日作戰表
+    today_scan.json       — 今日規則掃描分桶
     daily_check.json      — PM Daily Check 快照
 
 前置條件：
@@ -18,6 +19,7 @@ run_signals.py — 執行日訊號計算並列印摘要
 """
 
 import argparse
+import json
 import sys
 from pathlib import Path
 
@@ -28,6 +30,8 @@ if str(_HERE) not in sys.path:
 sys.path.insert(0, str(_BACKEND))
 
 from app.services.signals_service import run_daily_signals
+from app.services.signal_alert_service import load_signal_alerts
+from app.services.today_scan_service import load_today_scan_report
 from daily_check import build_daily_summary, write_daily_summary
 from doctor import build_doctor_report
 
@@ -65,6 +69,12 @@ def print_summary(result: dict) -> None:
     print(f"  宇宙總數  : {result['universe_size']} 支")
     print(f"  資料完整  : {result['data_ok_count']} 支")
     print(f"  資料不足  : {result['data_missing_count']} 支")
+    timeout_count = result.get("calculation_timeout_count", 0)
+    if timeout_count:
+        timeout_seconds = result.get("calculation_timeout_seconds", 0)
+        timeout_codes = ", ".join(result.get("calculation_timeout_codes", []))
+        print(f"  計算逾時  : {timeout_count} 支（每檔 {timeout_seconds:g} 秒）")
+        print(f"  逾時代碼  : {timeout_codes}")
     market = result.get("market_context") or {}
     if market:
         print(
@@ -130,17 +140,33 @@ def print_summary(result: dict) -> None:
             print(f"    {label} {s['code']} {s['name']:8s}  {s['no_buy_reason']}")
         print()
 
+    alert_count = result.get("signal_alert_count")
+    if alert_count is None:
+        try:
+            alerts_path = _BACKEND / "out" / "signal_alerts.json"
+            alert_count = json.loads(alerts_path.read_text(encoding="utf-8")).get("alert_count", 0)
+        except Exception:
+            alert_count = 0
+    print(f"  隔日警示  : {alert_count} 筆")
+
     _out = _BACKEND / "out"
     print(f"  輸出目錄  : {_out}")
     print("    summary.json  /  universe_report.csv")
-    print("    daily_brief.json  /  daily_check.json")
+    print("    daily_brief.json  /  today_scan.json  /  daily_check.json")
+    print("    signal_snapshot_review.json  /  signal_alerts.json")
+    print("    signal_snapshots/signal_snapshot_YYYY-MM-DD.json")
     print(sep)
 
 
 def write_daily_check_report() -> Path:
     """重算 signals 後刷新 PM Daily Check 快照，供 Dashboard 讀取。"""
     report = build_doctor_report(_BACKEND)
-    summary = build_daily_summary(report, limit=3)
+    summary = build_daily_summary(
+        report,
+        limit=3,
+        signal_alerts=load_signal_alerts(_BACKEND / "out"),
+        today_scan=load_today_scan_report(_BACKEND / "out"),
+    )
     return write_daily_summary(summary, _BACKEND)
 
 

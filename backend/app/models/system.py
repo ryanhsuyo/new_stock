@@ -6,12 +6,15 @@ from pydantic import BaseModel, Field
 class DataStatus(BaseModel):
     last_run_started_at: str | None = None
     last_run_finished_at: str | None = None
-    last_run_status: str | None = None       # "success" | "failed" | "running" | "stale" | None
+    last_run_status: str | None = None       # "success" | "failed" | "running" | "stalled" | "stale" | None
     last_error: str | None = None
     last_error_summary: str | None = None    # 錯誤第一行，max 120 chars，供前端 banner 顯示
     last_warning: str | None = None
     last_warning_summary: str | None = None  # 警告第一行，max 120 chars，供前端 banner 顯示
     last_data_as_of: str | None = None       # YYYY-MM-DD
+    schedule_health_status: str = "never_run"
+    schedule_is_overdue: bool = False
+    schedule_health_message: str = "尚無自動更新完成紀錄。"
     raw_ohlcv_as_of: str | None = None       # ohlcv.csv 原始資料最新日
     outputs_lag_raw_data: bool = False       # True 表示回補後尚未重算交易輸出
     raw_data_warning: str | None = None
@@ -70,9 +73,64 @@ class FundamentalsPriorityMergeResult(BaseModel):
     row_statuses: list[dict] = []
     warning_count: int = 0
     warnings: list[dict] = []
-    buffett_preview: list[dict] = []
+    fundamental_preview: list[dict] = []
     signals_refresh_required: bool = False
     next_action_label: str | None = None
+
+
+class PersonalBackupFile(BaseModel):
+    key: str | None = None
+    source: str | None = None
+    backup_path: str | None = None
+    target: str | None = None
+    exists: bool | None = None
+    exists_in_backup: bool | None = None
+    target_exists: bool | None = None
+    action: str | None = None
+    size_bytes: int | None = None
+    sha256: str | None = None
+    current_sha256: str | None = None
+    checksum_ok: bool | None = None
+
+
+class PersonalBackupInfo(BaseModel):
+    backup_id: str
+    created_at: str | None = None
+    file_count: int = 0
+    missing_count: int = 0
+    path: str | None = None
+    modified_at: str | None = None
+
+
+class PersonalBackupResult(BaseModel):
+    backup_id: str
+    created_at: str
+    kind: str
+    file_count: int
+    missing_count: int
+    files: list[PersonalBackupFile]
+
+
+class PersonalRestoreRequest(BaseModel):
+    backup_id: str
+    confirm: str | None = None
+
+
+class PersonalRestorePreview(BaseModel):
+    backup_id: str
+    dry_run: bool
+    can_restore: bool
+    restore_confirmation: str
+    files: list[PersonalBackupFile]
+
+
+class PersonalRestoreResult(BaseModel):
+    backup_id: str
+    restored: bool
+    restored_files: list[str]
+    restored_count: int
+    pre_restore_backup_id: str
+    pre_restore_backup_path: str
 
 
 class TradingSettings(BaseModel):

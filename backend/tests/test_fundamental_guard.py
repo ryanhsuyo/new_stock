@@ -1,14 +1,14 @@
-from app.services.buffett_service import evaluate_buffett_indicator
+from app.services.fundamental_guard_service import evaluate_fundamental_guard
 
 
 def test_returns_data_missing_when_no_fundamentals():
-    result = evaluate_buffett_indicator("2330", None)
+    result = evaluate_fundamental_guard("2330", None)
 
-    assert result["buffett_tag"] == "buffett_quality_value_v1"
-    assert result["buffett_data_ok"] is False
-    assert result["buffett_flag"] is False
-    assert result["buffett_score"] is None
-    assert "fundamentals" in result["buffett_data_missing_reason"]
+    assert result["fundamental_tag"] == "fundamental_guard_v1"
+    assert result["fundamental_data_ok"] is False
+    assert result["fundamental_flag"] is False
+    assert result["fundamental_score"] is None
+    assert "fundamentals" in result["fundamental_data_missing_reason"]
 
 
 def test_returns_data_missing_when_required_fields_are_null():
@@ -26,12 +26,12 @@ def test_returns_data_missing_when_required_fields_are_null():
         "dividend_years": None,
     }
 
-    result = evaluate_buffett_indicator("2330", fundamentals)
+    result = evaluate_fundamental_guard("2330", fundamentals)
 
-    assert result["buffett_data_ok"] is False
-    assert result["buffett_flag"] is False
-    assert result["buffett_score"] is None
-    assert "roe_5y_avg" in result["buffett_data_missing_reason"]
+    assert result["fundamental_data_ok"] is False
+    assert result["fundamental_flag"] is False
+    assert result["fundamental_score"] is None
+    assert "roe_5y_avg" in result["fundamental_data_missing_reason"]
 
 
 def test_scores_when_at_least_three_metric_groups_are_available():
@@ -49,14 +49,14 @@ def test_scores_when_at_least_three_metric_groups_are_available():
         "dividend_years": None,
     }
 
-    result = evaluate_buffett_indicator("2330", fundamentals)
+    result = evaluate_fundamental_guard("2330", fundamentals)
 
-    assert result["buffett_data_ok"] is True
-    assert result["buffett_score"] is not None
-    assert result["buffett_data_completeness_pct"] == 72.7
-    assert set(result["buffett_scored_groups"]) == {"quality", "safety", "value"}
-    assert result["buffett_growth_score"] is None
-    assert "revenue_growth_5y_cagr" in result["buffett_data_missing_reason"]
+    assert result["fundamental_data_ok"] is True
+    assert result["fundamental_score"] is not None
+    assert result["fundamental_data_completeness_pct"] == 72.7
+    assert set(result["fundamental_scored_groups"]) == {"quality", "safety", "value"}
+    assert result["fundamental_growth_score"] is None
+    assert "revenue_growth_5y_cagr" in result["fundamental_data_missing_reason"]
 
 
 def test_stays_data_missing_when_less_than_three_metric_groups_are_available():
@@ -74,11 +74,11 @@ def test_stays_data_missing_when_less_than_three_metric_groups_are_available():
         "dividend_years": None,
     }
 
-    result = evaluate_buffett_indicator("2330", fundamentals)
+    result = evaluate_fundamental_guard("2330", fundamentals)
 
-    assert result["buffett_data_ok"] is False
-    assert result["buffett_score"] is None
-    assert "至少 3 組" in result["buffett_data_missing_reason"]
+    assert result["fundamental_data_ok"] is False
+    assert result["fundamental_score"] is None
+    assert "至少 3 組" in result["fundamental_data_missing_reason"]
 
 
 def test_scores_high_quality_reasonable_value_company():
@@ -96,12 +96,12 @@ def test_scores_high_quality_reasonable_value_company():
         "dividend_years": 10,
     }
 
-    result = evaluate_buffett_indicator("2330", fundamentals)
+    result = evaluate_fundamental_guard("2330", fundamentals)
 
-    assert result["buffett_data_ok"] is True
-    assert result["buffett_flag"] is True
-    assert result["buffett_score"] >= 75
-    assert result["buffett_signal"] == "quality_value_watch"
-    assert result["buffett_quality_score"] >= 70
-    assert result["buffett_value_score"] >= 60
-    assert "自由現金流" in result["buffett_reason"]
+    assert result["fundamental_data_ok"] is True
+    assert result["fundamental_flag"] is True
+    assert result["fundamental_score"] >= 75
+    assert result["fundamental_signal"] == "quality_value_watch"
+    assert result["fundamental_quality_score"] >= 70
+    assert result["fundamental_value_score"] >= 60
+    assert "自由現金流" in result["fundamental_reason"]

@@ -16,12 +16,12 @@ def test_pm_worklist_prioritizes_data_repair_before_followup_work(monkeypatch):
     monkeypatch.setattr(svc, "get_fundamentals_status", lambda: {
         "workflow_summary": {
             "stage": "fill_priority_csv",
-            "headline": "開始填巴菲特優先補資料 CSV",
+            "headline": "開始填基本面避雷優先補資料 CSV",
             "detail": "補資料 CSV 已產生，但尚未填入基本面欄位。",
             "coverage_label": "0/74 完整",
             "primary_action": {"label": "填寫 CSV", "command": "/backend/out/fundamentals_priority_fill.csv", "kind": "file"},
             "fill_targets_copy_text": "\n".join([
-                "巴菲特基本面優先補資料清單",
+                "基本面避雷優先補資料清單",
                 "1. 南亞科 2408 - 目前推薦/觀察名單，缺 2 欄",
                 "   - 5 年平均 ROE (roe_5y_avg，範例 28.5)",
                 "   - 本益比 (pe，範例 22.5)",
@@ -48,7 +48,7 @@ def test_pm_worklist_prioritizes_data_repair_before_followup_work(monkeypatch):
     monkeypatch.setattr(svc, "get_daily_check_report", lambda: {
         "overall_status": "warn",
         "top_actions": [
-            {"key": "buffett", "status": "warn", "title": "巴菲特基本面覆蓋", "message": "0/74", "next_action": "補資料"},
+            {"key": "fundamentals", "status": "warn", "title": "基本面避雷覆蓋", "message": "0/74", "next_action": "補資料"},
         ],
     })
 
@@ -63,7 +63,7 @@ def test_pm_worklist_prioritizes_data_repair_before_followup_work(monkeypatch):
     )
     assert [item["key"] for item in worklist["items"][:3]] == [
         "data_repair",
-        "buffett_fundamentals",
+        "fundamentals",
         "universe_report_review",
     ]
     assert worklist["items"][0]["severity"] == "danger"
@@ -80,6 +80,17 @@ def test_pm_worklist_prioritizes_data_repair_before_followup_work(monkeypatch):
     assert worklist["items"][1]["action_payload"]["preview_items"] == ["南亞科 2408"]
     assert "5 年平均 ROE" in worklist["items"][1]["action_payload"]["copy_text"]
     assert "本益比" in worklist["items"][1]["action_payload"]["copy_text"]
+    assert worklist["items"][1]["action_payload"]["write_template_command"] == (
+        "python3 scripts/prepare_fundamentals_priority_import.py --write-template"
+    )
+    assert worklist["items"][1]["action_payload"]["prepare_import_command"] == (
+        "python3 scripts/prepare_fundamentals_priority_import.py /path/to/source.csv"
+    )
+    assert worklist["items"][1]["action_payload"]["prepare_import_apply_command"] == (
+        "python3 scripts/prepare_fundamentals_priority_import.py /path/to/source.csv --apply"
+    )
+    assert "backend/out/fundamentals_priority_import_template.csv" in worklist["items"][1]["action_payload"]["expected_outputs"]
+    assert "backend/out/fundamentals_priority_fill.csv" in worklist["items"][1]["action_payload"]["expected_outputs"]
     assert worklist["items"][2]["metric"] == "0/43 已復盤"
     assert worklist["items"][2]["action_payload"] == {
         "kind": "api",
@@ -106,7 +117,7 @@ def test_pm_worklist_returns_clear_state_when_no_work(monkeypatch):
     monkeypatch.setattr(svc, "get_fundamentals_status", lambda: {
         "workflow_summary": {
             "stage": "complete",
-            "headline": "巴菲特資料已完成",
+            "headline": "基本面避雷資料已完成",
             "detail": "ok",
             "coverage_label": "74/74 完整",
             "primary_action": {"label": "查看", "command": "", "kind": "link"},
@@ -150,6 +161,7 @@ def test_pm_worklist_puts_update_workflow_blocker_first(monkeypatch):
             "expected_outputs": [
                 "backend/data/ohlcv.csv",
                 "backend/out/update_status.json",
+                "backend/out/data_coverage_report.json",
                 "backend/out/summary.json",
                 "backend/out/universe_report.csv",
                 "backend/out/daily_brief.json",
@@ -181,6 +193,7 @@ def test_pm_worklist_puts_update_workflow_blocker_first(monkeypatch):
         "expected_outputs": [
             "backend/data/ohlcv.csv",
             "backend/out/update_status.json",
+            "backend/out/data_coverage_report.json",
             "backend/out/summary.json",
             "backend/out/universe_report.csv",
             "backend/out/daily_brief.json",
@@ -228,7 +241,7 @@ def test_pm_worklist_keeps_daily_check_action_payload_when_not_duplicated(monkey
                 "next_action": "補資料",
                 "action_payload": {
                     "kind": "copy_text",
-                    "copy_text": "巴菲特基本面優先補資料清單\n1. 聯發科 2454 - 缺 11 欄\n2. 台光電 2383 - 缺 10 欄",
+                    "copy_text": "基本面避雷優先補資料清單\n1. 聯發科 2454 - 缺 11 欄\n2. 台光電 2383 - 缺 10 欄",
                     "preview_items": ["聯發科 2454", "台光電 2383"],
                     "file_path": "/backend/out/fundamentals_priority_fill.csv",
                 },
@@ -291,6 +304,7 @@ def test_pm_worklist_exposes_ready_today_focus_from_backend_contract(monkeypatch
                 "name": "旺宏",
                 "label": "出場處理",
                 "reason": "跌破 MA10",
+                "key_price": "MA10 175",
                 "severity": "danger",
                 "priority": 100,
             },
@@ -313,6 +327,8 @@ def test_pm_worklist_exposes_ready_today_focus_from_backend_contract(monkeypatch
             "daily_action_label": "可小試",
             "daily_action_reason": "站回 MA5，等量能確認",
             "daily_priority": 95,
+            "entry_price_low": 120,
+            "entry_price_high": 125,
         },
         {
             "code": "3006",
@@ -352,9 +368,19 @@ def test_pm_worklist_exposes_ready_today_focus_from_backend_contract(monkeypatch
             "source",
             "price_basis",
             "as_of",
+            "short_reason",
+            "detail_reason",
+            "action_label",
+            "primary_metric",
         }
         assert item["price_basis"] == "最新收盤價（非即時市價）"
         assert item["as_of"] == "2026-06-10"
+    assert focus[0]["short_reason"] == "跌破 MA10"
+    assert focus[0]["detail_reason"] == "跌破 MA10"
+    assert focus[0]["action_label"] == "查看持股"
+    assert focus[0]["primary_metric"] == "MA10 175"
+    assert focus[2]["action_label"] == "查看進場計畫"
+    assert focus[2]["primary_metric"] == "進場 120–125"
 
 
 def test_pm_worklist_today_focus_blocks_trade_candidates_when_outputs_blocked(monkeypatch):
@@ -441,7 +467,11 @@ def test_pm_worklist_today_focus_has_empty_state_when_no_focus_items(monkeypatch
         "name": "今日焦點已收斂",
         "label": "暫無持股風險或候選股",
         "reason": "目前沒有持股風險、可小試候選或待復盤項目。",
+        "short_reason": "目前沒有持股風險、可小試候選或待復盤項目",
+        "detail_reason": "目前沒有持股風險、可小試候選或待復盤項目。",
         "next_action": "維持觀察，若盤後資料更新再重新檢查 Dashboard。",
+        "action_label": "維持觀察",
+        "primary_metric": "",
         "severity": "info",
         "source": "pm_worklist",
         "price_basis": "最新收盤價（非即時市價）",
@@ -522,7 +552,7 @@ def test_pm_worklist_endpoint(client, monkeypatch):
             "focus_codes": [],
             "action_payload": {
                 "kind": "copy_text",
-                "copy_text": "巴菲特基本面優先補資料清單\n1. 聯發科 2454 - 缺 11 欄",
+                "copy_text": "基本面避雷優先補資料清單\n1. 聯發科 2454 - 缺 11 欄",
                 "preview_items": ["聯發科 2454"],
                 "file_path": "/backend/out/fundamentals_priority_fill.csv",
             },

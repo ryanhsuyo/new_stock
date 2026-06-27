@@ -27,7 +27,7 @@ def test_build_fundamentals_status_includes_missing_field_counts(monkeypatch):
     assert status["priority_csv_validation"] is None
     workflow = status["workflow_summary"]
     assert workflow["stage"] == "generate_priority_csv"
-    assert workflow["headline"] == "先產生巴菲特優先補資料 CSV"
+    assert workflow["headline"] == "先產生基本面避雷優先補資料 CSV"
     assert workflow["primary_action"]["label"] == "下載補資料 CSV"
     assert workflow["primary_action"]["command"] == "GET /api/system/fundamentals-priority-fill"
     assert workflow["focus_targets"][0]["code"] == "2408"
@@ -41,6 +41,112 @@ def test_build_fundamentals_status_includes_missing_field_counts(monkeypatch):
         "rerun_signals",
     ]
     assert workflow["checklist"][0]["status"] == "todo"
+
+
+def test_prepare_priority_import_preview_keeps_priority_csv_unchanged(tmp_path, monkeypatch):
+    priority_csv = tmp_path / "fundamentals_priority_fill.csv"
+    import_csv = tmp_path / "import.csv"
+    header = "code,name,priority_reason,missing_count,missing_fields,missing_field_labels,fill_format_note,example_values," + ",".join(svc.REQUIRED_FIELDS)
+    priority_csv.write_text(
+        header + "\n2408,南亞科,目前推薦/觀察名單,11,all,全部,note,examples,,,,,,,,,,,\n",
+        encoding="utf-8",
+    )
+    import_csv.write_text(
+        "\n".join([
+            "stock_id,ROE 5Y,pe,dividend_years",
+            "2408,18.5,22.1,7",
+            "9999,10,12,3",
+        ]),
+        encoding="utf-8",
+    )
+    before = priority_csv.read_text(encoding="utf-8")
+    monkeypatch.setattr(svc, "_PRIORITY_CSV_PATH", priority_csv)
+
+    result = svc.prepare_priority_fundamentals_import(import_csv, dry_run=True)
+
+    assert result["dry_run"] is True
+    assert result["updated_code_count"] == 1
+    assert result["updated_field_count"] == 3
+    assert result["updated_codes"] == ["2408"]
+    assert result["skipped_codes"] == ["9999"]
+    assert result["validation"]["valid"] is True
+    assert result["validation"]["partial_codes"] == ["2408"]
+    assert priority_csv.read_text(encoding="utf-8") == before
+
+
+def test_prepare_priority_import_apply_updates_priority_csv(tmp_path, monkeypatch):
+    priority_csv = tmp_path / "fundamentals_priority_fill.csv"
+    import_csv = tmp_path / "import.csv"
+    header = "code,name,priority_reason,missing_count,missing_fields,missing_field_labels,fill_format_note,example_values," + ",".join(svc.REQUIRED_FIELDS)
+    priority_csv.write_text(
+        header + "\n2408,南亞科,目前推薦/觀察名單,11,all,全部,note,examples,,,,,,,,,,,\n",
+        encoding="utf-8",
+    )
+    import_csv.write_text(
+        "\n".join([
+            "代號,5 年平均 ROE,本益比,連續配息年數",
+            "2408,18.5,22.1,7",
+        ]),
+        encoding="utf-8",
+    )
+    monkeypatch.setattr(svc, "_PRIORITY_CSV_PATH", priority_csv)
+
+    result = svc.prepare_priority_fundamentals_import(import_csv, dry_run=False)
+
+    text = priority_csv.read_text(encoding="utf-8")
+    assert result["dry_run"] is False
+    assert result["updated_code_count"] == 1
+    assert result["updated_field_count"] == 3
+    assert "2408,南亞科" in text
+    assert "18.5" in text
+    assert "22.1" in text
+    assert ",7" in text
+
+
+def test_build_priority_import_template_rows_uses_focus_targets(monkeypatch):
+    monkeypatch.setattr(svc, "_load_leader_codes", lambda: ["2330", "2408"])
+    monkeypatch.setattr(svc, "_load_recommendation_priority", lambda: ["2408"])
+    monkeypatch.setattr(svc, "load_stock_names", lambda: {"2408": "南亞科"})
+    monkeypatch.setattr(svc, "load_fundamentals", lambda: {
+        "2330": {field: 1 for field in svc.REQUIRED_FIELDS},
+        "2408": {field: None for field in svc.REQUIRED_FIELDS},
+    })
+
+    rows = svc.build_priority_import_template_rows(limit=1)
+
+    assert rows == [{
+        "code": "2408",
+        "name": "南亞科",
+        "source_note": "外部資料填入後，先 dry-run 匯入 priority CSV；百分比請填 28.5，不要填 0.285。",
+        "roe_5y_avg": "",
+        "operating_margin_5y_avg": "",
+        "free_cash_flow_positive_years": "",
+        "operating_cash_flow_to_net_income": "",
+        "debt_to_equity": "",
+        "interest_coverage": "",
+        "revenue_growth_5y_cagr": "",
+        "eps_growth_5y_cagr": "",
+        "pe": "",
+        "fcf_yield": "",
+        "dividend_years": "",
+    }]
+
+
+def test_write_priority_import_template_csv_writes_readable_header(tmp_path, monkeypatch):
+    monkeypatch.setattr(svc, "build_priority_import_template_rows", lambda limit=20: [{
+        "code": "2408",
+        "name": "南亞科",
+        "source_note": "外部資料填入後，先 dry-run 匯入 priority CSV；百分比請填 28.5，不要填 0.285。",
+        **{field: "" for field in svc.REQUIRED_FIELDS},
+    }])
+
+    path = svc.write_priority_import_template_csv(tmp_path, limit=1)
+
+    text = path.read_text(encoding="utf-8")
+    assert path == tmp_path / "fundamentals_priority_import_template.csv"
+    assert "code,name,source_note,roe_5y_avg" in text
+    assert "2408,南亞科" in text
+    assert "百分比請填 28.5" in text
 
 
 def test_build_priority_fill_rows_uses_priority_targets(monkeypatch):
@@ -266,7 +372,7 @@ def test_merge_priority_fill_csv_writes_csv_and_json(tmp_path, monkeypatch):
     assert '"roe_5y_avg": 12.5' in fundamentals_json.read_text(encoding="utf-8")
 
 
-def test_merge_priority_fill_csv_returns_buffett_preview_for_complete_rows(tmp_path, monkeypatch):
+def test_merge_priority_fill_csv_returns_fundamental_preview_for_complete_rows(tmp_path, monkeypatch):
     priority_csv = tmp_path / "fundamentals_priority_fill.csv"
     fundamentals_csv = tmp_path / "fundamentals.csv"
     fundamentals_json = tmp_path / "fundamentals.json"
@@ -287,10 +393,10 @@ def test_merge_priority_fill_csv_returns_buffett_preview_for_complete_rows(tmp_p
     assert result["merge_allowed"] is True
     assert result["signals_refresh_required"] is False
     assert result["next_action_label"] == "可合併，合併後重新產生訊號"
-    assert result["buffett_preview"][0]["code"] == "2330"
-    assert result["buffett_preview"][0]["name"] == "台積電"
-    assert result["buffett_preview"][0]["buffett_data_ok"] is True
-    assert result["buffett_preview"][0]["buffett_score"] is not None
+    assert result["fundamental_preview"][0]["code"] == "2330"
+    assert result["fundamental_preview"][0]["name"] == "台積電"
+    assert result["fundamental_preview"][0]["fundamental_data_ok"] is True
+    assert result["fundamental_preview"][0]["fundamental_score"] is not None
 
 
 def test_build_fundamentals_status_includes_priority_csv_validation(tmp_path, monkeypatch):
@@ -347,10 +453,10 @@ def test_build_fundamentals_status_includes_priority_fill_readiness(tmp_path, mo
     assert readiness["filled_field_count"] == 1
     assert readiness["complete_code_count"] == 0
     assert readiness["partial_code_count"] == 1
-    assert readiness["suggested_action"] == "已部分填寫，仍需補齊 11 欄才會產生巴菲特候選。"
+    assert readiness["suggested_action"] == "已部分填寫，仍需補齊 11 欄才會產生基本面避雷結果。"
     workflow = status["workflow_summary"]
     assert workflow["stage"] == "fill_priority_csv"
-    assert workflow["headline"] == "補齊巴菲特必要欄位"
+    assert workflow["headline"] == "補齊基本面避雷必要欄位"
     assert workflow["primary_action"]["label"] == "繼續填 CSV"
     assert workflow["checklist"][0]["status"] == "done"
     assert workflow["checklist"][1]["status"] == "todo"
@@ -385,7 +491,7 @@ def test_build_fundamentals_status_allows_merge_when_one_priority_row_complete(t
     assert readiness["suggested_action"] == "先按預覽合併，確認更新檔數與欄位數後再合併匯入。"
     workflow = status["workflow_summary"]
     assert workflow["stage"] == "ready_to_merge"
-    assert workflow["headline"] == "先預覽，再合併巴菲特基本面資料"
+    assert workflow["headline"] == "先預覽，再合併基本面避雷資料"
     assert workflow["primary_action"]["label"] == "預覽合併"
     assert workflow["primary_action"]["command"] == "POST /api/system/fundamentals-priority-fill/merge"
     assert workflow["checklist"][1]["status"] == "done"

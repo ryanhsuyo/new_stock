@@ -116,16 +116,31 @@ Exit code：
 
 ---
 
-## 6. 巴菲特基本面補資料
+## 6. 基本面避雷補資料
 
-Dashboard 若顯示 Buffett 基本面不足：
+Dashboard 若顯示基本面避雷資料不足：
 
 ```bash
 cd /Users/ryan/Desktop/code/new_stock/backend
-python3 scripts/check_fundamentals.py --write-priority-csv --write-report
+python3 scripts/prepare_fundamentals_priority_import.py --write-template
 ```
 
-填完 `backend/out/fundamentals_priority_fill.csv` 後：
+先依 `backend/out/fundamentals_priority_import_template.csv` 整理真實外部基本面資料。
+不要用技術線型或估計值補 ROE、現金流、負債、成長或估值欄位。
+
+整理好來源 CSV 後，先做 dry-run 預覽：
+
+```bash
+python3 scripts/prepare_fundamentals_priority_import.py /path/to/source.csv
+```
+
+確認 skipped / errors / warnings 都合理後，再寫入待合併檔：
+
+```bash
+python3 scripts/prepare_fundamentals_priority_import.py /path/to/source.csv --apply
+```
+
+產生 `backend/out/fundamentals_priority_fill.csv` 後：
 
 ```bash
 python3 scripts/merge_priority_fundamentals.py

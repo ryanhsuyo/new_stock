@@ -88,14 +88,14 @@ export default function StockCard({ stock, onBuy, onAnalysis }: Props) {
         </div>
       )}
 
-      {stock.recommendation_source === 'buffett' && (
-        <div className="strategy-badges" aria-label="巴菲特品質價值條件">
+      {stock.recommendation_source === 'steady_momentum' && (
+        <div className="strategy-badges" aria-label="穩健動能條件">
           <span className="strategy-badge strategy-badge-source">
-            巴菲特{stock.buffett_score != null ? ` ${stock.buffett_score}` : ''}
+            穩健動能{stock.steady_momentum_score != null ? ` ${stock.steady_momentum_score}` : ''}
           </span>
-          {stock.buffett_quality_score != null && <span className="strategy-badge">品質 {stock.buffett_quality_score}</span>}
-          {stock.buffett_safety_score != null && <span className="strategy-badge">安全 {stock.buffett_safety_score}</span>}
-          {stock.buffett_value_score != null && <span className="strategy-badge">估值 {stock.buffett_value_score}</span>}
+          {stock.steady_momentum_signal && <span className="strategy-badge">{stock.steady_momentum_signal}</span>}
+          {stock.fundamental_quality_score != null && <span className="strategy-badge">基本面品質 {stock.fundamental_quality_score}</span>}
+          {stock.fundamental_safety_score != null && <span className="strategy-badge">安全 {stock.fundamental_safety_score}</span>}
         </div>
       )}
 

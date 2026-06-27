@@ -22,7 +22,12 @@ from app.storage.settings_store import load_trading_settings
 _AMOUNT_FIELDS = ("gross_amount", "fee", "tax", "net_amount")
 
 
-def calculate_trade_amounts(trade_type: str, price: float, shares: int) -> dict[str, float]:
+def calculate_trade_amounts(
+    trade_type: str,
+    price: float,
+    shares: int,
+    settings: dict[str, float] | None = None,
+) -> dict[str, float]:
     """
     台股交易金額估算。
 
@@ -31,7 +36,7 @@ def calculate_trade_amounts(trade_type: str, price: float, shares: int) -> dict[
     - 賣出證交稅 0.3%
     - 可由 backend/data/settings.json 調整券商折扣與最低手續費
     """
-    settings = load_trading_settings()
+    settings = settings if settings is not None else load_trading_settings()
     gross = round(price * shares)
     raw_fee = gross * settings["brokerage_fee_rate"] * settings["brokerage_discount"]
     fee = round(raw_fee)

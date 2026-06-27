@@ -18,7 +18,7 @@ def _write_json(path: Path, data: object) -> None:
 
 def _write_universe(path: Path, rows: list[dict]) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
-    fields = ["code", "name", "data_ok", "daily_action", "buffett_data_ok", "data_as_of"]
+    fields = ["code", "name", "data_ok", "daily_action", "fundamental_data_ok", "data_as_of"]
     with path.open("w", encoding="utf-8", newline="") as f:
         writer = csv.DictWriter(f, fieldnames=fields)
         writer.writeheader()
@@ -49,7 +49,7 @@ def _minimal_backend(tmp_path: Path) -> Path:
             "name": "台積電",
             "data_ok": "True",
             "daily_action": "enter",
-            "buffett_data_ok": "False",
+            "fundamental_data_ok": "False",
             "data_as_of": "2026-05-29",
         },
         {
@@ -57,7 +57,7 @@ def _minimal_backend(tmp_path: Path) -> Path:
             "name": "聯發科",
             "data_ok": "True",
             "daily_action": "avoid",
-            "buffett_data_ok": "False",
+            "fundamental_data_ok": "False",
             "data_as_of": "2026-05-29",
         },
     ])
@@ -67,7 +67,7 @@ def _minimal_backend(tmp_path: Path) -> Path:
     return backend
 
 
-def test_doctor_warns_for_buffett_and_unrecorded_actionable_items(tmp_path):
+def test_doctor_warns_for_fundamentals_and_unrecorded_actionable_items(tmp_path):
     import doctor
 
     backend = _minimal_backend(tmp_path)
@@ -77,8 +77,8 @@ def test_doctor_warns_for_buffett_and_unrecorded_actionable_items(tmp_path):
     assert report["overall_status"] == "warn"
     assert by_key["outputs"]["status"] == "ok"
     assert by_key["universe_report"]["details"]["actionable_count"] == 1
-    assert by_key["buffett"]["status"] == "warn"
-    assert by_key["buffett"]["details"]["complete_count"] == 0
+    assert by_key["fundamentals"]["status"] == "warn"
+    assert by_key["fundamentals"]["details"]["complete_count"] == 0
     assert by_key["decision_journal"]["status"] == "warn"
     assert by_key["decision_journal"]["details"]["missing_actionable_count"] == 1
     assert by_key["decision_journal"]["details"]["review_todo_exists"] is False
@@ -125,7 +125,7 @@ def test_doctor_reports_existing_universe_review_todo_file(tmp_path):
     }
 
 
-def test_doctor_surfaces_ready_to_merge_buffett_priority_csv(tmp_path):
+def test_doctor_surfaces_ready_to_merge_fundamentals_priority_csv(tmp_path):
     import doctor
 
     backend = _minimal_backend(tmp_path)
@@ -146,16 +146,16 @@ def test_doctor_surfaces_ready_to_merge_buffett_priority_csv(tmp_path):
     })
 
     report = doctor.build_doctor_report(backend)
-    buffett = {check["key"]: check for check in report["checks"]}["buffett"]
+    fundamentals = {check["key"]: check for check in report["checks"]}["fundamentals"]
 
-    assert buffett["status"] == "warn"
-    assert buffett["details"]["priority_fill_status"] == "ready_to_merge"
-    assert buffett["details"]["can_merge"] is True
-    assert buffett["details"]["complete_code_count"] == 2
-    assert "fundamentals-priority-fill/merge" in buffett["next_action"]
+    assert fundamentals["status"] == "warn"
+    assert fundamentals["details"]["priority_fill_status"] == "ready_to_merge"
+    assert fundamentals["details"]["can_merge"] is True
+    assert fundamentals["details"]["complete_code_count"] == 2
+    assert "fundamentals-priority-fill/merge" in fundamentals["next_action"]
 
 
-def test_doctor_uses_priority_csv_suggested_action_when_buffett_fill_is_empty(tmp_path):
+def test_doctor_uses_priority_csv_suggested_action_when_fundamentals_fill_is_empty(tmp_path):
     import doctor
 
     backend = _minimal_backend(tmp_path)
@@ -174,18 +174,18 @@ def test_doctor_uses_priority_csv_suggested_action_when_buffett_fill_is_empty(tm
             "warnings": [],
         },
         "workflow_summary": {
-            "fill_targets_copy_text": "巴菲特基本面優先補資料清單\n1. 台積電 2330 - 缺 11 欄",
+            "fill_targets_copy_text": "基本面避雷優先補資料清單\n1. 台積電 2330 - 缺 11 欄",
         },
     })
 
     report = doctor.build_doctor_report(backend)
-    buffett = {check["key"]: check for check in report["checks"]}["buffett"]
+    fundamentals = {check["key"]: check for check in report["checks"]}["fundamentals"]
 
-    assert buffett["status"] == "warn"
-    assert buffett["details"]["priority_fill_status"] == "empty"
-    assert buffett["next_action"] == "先填優先 20 檔"
-    assert buffett["action_payload"]["kind"] == "copy_text"
-    assert "台積電 2330" in buffett["action_payload"]["copy_text"]
+    assert fundamentals["status"] == "warn"
+    assert fundamentals["details"]["priority_fill_status"] == "empty"
+    assert fundamentals["next_action"] == "先填優先 20 檔"
+    assert fundamentals["action_payload"]["kind"] == "copy_text"
+    assert "台積電 2330" in fundamentals["action_payload"]["copy_text"]
 
 
 def test_doctor_prints_copy_text_payload_target(tmp_path, capsys):
@@ -199,7 +199,7 @@ def test_doctor_prints_copy_text_payload_target(tmp_path, capsys):
         },
         "priority_csv_validation": {"valid": True, "errors": [], "warnings": []},
         "workflow_summary": {
-            "fill_targets_copy_text": "巴菲特基本面優先補資料清單\n1. 台積電 2330 - 缺 11 欄\n2. 聯電 2303 - 缺 11 欄",
+            "fill_targets_copy_text": "基本面避雷優先補資料清單\n1. 台積電 2330 - 缺 11 欄\n2. 聯電 2303 - 缺 11 欄",
         },
     })
 
@@ -223,7 +223,7 @@ def test_doctor_prints_copy_text_preview_without_dash(tmp_path, capsys):
         },
         "priority_csv_validation": {"valid": True, "errors": [], "warnings": []},
         "workflow_summary": {
-            "fill_targets_copy_text": "巴菲特基本面優先補資料清單\n1. 台積電 2330\n2. 聯發科 2454",
+            "fill_targets_copy_text": "基本面避雷優先補資料清單\n1. 台積電 2330\n2. 聯發科 2454",
         },
     })
 
@@ -271,7 +271,7 @@ def test_doctor_prints_api_payload_target(tmp_path, capsys):
     out = capsys.readouterr().out
 
     assert "API 動作：POST /api/system/fundamentals-priority-fill/merge" in out
-    assert "先預覽巴菲特基本面補資料合併結果" in out
+    assert "先預覽基本面避雷補資料合併結果" in out
 
 
 def test_doctor_falls_back_to_fresh_fundamentals_workflow_for_legacy_report(tmp_path, monkeypatch):
@@ -290,7 +290,7 @@ def test_doctor_falls_back_to_fresh_fundamentals_workflow_for_legacy_report(tmp_
         },
         "priority_csv_validation": {"valid": True, "errors": [], "warnings": []},
         "workflow_summary": {
-            "fill_targets_copy_text": "巴菲特基本面優先補資料清單\n1. 聯電 2303 - 缺 11 欄",
+            "fill_targets_copy_text": "基本面避雷優先補資料清單\n1. 聯電 2303 - 缺 11 欄",
         },
     })
     _write_json(backend / "out" / "fundamentals_report.json", {
@@ -306,13 +306,13 @@ def test_doctor_falls_back_to_fresh_fundamentals_workflow_for_legacy_report(tmp_
     })
 
     report = doctor.build_doctor_report(backend)
-    buffett = {check["key"]: check for check in report["checks"]}["buffett"]
+    fundamentals = {check["key"]: check for check in report["checks"]}["fundamentals"]
 
-    assert buffett["action_payload"]["kind"] == "copy_text"
-    assert "聯電 2303" in buffett["action_payload"]["copy_text"]
+    assert fundamentals["action_payload"]["kind"] == "copy_text"
+    assert "聯電 2303" in fundamentals["action_payload"]["copy_text"]
 
 
-def test_doctor_blocks_invalid_buffett_priority_csv_with_first_issue(tmp_path):
+def test_doctor_blocks_invalid_fundamentals_priority_csv_with_first_issue(tmp_path):
     import doctor
 
     backend = _minimal_backend(tmp_path)
@@ -339,17 +339,17 @@ def test_doctor_blocks_invalid_buffett_priority_csv_with_first_issue(tmp_path):
     })
 
     report = doctor.build_doctor_report(backend)
-    buffett = {check["key"]: check for check in report["checks"]}["buffett"]
+    fundamentals = {check["key"]: check for check in report["checks"]}["fundamentals"]
 
     assert report["overall_status"] == "block"
-    assert buffett["status"] == "block"
-    assert buffett["details"]["priority_fill_status"] == "invalid"
-    assert buffett["details"]["priority_fill_error_count"] == 1
-    assert "第 3 列" in buffett["details"]["first_priority_issue"]
-    assert "2408" in buffett["details"]["first_priority_issue"]
+    assert fundamentals["status"] == "block"
+    assert fundamentals["details"]["priority_fill_status"] == "invalid"
+    assert fundamentals["details"]["priority_fill_error_count"] == 1
+    assert "第 3 列" in fundamentals["details"]["first_priority_issue"]
+    assert "2408" in fundamentals["details"]["first_priority_issue"]
 
 
-def test_doctor_prints_first_buffett_priority_issue(tmp_path, capsys):
+def test_doctor_prints_first_fundamentals_priority_issue(tmp_path, capsys):
     import doctor
 
     backend = _minimal_backend(tmp_path)
@@ -382,6 +382,7 @@ def test_doctor_prints_first_buffett_priority_issue(tmp_path, capsys):
 
 def test_doctor_blocks_when_outputs_are_out_of_sync(tmp_path):
     import doctor
+    from app.services.workflow_outputs import SIGNAL_OUTPUTS
 
     backend = _minimal_backend(tmp_path)
     _write_json(backend / "out" / "daily_brief.json", {
@@ -399,12 +400,7 @@ def test_doctor_blocks_when_outputs_are_out_of_sync(tmp_path):
     assert by_key["outputs"]["action_payload"]["copy_command"] == (
         f"cd {backend}\npython3 scripts/run_signals.py"
     )
-    assert by_key["outputs"]["action_payload"]["expected_outputs"] == [
-        "backend/out/summary.json",
-        "backend/out/universe_report.csv",
-        "backend/out/daily_brief.json",
-        "backend/out/daily_check.json",
-    ]
+    assert by_key["outputs"]["action_payload"]["expected_outputs"] == SIGNAL_OUTPUTS
 
 
 def test_doctor_prints_expected_outputs_for_command_actions(tmp_path, capsys):
@@ -424,6 +420,7 @@ def test_doctor_prints_expected_outputs_for_command_actions(tmp_path, capsys):
 
 def test_doctor_uses_daily_update_for_missing_outputs(tmp_path):
     import doctor
+    from app.services.workflow_outputs import DAILY_UPDATE_OUTPUTS
 
     backend = tmp_path / "backend"
     backend.mkdir()
@@ -436,18 +433,36 @@ def test_doctor_uses_daily_update_for_missing_outputs(tmp_path):
     assert outputs["action_payload"]["copy_command"] == (
         f"cd {backend}\npython3 scripts/daily_update.py --months 1"
     )
-    assert outputs["action_payload"]["expected_outputs"] == [
-        "backend/data/ohlcv.csv",
-        "backend/out/update_status.json",
-        "backend/out/summary.json",
-        "backend/out/universe_report.csv",
-        "backend/out/daily_brief.json",
-        "backend/out/daily_check.json",
-    ]
+    assert outputs["action_payload"]["expected_outputs"] == DAILY_UPDATE_OUTPUTS
+
+
+def test_doctor_blocks_when_data_coverage_is_below_threshold(tmp_path):
+    import doctor
+
+    backend = _minimal_backend(tmp_path)
+    _write_json(backend / "out" / "data_coverage_report.json", {
+        "batch_id": "batch-low",
+        "coverage_pct": 50.0,
+        "tracked_count": 10,
+        "ok_count": 5,
+        "expected_trading_day": "2026-05-29",
+        "raw_ohlcv_as_of": "2026-05-29",
+        "symbols": [],
+    })
+
+    report = doctor.build_doctor_report(backend)
+    coverage = {check["key"]: check for check in report["checks"]}["data_coverage"]
+
+    assert report["overall_status"] == "block"
+    assert coverage["status"] == "block"
+    assert coverage["details"]["batch_id"] == "batch-low"
+    assert coverage["details"]["coverage_report_path"].endswith("data_coverage_report.json")
+    assert coverage["action_payload"]["command"] == "python3 scripts/daily_update.py --months 1"
 
 
 def test_doctor_uses_daily_update_when_update_status_is_not_success(tmp_path):
     import doctor
+    from app.services.workflow_outputs import DAILY_UPDATE_OUTPUTS
 
     backend = _minimal_backend(tmp_path)
     _write_json(backend / "out" / "update_status.json", {
@@ -464,18 +479,12 @@ def test_doctor_uses_daily_update_when_update_status_is_not_success(tmp_path):
     assert outputs["action_payload"]["copy_command"] == (
         f"cd {backend}\npython3 scripts/daily_update.py --months 1"
     )
-    assert outputs["action_payload"]["expected_outputs"] == [
-        "backend/data/ohlcv.csv",
-        "backend/out/update_status.json",
-        "backend/out/summary.json",
-        "backend/out/universe_report.csv",
-        "backend/out/daily_brief.json",
-        "backend/out/daily_check.json",
-    ]
+    assert outputs["action_payload"]["expected_outputs"] == DAILY_UPDATE_OUTPUTS
 
 
 def test_doctor_uses_daily_update_when_universe_has_missing_data(tmp_path):
     import doctor
+    from app.services.workflow_outputs import DAILY_UPDATE_OUTPUTS
 
     backend = _minimal_backend(tmp_path)
     _write_universe(backend / "out" / "universe_report.csv", [
@@ -484,7 +493,7 @@ def test_doctor_uses_daily_update_when_universe_has_missing_data(tmp_path):
             "name": "台積電",
             "data_ok": "False",
             "daily_action": "avoid",
-            "buffett_data_ok": "False",
+            "fundamental_data_ok": "False",
             "data_as_of": "2026-05-29",
         }
     ])
@@ -497,14 +506,7 @@ def test_doctor_uses_daily_update_when_universe_has_missing_data(tmp_path):
     assert universe["action_payload"]["copy_command"] == (
         f"cd {backend}\npython3 scripts/daily_update.py --months 1"
     )
-    assert universe["action_payload"]["expected_outputs"] == [
-        "backend/data/ohlcv.csv",
-        "backend/out/update_status.json",
-        "backend/out/summary.json",
-        "backend/out/universe_report.csv",
-        "backend/out/daily_brief.json",
-        "backend/out/daily_check.json",
-    ]
+    assert universe["action_payload"]["expected_outputs"] == DAILY_UPDATE_OUTPUTS
 
 
 def test_doctor_json_cli_outputs_machine_readable_report(tmp_path):

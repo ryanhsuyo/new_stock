@@ -218,6 +218,48 @@ class TestRunUpdateJob:
         assert calls == [uda._BACKEND]
         assert (uda._BACKEND / "out" / "daily_check.json").exists()
 
+    def test_cli_update_requests_streaming_output_when_supported(self, tmp_sched, tmp_log, monkeypatch):
+        calls = []
+
+        def fake_run_full_update(months, *, stream_subprocess_output=False):
+            calls.append(stream_subprocess_output)
+            return {
+                "last_run_status": "success",
+                "last_run_started_at": "2026-06-25T00:00:00",
+                "last_data_as_of": "2026-06-24",
+                "is_stale": False,
+                "stale_days": 0,
+                "last_error": None,
+            }
+
+        monkeypatch.setattr(uda, "run_full_update", fake_run_full_update)
+
+        code = uda.run_update_job(months=1, log_file=tmp_log, skip_lock=True)
+
+        assert code == 0
+        assert calls == [True]
+
+    def test_cli_update_keeps_legacy_run_full_update_compatible(self, tmp_sched, tmp_log, monkeypatch):
+        calls = []
+
+        def legacy_run_full_update(months):
+            calls.append(months)
+            return {
+                "last_run_status": "success",
+                "last_run_started_at": "2026-06-25T00:00:00",
+                "last_data_as_of": "2026-06-24",
+                "is_stale": False,
+                "stale_days": 0,
+                "last_error": None,
+            }
+
+        monkeypatch.setattr(uda, "run_full_update", legacy_run_full_update)
+
+        code = uda.run_update_job(months=1, log_file=tmp_log, skip_lock=True)
+
+        assert code == 0
+        assert calls == [1]
+
     def test_daily_check_write_failure_does_not_fail_update(self, tmp_sched, tmp_log, monkeypatch):
         monkeypatch.setattr(uda, "write_daily_check_report", lambda backend: (_ for _ in ()).throw(RuntimeError("daily check broken")))
 
@@ -225,6 +267,18 @@ class TestRunUpdateJob:
 
         assert code == 0
         assert "Daily Check 寫入失敗" in tmp_log.read_text(encoding="utf-8")
+
+    def test_keyboard_interrupt_returns_130_without_traceback(self, tmp_sched, tmp_pid, tmp_log, monkeypatch):
+        def interrupted(months, *, stream_subprocess_output=False):
+            raise KeyboardInterrupt()
+
+        monkeypatch.setattr(uda, "run_full_update", interrupted)
+
+        code = uda.run_update_job(months=1, log_file=tmp_log, skip_lock=False)
+
+        assert code == 130
+        assert not tmp_pid.exists()
+        assert "使用者中斷" in tmp_log.read_text(encoding="utf-8")
 
     def test_failure_returns_1(self, tmp_sched, tmp_log, monkeypatch):
         import app.services.update_service as svc

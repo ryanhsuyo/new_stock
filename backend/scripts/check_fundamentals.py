@@ -21,7 +21,7 @@ from scripts.backfill_ohlcv_twse import load_leaders  # noqa: E402
 
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(
-        description="檢查巴菲特 fundamentals.json 缺哪些股票與欄位"
+        description="檢查基本面避雷 fundamentals.json 缺哪些股票與欄位"
     )
     parser.add_argument(
         "--leaders",
@@ -42,7 +42,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--write-priority-csv",
         action="store_true",
-        help="寫出 backend/out/fundamentals_priority_fill.csv",
+        help="寫出 backend/out/fundamentals_priority_fill.csv（舊補資料工作檔；外部匯入優先使用 prepare_fundamentals_priority_import.py --write-template）",
     )
     parser.add_argument(
         "--priority-limit",

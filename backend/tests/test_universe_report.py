@@ -38,6 +38,8 @@ _CSV_HEADER = [
     "signal", "internal_signal", "entry_type", "score",
     "long_trend", "short_trend",
     "support_price", "resistance_price",
+    "support_source", "resistance_source",
+    "entry_source", "stop_source", "target_source",
     "pattern_type", "pattern_status",
     "no_buy_reason", "risk_note",
     "close", "ma5", "ma20", "ma60", "rsi14", "vol_ratio",
@@ -55,6 +57,8 @@ _SAMPLE_ROWS = [
         "score": "70",
         "long_trend": "up", "short_trend": "up",
         "support_price": "1760.0", "resistance_price": "2330.0",
+        "support_source": "recent_20d_low", "resistance_source": "recent_20d_high",
+        "entry_source": "", "stop_source": "MA20", "target_source": "resistance_price",
         "pattern_type": "m_top", "pattern_status": "forming",
         "no_buy_reason": "持股中，長線趨勢穩定，可續抱",
         "risk_note": "M頂形成中（頸線 1760.0，注意跌破）",
@@ -69,6 +73,8 @@ _SAMPLE_ROWS = [
         "score": "100",
         "long_trend": "up", "short_trend": "up",
         "support_price": "379.0", "resistance_price": "438.0",
+        "support_source": "recent_20d_low", "resistance_source": "recent_20d_high",
+        "entry_source": "MA20", "stop_source": "support_price", "target_source": "resistance_price",
         "pattern_type": "w_bottom", "pattern_status": "confirmed",
         "no_buy_reason": "", "risk_note": "—",
         "close": "409.0", "ma5": "412.9", "ma20": "405.07", "ma60": "388.97",
@@ -82,6 +88,8 @@ _SAMPLE_ROWS = [
         "score": "",
         "long_trend": "", "short_trend": "",
         "support_price": "", "resistance_price": "",
+        "support_source": "", "resistance_source": "",
+        "entry_source": "", "stop_source": "", "target_source": "",
         "pattern_type": "none", "pattern_status": "none",
         "no_buy_reason": "資料不足", "risk_note": "",
         "close": "", "ma5": "", "ma20": "", "ma60": "",
@@ -96,6 +104,8 @@ _SAMPLE_ROWS = [
         "score": "80",
         "long_trend": "up", "short_trend": "up",
         "support_price": "85.0", "resistance_price": "95.0",
+        "support_source": "recent_20d_low", "resistance_source": "recent_20d_high",
+        "entry_source": "MA20", "stop_source": "MA60", "target_source": "resistance_price",
         "pattern_type": "none", "pattern_status": "none",
         "no_buy_reason": "", "risk_note": "",
         "close": "90.5", "ma5": "91.0", "ma20": "88.0", "ma60": "85.0",
@@ -110,6 +120,8 @@ _SAMPLE_ROWS = [
         "score": "60",
         "long_trend": "up", "short_trend": "down",
         "support_price": "1425.0", "resistance_price": "1895.0",
+        "support_source": "recent_20d_low", "resistance_source": "recent_20d_high",
+        "entry_source": "support_price", "stop_source": "support_price", "target_source": "resistance_price",
         "pattern_type": "none", "pattern_status": "none",
         "no_buy_reason": "等待回測", "risk_note": "",
         "close": "1550.0", "ma5": "1580.0", "ma20": "1665.0", "ma60": "1461.0",
@@ -124,6 +136,8 @@ _SAMPLE_ROWS = [
         "score": "95",
         "long_trend": "up", "short_trend": "up",
         "support_price": "328.5", "resistance_price": "523.0",
+        "support_source": "recent_20d_low", "resistance_source": "recent_20d_high",
+        "entry_source": "", "stop_source": "MA20", "target_source": "resistance_price",
         "pattern_type": "w_bottom", "pattern_status": "confirmed",
         "no_buy_reason": "RSI 過熱", "risk_note": "",
         "close": "478.0", "ma5": "490.0", "ma20": "436.0", "ma60": "369.0",
@@ -138,6 +152,8 @@ _SAMPLE_ROWS = [
         "score": "35",
         "long_trend": "down", "short_trend": "down",
         "support_price": "22.8", "resistance_price": "24.1",
+        "support_source": "recent_20d_low", "resistance_source": "recent_20d_high",
+        "entry_source": "", "stop_source": "", "target_source": "",
         "pattern_type": "none", "pattern_status": "none",
         "no_buy_reason": "長線偏空", "risk_note": "",
         "close": "22.95", "ma5": "22.99", "ma20": "23.55", "ma60": "23.51",
@@ -230,9 +246,9 @@ class TestGetUniverseReportJson:
         path = Path(report_csv)
         rows = list(csv.DictReader(path.open(newline="", encoding="utf-8")))
         fieldnames = list(rows[0].keys())
-        if "buffett_data_completeness_pct" not in fieldnames:
-            fieldnames.append("buffett_data_completeness_pct")
-        rows[0]["buffett_data_completeness_pct"] = "0.0"
+        if "fundamental_data_completeness_pct" not in fieldnames:
+            fieldnames.append("fundamental_data_completeness_pct")
+        rows[0]["fundamental_data_completeness_pct"] = "0.0"
         with path.open("w", newline="", encoding="utf-8") as f:
             writer = csv.DictWriter(f, fieldnames=fieldnames)
             writer.writeheader()
@@ -240,8 +256,8 @@ class TestGetUniverseReportJson:
 
         parsed = svc.get_universe_report_json()
         row = next(r for r in parsed if r["code"] == "2330")
-        assert row["buffett_data_completeness_pct"] == 0
-        assert isinstance(row["buffett_data_completeness_pct"], int)
+        assert row["fundamental_data_completeness_pct"] == 0
+        assert isinstance(row["fundamental_data_completeness_pct"], int)
 
     def test_float_fields_converted(self, report_csv):
         rows = svc.get_universe_report_json()
@@ -265,6 +281,7 @@ class TestGetUniverseReportJson:
         assert row["name"] == "聯詠"
         assert row["internal_signal"] == "ready_to_enter"
         assert row["entry_type"] == "pullback"
+        assert row["entry_source"] == "MA20"
         assert row["reasons"] == "長線趨勢偏多 | RSI 健康區間"
 
 
@@ -291,6 +308,8 @@ class TestUniverseReportEndpoint:
             "code", "name", "data_ok", "data_missing",
             "signal", "internal_signal", "entry_type", "score",
             "close", "rsi14", "reasons", "no_buy_reason", "risk_note",
+            "support_source", "resistance_source",
+            "entry_source", "stop_source", "target_source",
         )
         for row in rows:
             for field in required:

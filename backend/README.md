@@ -80,12 +80,16 @@ API 可讀取最近一次 daily check：
 GET /api/system/daily-check
 ```
 
-### Buffett 基本面補資料
+### 基本面避雷補資料
+
+推薦策略固定只有老王 `old_wang` 與穩健動能 `steady_momentum`；基本面避雷只作為穩健動能的資料完整度與避雷輔助，不產生獨立候選股。
 
 ```bash
 cd backend
-python3 scripts/check_fundamentals.py --write-priority-csv --write-report
-# 填完 backend/out/fundamentals_priority_fill.csv 後：
+python3 scripts/prepare_fundamentals_priority_import.py --write-template
+# 依 backend/out/fundamentals_priority_import_template.csv 整理真實外部資料後：
+python3 scripts/prepare_fundamentals_priority_import.py /path/to/source.csv
+python3 scripts/prepare_fundamentals_priority_import.py /path/to/source.csv --apply
 python3 scripts/merge_priority_fundamentals.py
 python3 scripts/merge_priority_fundamentals.py --apply --confirm MERGE_PRIORITY_FUNDAMENTALS
 python3 scripts/run_signals.py

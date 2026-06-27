@@ -53,6 +53,31 @@ def test_old_wang_market_regime_is_risk_when_one_index_breaks_volume_low():
     assert ctx["old_wang_market_filter"] == "block"
 
 
+def test_old_wang_market_context_keeps_exchange_filters_separate():
+    ohlcv = {
+        "TSE": _series(100, 1),
+        "OTC": _series(50, 0.5),
+        "0050": _series(80, 0.8),
+    }
+    for code in ("TSE", "OTC"):
+        rows = ohlcv[code]
+        rows[-4]["volume"] = 5_000_000
+        rows[-4]["low"] = rows[-4]["close"] - 2
+        rows[-1]["close"] = rows[-1]["close"] + 3
+        rows[-1]["low"] = rows[-4]["low"] + 1
+
+    ohlcv["OTC"][-1]["low"] = ohlcv["OTC"][-4]["low"] - 5
+    ohlcv["OTC"][-1]["close"] = ohlcv["OTC"][-4]["low"] - 4
+
+    ctx = _market_context(ohlcv)
+    by_exchange = ctx["old_wang_market_by_exchange"]
+
+    assert by_exchange["TWSE"]["old_wang_market_filter"] == "allow"
+    assert by_exchange["TWSE"]["old_wang_market_source"] == "TSE"
+    assert by_exchange["TPEX"]["old_wang_market_filter"] == "block"
+    assert by_exchange["TPEX"]["old_wang_market_source"] == "OTC"
+
+
 def test_old_wang_market_context_falls_back_to_benchmark_when_tse_otc_missing():
     ohlcv = {"0050": _series(80, 0.8)}
 

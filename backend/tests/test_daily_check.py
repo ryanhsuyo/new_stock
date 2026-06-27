@@ -28,15 +28,15 @@ def test_daily_check_builds_summary_from_doctor_report():
                 "next_action": "",
             },
             {
-                "key": "buffett",
+                "key": "fundamentals",
                 "status": "warn",
-                "title": "巴菲特基本面覆蓋",
-                "message": "0/74 檔可進行 Buffett 評分。",
+                "title": "基本面避雷覆蓋",
+                "message": "0/74 檔可進行基本面避雷評分。",
                 "details": {},
                 "next_action": "先填 ROE、現金流、負債、成長與估值欄位。",
                 "action_payload": {
                     "kind": "copy_text",
-                    "copy_text": "巴菲特基本面優先補資料清單\n1. 台積電 2330",
+                    "copy_text": "基本面避雷優先補資料清單\n1. 台積電 2330",
                 },
             },
             {
@@ -58,7 +58,7 @@ def test_daily_check_builds_summary_from_doctor_report():
     assert summary["data_as_of"] == "2026-05-29"
     assert summary["can_use_trade_outputs"] is True
     assert len(summary["top_actions"]) == 2
-    assert summary["top_actions"][0]["key"] == "buffett"
+    assert summary["top_actions"][0]["key"] == "fundamentals"
     assert summary["top_actions"][0]["action_payload"]["kind"] == "copy_text"
     assert "台積電 2330" in summary["top_actions"][0]["action_payload"]["copy_text"]
     assert summary["top_actions"][0]["action_payload"]["preview_items"] == ["台積電 2330"]
@@ -73,7 +73,7 @@ def test_daily_check_prioritizes_blockers_before_warnings():
         "exit_code": 2,
         "generated_at": "2026-06-02",
         "checks": [
-            {"key": "buffett", "status": "warn", "title": "Buffett", "message": "warn", "details": {}, "next_action": "補資料"},
+            {"key": "fundamentals", "status": "warn", "title": "基本面避雷", "message": "warn", "details": {}, "next_action": "補資料"},
             {"key": "outputs", "status": "block", "title": "輸出不同步", "message": "block", "details": {}, "next_action": "重算訊號"},
         ],
     }
@@ -81,11 +81,141 @@ def test_daily_check_prioritizes_blockers_before_warnings():
     summary = daily_check.build_daily_summary(report, limit=3)
 
     assert summary["can_use_trade_outputs"] is False
-    assert [item["key"] for item in summary["top_actions"]] == ["outputs", "buffett"]
+    assert [item["key"] for item in summary["top_actions"]] == ["outputs", "fundamentals"]
+
+
+def test_daily_check_adds_signal_alert_action_before_warnings():
+    import daily_check
+
+    report = {
+        "overall_status": "warn",
+        "exit_code": 1,
+        "generated_at": "2026-06-24",
+        "checks": [
+            {"key": "fundamentals", "status": "warn", "title": "基本面避雷", "message": "warn", "details": {}, "next_action": "補資料"},
+        ],
+    }
+    alerts = {
+        "as_of": "2026-06-24",
+        "previous_as_of": "2026-06-23",
+        "alert_count": 1,
+        "severity_counts": {"block": 1},
+        "message": "偵測到 1 筆隔日訊號變化警示。",
+        "alerts": [
+            {"code": "2330", "name": "台積電", "title": "持股/候選轉風險"},
+        ],
+    }
+
+    summary = daily_check.build_daily_summary(report, limit=3, signal_alerts=alerts)
+
+    assert summary["signal_alerts"]["alert_count"] == 1
+    assert [item["key"] for item in summary["top_actions"]] == ["signal_alerts", "fundamentals"]
+    action = summary["top_actions"][0]
+    assert action["status"] == "block"
+    assert action["action_payload"]["kind"] == "file"
+    assert action["action_payload"]["file_path"] == "backend/out/signal_alerts.json"
+    assert action["action_payload"]["preview_items"] == ["2330 台積電：持股/候選轉風險"]
+
+
+def test_daily_check_keeps_zero_signal_alerts_out_of_top_actions():
+    import daily_check
+
+    report = {
+        "overall_status": "ok",
+        "exit_code": 0,
+        "generated_at": "2026-06-24",
+        "checks": [],
+    }
+    alerts = {
+        "as_of": "2026-06-24",
+        "previous_as_of": "2026-06-23",
+        "alert_count": 0,
+        "severity_counts": {},
+        "message": "隔日訊號無需處理的新警示。",
+        "alerts": [],
+    }
+
+    summary = daily_check.build_daily_summary(report, limit=3, signal_alerts=alerts)
+
+    assert summary["signal_alerts"]["alert_count"] == 0
+    assert summary["top_actions"] == []
+
+
+def test_daily_check_adds_today_scan_summary_and_action_when_outputs_are_usable():
+    import daily_check
+
+    report = {
+        "overall_status": "ok",
+        "exit_code": 0,
+        "generated_at": "2026-06-25",
+        "checks": [
+            {
+                "key": "outputs",
+                "status": "ok",
+                "title": "交易輸出同步",
+                "message": "ok",
+                "details": {"last_data_as_of": "2026-06-25"},
+                "next_action": "",
+            }
+        ],
+    }
+    today_scan = {
+        "as_of": "2026-06-25",
+        "formal_entries": [{"code": "2337", "name": "旺宏"}, {"code": "6274", "name": "台燿"}],
+        "old_wang_candidates": [{"code": "2303", "name": "聯電"}],
+        "steady_momentum_candidates": [{"code": "2337", "name": "旺宏"}],
+        "risk_items": [{"code": "2603", "name": "長榮"}],
+        "notes": ["老王大盤濾網目前封鎖追價。"],
+    }
+
+    summary = daily_check.build_daily_summary(report, limit=3, today_scan=today_scan)
+
+    assert summary["today_scan"]["as_of"] == "2026-06-25"
+    assert summary["today_scan"]["formal_entry_count"] == 2
+    assert summary["today_scan"]["old_wang_count"] == 1
+    assert summary["today_scan"]["steady_momentum_count"] == 1
+    assert summary["today_scan"]["risk_count"] == 1
+    assert [item["key"] for item in summary["top_actions"]] == ["today_scan"]
+    action = summary["top_actions"][0]
+    assert action["status"] == "warn"
+    assert action["message"] == "可小試 2 檔、老王觀察 1 檔、穩健動能 1 檔、風險處理 1 檔。"
+    assert action["action_payload"]["file_path"] == "backend/out/today_scan.json"
+    assert action["action_payload"]["preview_items"] == ["可小試：2337 旺宏, 6274 台燿", "風險：2603 長榮"]
+
+
+def test_daily_check_suppresses_today_scan_action_when_outputs_are_blocked():
+    import daily_check
+
+    report = {
+        "overall_status": "block",
+        "exit_code": 2,
+        "generated_at": "2026-06-25",
+        "checks": [
+            {
+                "key": "outputs",
+                "status": "block",
+                "title": "輸出不同步",
+                "message": "block",
+                "details": {"last_data_as_of": "2026-06-25"},
+                "next_action": "python3 scripts/run_signals.py",
+            }
+        ],
+    }
+
+    summary = daily_check.build_daily_summary(
+        report,
+        limit=3,
+        today_scan={"as_of": "2026-06-25", "formal_entries": [{"code": "2337", "name": "旺宏"}]},
+    )
+
+    assert summary["can_use_trade_outputs"] is False
+    assert summary["today_scan"]["formal_entry_count"] == 1
+    assert "today_scan" not in [item["key"] for item in summary["top_actions"]]
 
 
 def test_daily_check_includes_data_repair_queue_from_universe():
     import daily_check
+    from app.services.workflow_outputs import DAILY_UPDATE_OUTPUTS
 
     report = {
         "overall_status": "warn",
@@ -121,18 +251,52 @@ def test_daily_check_includes_data_repair_queue_from_universe():
     assert data_repair_action["action_payload"]["copy_command"].endswith(
         "cd /Users/ryan/Desktop/code/new_stock/backend\npython3 scripts/daily_update.py --months 12"
     )
-    assert data_repair_action["action_payload"]["expected_outputs"] == [
-        "backend/data/ohlcv.csv",
-        "backend/out/update_status.json",
-        "backend/out/summary.json",
-        "backend/out/universe_report.csv",
-        "backend/out/daily_brief.json",
-        "backend/out/daily_check.json",
-    ]
+    assert data_repair_action["action_payload"]["expected_outputs"] == DAILY_UPDATE_OUTPUTS
+
+
+def test_daily_check_blocks_trade_outputs_when_data_coverage_blocks():
+    import daily_check
+
+    summary = daily_check.build_daily_summary(
+        {
+            "overall_status": "block",
+            "exit_code": 2,
+            "generated_at": "2026-06-23",
+            "checks": [
+                {
+                    "key": "outputs",
+                    "status": "ok",
+                    "title": "交易輸出同步",
+                    "message": "ok",
+                    "details": {"last_data_as_of": "2026-06-22"},
+                    "next_action": "",
+                },
+                {
+                    "key": "data_coverage",
+                    "status": "block",
+                    "title": "資料覆蓋率不足",
+                    "message": "coverage=50.0%",
+                    "details": {"coverage_pct": 50.0},
+                    "next_action": "python3 scripts/daily_update.py --months 1",
+                    "action_payload": {
+                        "kind": "command",
+                        "command": "python3 scripts/daily_update.py --months 1",
+                    },
+                },
+            ],
+        },
+        limit=1,
+        universe=[],
+    )
+
+    assert summary["can_use_trade_outputs"] is False
+    assert summary["top_actions"][0]["key"] == "data_coverage"
+    assert "backend/out/data_coverage_report.json" in summary["top_actions"][0]["action_payload"]["expected_outputs"]
 
 
 def test_daily_check_command_actions_include_expected_outputs():
     import daily_check
+    from app.services.workflow_outputs import SIGNAL_OUTPUTS
 
     report = {
         "overall_status": "block",
@@ -158,12 +322,7 @@ def test_daily_check_command_actions_include_expected_outputs():
     summary = daily_check.build_daily_summary(report, limit=1, universe=[])
     payload = summary["top_actions"][0]["action_payload"]
 
-    assert payload["expected_outputs"] == [
-        "backend/out/summary.json",
-        "backend/out/universe_report.csv",
-        "backend/out/daily_brief.json",
-        "backend/out/daily_check.json",
-    ]
+    assert payload["expected_outputs"] == SIGNAL_OUTPUTS
 
 
 def test_daily_check_prints_action_payload_details(capsys):
@@ -176,15 +335,18 @@ def test_daily_check_prints_action_payload_details(capsys):
         "data_repair": {"total_count": 0},
         "top_actions": [
             {
-                "key": "buffett",
+                "key": "fundamentals",
                 "status": "warn",
-                "title": "巴菲特基本面覆蓋",
+                "title": "基本面避雷覆蓋",
                 "message": "0/74 檔可評分。",
                 "next_action": "先填優先欄位。",
                 "action_payload": {
                     "kind": "copy_text",
-                    "copy_text": "巴菲特基本面優先補資料清單\n1. 台積電 2330 - 缺 11 欄\n2. 聯電 2303 - 缺 11 欄",
+                    "copy_text": "基本面避雷優先補資料清單\n1. 台積電 2330 - 缺 11 欄\n2. 聯電 2303 - 缺 11 欄",
                     "file_path": "/tmp/backend/out/fundamentals_priority_fill.csv",
+                    "write_template_command": "python3 scripts/prepare_fundamentals_priority_import.py --write-template",
+                    "prepare_import_command": "python3 scripts/prepare_fundamentals_priority_import.py /path/to/source.csv",
+                    "prepare_import_apply_command": "python3 scripts/prepare_fundamentals_priority_import.py /path/to/source.csv --apply",
                 },
             },
             {
@@ -220,6 +382,9 @@ def test_daily_check_prints_action_payload_details(capsys):
     out = capsys.readouterr().out
 
     assert "優先補基本面：台積電 2330, 聯電 2303" in out
+    assert "產生模板：python3 scripts/prepare_fundamentals_priority_import.py --write-template" in out
+    assert "匯入預覽：python3 scripts/prepare_fundamentals_priority_import.py /path/to/source.csv" in out
+    assert "正式寫入：python3 scripts/prepare_fundamentals_priority_import.py /path/to/source.csv --apply" in out
     assert "缺少復盤代碼：2330, 2454" in out
     assert "目標檔案：/tmp/backend/out/fundamentals_priority_fill.csv" in out
     assert "查看檔案：/tmp/backend/out/universe_report_review_todo.md" in out
@@ -274,15 +439,15 @@ def test_daily_check_write_report_outputs_json_file(monkeypatch, tmp_path):
                 "next_action": "",
             },
             {
-                "key": "buffett",
+                "key": "fundamentals",
                 "status": "warn",
-                "title": "巴菲特基本面覆蓋",
+                "title": "基本面避雷覆蓋",
                 "message": "0/74",
                 "details": {},
                 "next_action": "補資料",
                 "action_payload": {
                     "kind": "copy_text",
-                    "copy_text": "巴菲特基本面優先補資料清單\n1. 聯發科 2454 - 缺 11 欄\n2. 台光電 2383 - 缺 11 欄",
+                    "copy_text": "基本面避雷優先補資料清單\n1. 聯發科 2454 - 缺 11 欄\n2. 台光電 2383 - 缺 11 欄",
                 },
             },
         ],
@@ -298,7 +463,7 @@ def test_daily_check_write_report_outputs_json_file(monkeypatch, tmp_path):
     assert body["overall_status"] == "warn"
     assert body["generated_at"] == "2026-06-02"
     assert body["data_as_of"] == "2026-05-29"
-    assert body["top_actions"][0]["key"] == "buffett"
+    assert body["top_actions"][0]["key"] == "fundamentals"
     assert body["top_actions"][0]["action_payload"]["preview_items"] == ["聯發科 2454", "台光電 2383"]
 
 

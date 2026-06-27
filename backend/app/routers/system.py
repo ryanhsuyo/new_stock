@@ -6,6 +6,11 @@ from app.models.system import (
     FundamentalsPriorityMergeRequest,
     FundamentalsPriorityMergeResult,
     FundamentalsStatus,
+    PersonalBackupInfo,
+    PersonalBackupResult,
+    PersonalRestorePreview,
+    PersonalRestoreRequest,
+    PersonalRestoreResult,
     PmWorklist,
     TradingSettings,
     UpdateWorkflowStatus,
@@ -13,6 +18,12 @@ from app.models.system import (
 )
 from app.services.daily_check_service import get_daily_check_report
 from app.services.fundamental_service import get_fundamentals_status, get_priority_fill_csv_path, merge_priority_fill_csv
+from app.services.personal_backup_service import (
+    create_personal_backup,
+    list_personal_backups,
+    preview_personal_restore,
+    restore_personal_backup,
+)
 from app.services.pm_worklist_service import get_pm_worklist
 from app.services.settings_service import get_trading_settings
 from app.services.update_service import get_data_status, trigger_background_update
@@ -30,10 +41,13 @@ def data_status() -> DataStatus:
     回傳欄位：
       - last_run_started_at   : 最後一次更新開始時間
       - last_run_finished_at  : 最後一次更新完成時間
-      - last_run_status       : success | failed | running | stale | null
+      - last_run_status       : success | failed | running | stalled | stale | null
       - last_error            : 失敗訊息（成功時為 null）
       - last_warning          : 警告訊息（例如更新完成但資料仍過期）
       - last_data_as_of       : 資料最新日（YYYY-MM-DD）
+      - schedule_health_status: 排程執行健康狀態
+      - schedule_is_overdue   : 是否錯過至少一個已結束的平日更新
+      - schedule_health_message: 排程健康的可讀說明
       - is_stale              : 資料是否已超過 2 天未更新
       - stale_days            : 距離最新資料日的日曆天數（資料不存在時為 null）
     """
@@ -51,13 +65,13 @@ def daily_check() -> dict:
 
 @router.get("/system/fundamentals-status", response_model=FundamentalsStatus)
 def fundamentals_status() -> FundamentalsStatus:
-    """查詢巴菲特基本面資料對 leaders 清單的覆蓋率。"""
+    """查詢基本面避雷資料對 leaders 清單的覆蓋率。"""
     return FundamentalsStatus(**get_fundamentals_status())
 
 
 @router.get("/system/fundamentals-priority-fill")
 def fundamentals_priority_fill() -> FileResponse:
-    """下載巴菲特基本面優先補資料 CSV。"""
+    """下載基本面避雷優先補資料 CSV。"""
     path = get_priority_fill_csv_path()
     if not path.exists():
         raise HTTPException(status_code=404, detail="尚無基本面優先補資料 CSV")
@@ -84,6 +98,40 @@ def merge_fundamentals_priority_fill(payload: FundamentalsPriorityMergeRequest) 
 def trading_settings() -> TradingSettings:
     """讀取交易費率設定，供前端估算交易成本。"""
     return TradingSettings(**get_trading_settings())
+
+
+@router.get("/system/personal-backups", response_model=list[PersonalBackupInfo])
+def personal_backups() -> list[dict]:
+    """列出個人資料備份；只包含交易、復盤、觀察清單、盤後筆記與設定。"""
+    return list_personal_backups()
+
+
+@router.post("/system/personal-backups", response_model=PersonalBackupResult)
+def create_personal_backup_endpoint() -> PersonalBackupResult:
+    """建立個人資料備份，不包含行情與 generated out 檔。"""
+    return PersonalBackupResult(**create_personal_backup())
+
+
+@router.post("/system/personal-backups/restore-preview", response_model=PersonalRestorePreview)
+def preview_personal_backup_restore(req: PersonalRestoreRequest) -> PersonalRestorePreview:
+    """Dry-run 預覽個人資料還原；不寫入任何檔案。"""
+    try:
+        return PersonalRestorePreview(**preview_personal_restore(req.backup_id))
+    except FileNotFoundError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+
+@router.post("/system/personal-backups/restore", response_model=PersonalRestoreResult)
+def restore_personal_backup_endpoint(req: PersonalRestoreRequest) -> PersonalRestoreResult:
+    """正式還原個人資料；需 confirm=RESTORE_PERSONAL_DATA，且會先備份目前狀態。"""
+    try:
+        return PersonalRestoreResult(**restore_personal_backup(req.backup_id, confirm=req.confirm))
+    except FileNotFoundError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
 
 
 @router.get("/system/workflow-status", response_model=WorkflowStatus)

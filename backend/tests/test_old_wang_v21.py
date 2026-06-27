@@ -31,6 +31,104 @@ def _hot_context() -> dict:
     }
 
 
+def test_market_block_can_still_flag_strong_gap_reclaim_as_cautious_candidate():
+    result = _old_wang_flag(
+        code="2330",
+        close=110,
+        ma5=105,
+        ma10=104,
+        ma20=103,
+        ma60=90,
+        rsi14=62,
+        vol_ratio=0.7,
+        long_trend="up",
+        market_filter="block",
+        breakout=False,
+        breakdown=False,
+        strong_reversal=False,
+        holds_recent_low=True,
+        stage="stage_2",
+        rs_score=70,
+        reward_risk_ratio=2.0,
+        gap={"gap_type": "gap_up", "gap_support": 101, "bullish_gap_support": True, "bearish_gap_pressure": False},
+        volume_low={"support": False, "price": 95, "note": "大量低點未確認"},
+        chip={},
+        context=_hot_context(),
+        previous_close=99,
+    )
+
+    assert result["old_wang_flag"] is True
+    assert "大盤風險下僅列強型態觀察" in result["old_wang_reason"]
+
+
+def test_chip_against_is_risk_note_not_hard_block_for_strong_volume_high_breakout():
+    result = _old_wang_flag(
+        code="2330",
+        close=120,
+        ma5=110,
+        ma10=108,
+        ma20=105,
+        ma60=90,
+        rsi14=68,
+        vol_ratio=0.7,
+        long_trend="up",
+        market_filter="caution",
+        breakout=False,
+        breakdown=False,
+        strong_reversal=False,
+        holds_recent_low=True,
+        stage="stage_2",
+        rs_score=75,
+        reward_risk_ratio=2.0,
+        gap={"gap_type": "none", "bullish_gap_support": False, "bearish_gap_pressure": False},
+        volume_low={
+            "support": True,
+            "price": 100,
+            "high_price": 115,
+            "high_breakout": True,
+            "note": "爆大量低點 100 已守住",
+        },
+        chip={"foreign_net_buy": -10_000, "investment_trust_net_buy": -1_000},
+        context=_hot_context(),
+        previous_close=118,
+    )
+
+    assert result["old_wang_flag"] is True
+    assert result["old_wang_chip_signal"] == "against"
+    assert "籌碼逆風，降級觀察" in result["old_wang_reason"]
+
+
+def test_close_within_ma10_tolerance_can_flag_strong_gap_reclaim_candidate():
+    result = _old_wang_flag(
+        code="2330",
+        close=73.3,
+        ma5=68.16,
+        ma10=73.44,
+        ma20=72.16,
+        ma60=60,
+        rsi14=62,
+        vol_ratio=0.36,
+        long_trend="up",
+        market_filter="caution",
+        breakout=False,
+        breakdown=False,
+        strong_reversal=False,
+        holds_recent_low=True,
+        stage="stage_2",
+        rs_score=70,
+        reward_risk_ratio=2.0,
+        gap={"gap_type": "gap_up", "gap_support": 68.0, "bullish_gap_support": True, "bearish_gap_pressure": False},
+        volume_low={"support": False, "price": 64, "note": "大量低點未確認"},
+        chip={},
+        context=_hot_context(),
+        previous_close=67.0,
+    )
+
+    assert result["old_wang_flag"] is True
+    assert result["old_wang_ma_signal"] == "near_ma10"
+    assert "貼近 MA10" in result["old_wang_reason"]
+
+
 def test_parabolic_move_holds_ma10_is_old_wang_hold_not_top_guess():
     result = _old_wang_flag(
         code="2330",

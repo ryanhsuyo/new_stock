@@ -1,4 +1,4 @@
-import type { BuyRequest, DailyBrief, DailyCheckReport, DataStatus, DecisionJournalBulkCreateResult, DecisionJournalCreate, DecisionJournalEntry, DecisionJournalSummary, FundamentalsPriorityMergeResult, FundamentalsStatus, HoldingAnalysis, IntradayMonitor, ManualWatchlistReview, MarketNoteInput, MarketNoteSaveResult, PmWorklist, PortfolioSummary, Position, SellRequest, SignalsSummary, SignalsStatus, Stats, StockAnalysis, StockRecommendation, StockTrackingResult, StockUniverseItem, TradeRecord, TradingSettings, UniverseReportItem, UniverseReportReviewWorkflow, UpdateWorkflowStatus, WatchlistGroup, WorkflowStatus } from '../types'
+import type { BuyRequest, DailyBrief, DailyCheckReport, DataStatus, DecisionJournalBulkCreateResult, DecisionJournalCreate, DecisionJournalEntry, DecisionJournalSummary, FundamentalsPriorityMergeResult, FundamentalsStatus, HoldingAnalysis, IntradayMonitor, ManualWatchlistReview, MarketNoteInput, MarketNoteSaveResult, PmWorklist, PortfolioSummary, Position, RecommendationStrategy, SellRequest, SignalsSummary, SignalsStatus, Stats, StockAnalysis, StockRecommendation, StockTrackingResult, StockUniverseItem, TradeRecord, TradingSettings, UniverseReportItem, UniverseReportReviewWorkflow, UpdateWorkflowStatus, WatchlistGroup, WorkflowStatus } from '../types'
 
 const BASE = '/api'
 
@@ -23,7 +23,7 @@ const json = (body: unknown): RequestInit => ({
 })
 
 export const api = {
-  getRecommendations: (strategy: 'core' | 'old_wang' | 'buffett' = 'core') =>
+  getRecommendations: (strategy: RecommendationStrategy = 'steady_momentum') =>
     request<StockRecommendation[]>(`/stocks/recommendations?strategy=${strategy}`),
 
   getTrades: () =>

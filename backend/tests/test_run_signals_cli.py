@@ -22,6 +22,7 @@ def test_run_signals_main_refreshes_daily_check(monkeypatch, capsys):
         "data_ok_count": 1,
         "data_missing_count": 0,
         "market_context": {},
+        "signal_alert_count": 0,
         "signal_counts": {"watchlist": 1},
         "no_buy_reason_counts": {},
         "signals": [{
@@ -34,7 +35,28 @@ def test_run_signals_main_refreshes_daily_check(monkeypatch, capsys):
     run_signals.main()
 
     assert calls == ["daily_check"]
-    assert "訊號摘要" in capsys.readouterr().out
+
+
+def test_run_signals_daily_check_refresh_includes_today_scan_and_alerts(monkeypatch):
+    import run_signals
+
+    captured = {}
+
+    monkeypatch.setattr(run_signals, "build_doctor_report", lambda backend: {"overall_status": "ok"})
+    monkeypatch.setattr(run_signals, "load_signal_alerts", lambda out_dir: {"alert_count": 1})
+    monkeypatch.setattr(run_signals, "load_today_scan_report", lambda out_dir: {"as_of": "2026-06-26"})
+    monkeypatch.setattr(
+        run_signals,
+        "build_daily_summary",
+        lambda report, **kwargs: captured.setdefault("kwargs", kwargs) or {"overall_status": "ok"},
+    )
+    monkeypatch.setattr(run_signals, "write_daily_summary", lambda summary, backend: backend / "out" / "daily_check.json")
+
+    path = run_signals.write_daily_check_report()
+
+    assert path.name == "daily_check.json"
+    assert captured["kwargs"]["signal_alerts"] == {"alert_count": 1}
+    assert captured["kwargs"]["today_scan"] == {"as_of": "2026-06-26"}
 
 
 def test_run_signals_summary_lists_all_primary_outputs(capsys):
@@ -57,4 +79,33 @@ def test_run_signals_summary_lists_all_primary_outputs(capsys):
     assert "summary.json" in out
     assert "universe_report.csv" in out
     assert "daily_brief.json" in out
+    assert "today_scan.json" in out
     assert "daily_check.json" in out
+    assert "signal_snapshot_review.json" in out
+    assert "signal_alerts.json" in out
+    assert "signal_snapshots" in out
+    assert "隔日警示" in out
+
+
+def test_run_signals_summary_prints_timeout_codes(capsys):
+    import run_signals
+
+    run_signals.print_summary({
+        "as_of": "2026-05-29",
+        "generated_at": "2026-05-29T15:00:00",
+        "universe_size": 2,
+        "data_ok_count": 1,
+        "data_missing_count": 1,
+        "calculation_timeout_seconds": 2.0,
+        "calculation_timeout_count": 1,
+        "calculation_timeout_codes": ["1111"],
+        "market_context": {},
+        "signal_counts": {"watchlist": 1, "DATA_MISSING": 1},
+        "no_buy_reason_counts": {"訊號計算逾時（超過 2 秒）": 1},
+        "signals": [],
+    })
+
+    out = capsys.readouterr().out
+    assert "計算逾時" in out
+    assert "1111" in out
+    assert "2" in out

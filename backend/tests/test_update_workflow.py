@@ -11,6 +11,7 @@ if str(_SCRIPTS) not in sys.path:
 
 def test_update_workflow_blocks_when_market_data_is_stale(monkeypatch):
     import app.services.update_workflow_service as svc
+    from app.services.workflow_outputs import DAILY_UPDATE_OUTPUTS
 
     class FakeDate(date):
         @classmethod
@@ -42,14 +43,7 @@ def test_update_workflow_blocks_when_market_data_is_stale(monkeypatch):
     assert report["next_action"]["copy_command"].endswith(
         "cd /Users/ryan/Desktop/code/new_stock/backend\npython3 scripts/daily_update.py --months 1"
     )
-    assert report["next_action"]["expected_outputs"] == [
-        "backend/data/ohlcv.csv",
-        "backend/out/update_status.json",
-        "backend/out/summary.json",
-        "backend/out/universe_report.csv",
-        "backend/out/daily_brief.json",
-        "backend/out/daily_check.json",
-    ]
+    assert report["next_action"]["expected_outputs"] == DAILY_UPDATE_OUTPUTS
     assert report["steps"][0]["status"] == "blocked"
 
 
@@ -124,6 +118,7 @@ def test_update_workflow_warns_when_daily_check_snapshot_is_stale(monkeypatch):
 
 def test_update_workflow_blocks_when_fresh_daily_check_blocks_trade_outputs(monkeypatch):
     import app.services.update_workflow_service as svc
+    from app.services.workflow_outputs import SIGNAL_OUTPUTS
 
     class FakeDate(date):
         @classmethod
@@ -170,13 +165,45 @@ def test_update_workflow_blocks_when_fresh_daily_check_blocks_trade_outputs(monk
     assert report["next_action"]["copy_command"].endswith(
         "backend\npython3 scripts/run_signals.py"
     )
-    assert report["next_action"]["expected_outputs"] == [
-        "backend/out/summary.json",
-        "backend/out/universe_report.csv",
-        "backend/out/daily_brief.json",
-        "backend/out/daily_check.json",
-    ]
+    assert report["next_action"]["expected_outputs"] == SIGNAL_OUTPUTS
     assert report["steps"][2]["status"] == "blocked"
+
+
+def test_update_workflow_blocks_when_data_coverage_is_too_low(monkeypatch):
+    import app.services.update_workflow_service as svc
+
+    class FakeDate(date):
+        @classmethod
+        def today(cls):
+            return cls(2026, 6, 23)
+
+    monkeypatch.setattr(svc, "date", FakeDate)
+    monkeypatch.setattr(svc, "get_data_status", lambda: {
+        "last_run_status": "success",
+        "last_data_as_of": "2026-06-22",
+        "raw_ohlcv_as_of": "2026-06-22",
+        "outputs_lag_raw_data": False,
+        "is_stale": False,
+        "stale_days": 1,
+        "batch_id": "batch-low",
+        "coverage_report_path": "/tmp/backend/out/data_coverage_report.json",
+        "data_coverage_pct": 50.0,
+    })
+    monkeypatch.setattr(svc, "get_daily_check_report", lambda: {
+        "generated_at": "2026-06-23",
+        "data_as_of": "2026-06-22",
+        "snapshot_is_stale": False,
+        "can_use_trade_outputs": True,
+    })
+
+    report = svc.get_update_workflow_status()
+
+    assert report["overall_status"] == "blocked"
+    assert report["current_step"] == "improve_data_coverage"
+    assert report["next_action"]["command"] == "python3 scripts/daily_update.py --months 1"
+    assert report["checks"]["batch_id"] == "batch-low"
+    assert report["checks"]["data_coverage_pct"] == 50.0
+    assert report["checks"]["coverage_report_path"].endswith("data_coverage_report.json")
 
 
 def test_update_workflow_reuses_daily_check_command_payload(monkeypatch):

@@ -20,6 +20,7 @@ def test_import_fundamentals_help_exits_0():
     assert "--merge-priority-csv" in result.stdout
     assert "--validate-priority-csv" in result.stdout
     assert "--dry-run" in result.stdout
+    assert "基本面避雷" in result.stdout
 
 
 def test_import_fundamentals_reports_invalid_csv_value(tmp_path):
@@ -63,6 +64,7 @@ def test_check_fundamentals_help_exits_0():
     assert result.returncode == 0
     assert "--leaders" in result.stdout
     assert "--write-priority-csv" in result.stdout
+    assert "基本面避雷" in result.stdout
 
 
 def test_check_fundamentals_prints_csv_validation_summary():
@@ -167,12 +169,12 @@ def test_merge_priority_fundamentals_preview_prints_next_action(monkeypatch, cap
         "empty_codes": ["2454"],
         "warning_count": 0,
         "warnings": [],
-        "buffett_preview": [{
+        "fundamental_preview": [{
             "code": "2330",
             "name": "台積電",
-            "buffett_data_ok": True,
-            "buffett_score": 86,
-            "buffett_signal": "品質價值觀察",
+            "fundamental_data_ok": True,
+            "fundamental_score": 86,
+            "fundamental_signal": "品質價值觀察",
         }],
         "signals_refresh_required": False,
         "next_action_label": "可合併，合併後重新產生訊號",
@@ -182,6 +184,8 @@ def test_merge_priority_fundamentals_preview_prints_next_action(monkeypatch, cap
 
     out = capsys.readouterr().out
     assert code == 0
+    assert "基本面避雷 priority CSV" in out
+    assert "基本面避雷預覽" in out
     assert "預覽" in out
     assert "可合併" in out
     assert "2330 台積電" in out
@@ -206,7 +210,7 @@ def test_merge_priority_fundamentals_apply_writes_report(monkeypatch, tmp_path, 
             "empty_codes": [],
             "warning_count": 0,
             "warnings": [],
-            "buffett_preview": [],
+            "fundamental_preview": [],
             "signals_refresh_required": True,
             "next_action_label": "重新產生訊號",
             "json_path": str(tmp_path / "fundamentals.json"),
@@ -220,7 +224,9 @@ def test_merge_priority_fundamentals_apply_writes_report(monkeypatch, tmp_path, 
     out = capsys.readouterr().out
     assert code == 0
     assert calls == {"dry_run": False, "confirm": "MERGE_PRIORITY_FUNDAMENTALS"}
+    assert "基本面避雷 priority CSV" in out
     assert "正式合併" in out
+    assert "基本面避雷覆蓋率" in out
     assert "python3 scripts/run_signals.py" in out
 
 
@@ -237,3 +243,76 @@ def test_merge_priority_fundamentals_returns_error_for_invalid_csv(monkeypatch, 
     captured = capsys.readouterr()
     assert code == 1
     assert "priority CSV validation failed" in captured.err
+
+
+def test_prepare_fundamentals_priority_import_help_exits_0():
+    result = subprocess.run(
+        [sys.executable, str(_SCRIPTS / "prepare_fundamentals_priority_import.py"), "--help"],
+        capture_output=True,
+        text=True,
+    )
+
+    assert result.returncode == 0
+    assert "--apply" in result.stdout
+    assert "--write-template" in result.stdout
+    assert "source_csv" in result.stdout
+
+
+def test_prepare_fundamentals_priority_import_prints_preview(monkeypatch, tmp_path, capsys):
+    import scripts.prepare_fundamentals_priority_import as script
+
+    source = tmp_path / "source.csv"
+    source.write_text("code,pe\n2408,22\n", encoding="utf-8")
+    calls = {}
+
+    def fake_prepare(source_csv_path, dry_run=True):
+        calls["source_csv_path"] = source_csv_path
+        calls["dry_run"] = dry_run
+        return {
+            "dry_run": True,
+            "source_row_count": 1,
+            "updated_code_count": 1,
+            "updated_field_count": 1,
+            "updated_codes": ["2408"],
+            "skipped_codes": [],
+            "validation": {
+                "valid": True,
+                "complete_code_count": 0,
+                "partial_codes": ["2408"],
+                "warnings": [],
+                "errors": [],
+            },
+            "next_action_label": "確認 dry-run 更新清單後，用 --apply 寫入 priority CSV",
+        }
+
+    monkeypatch.setattr(script, "prepare_priority_fundamentals_import", fake_prepare)
+
+    code = script.run_prepare(script.parse_args([str(source)]))
+
+    out = capsys.readouterr().out
+    assert code == 0
+    assert calls == {"source_csv_path": source, "dry_run": True}
+    assert "dry-run" in out
+    assert "2408" in out
+    assert "下一步" in out
+
+
+def test_prepare_fundamentals_priority_import_writes_template(monkeypatch, tmp_path, capsys):
+    import scripts.prepare_fundamentals_priority_import as script
+
+    calls = {}
+
+    def fake_write_template(out_dir=None, limit=20):
+        calls["out_dir"] = out_dir
+        calls["limit"] = limit
+        return tmp_path / "fundamentals_priority_import_template.csv"
+
+    monkeypatch.setattr(script, "write_priority_import_template_csv", fake_write_template)
+
+    code = script.run_prepare(script.parse_args(["--write-template", "--limit", "7"]))
+
+    out = capsys.readouterr().out
+    assert code == 0
+    assert calls == {"out_dir": None, "limit": 7}
+    assert "已寫出外部資料模板" in out
+    assert "fundamentals_priority_import_template.csv" in out

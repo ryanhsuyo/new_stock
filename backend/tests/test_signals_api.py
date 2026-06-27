@@ -38,7 +38,9 @@ def signals_result(tmp_out):
 
 class TestSignalsRun:
 
-    def test_returns_200_with_started(self, client, tmp_out):
+    def test_returns_200_with_started(self, client, tmp_out, monkeypatch):
+        import app.services.signals_service as svc
+        monkeypatch.setattr(svc, "run_daily_signals", lambda as_of_date=None: {})
         resp = client.post("/api/stocks/signals/run", json={})
         assert resp.status_code == 200
         assert resp.json()["status"] == "started"
@@ -77,8 +79,31 @@ class TestSignalsOutput:
         for field in ("as_of", "generated_at", "universe_size",
                       "data_ok_count", "data_missing_count",
                       "data_ok_counts", "no_buy_reason_counts", "signals",
+                      "rules_version", "rules_metadata",
                       "out_dir", "files_written"):
             assert field in signals_result, f"欄位缺失：{field}"
+        assert signals_result["rules_metadata"]["version"] == signals_result["rules_version"]
+
+    def test_signal_snapshot_outputs_are_written(self, signals_result, tmp_out):
+        as_of = signals_result["as_of"]
+        snapshot_path = tmp_out / "signal_snapshots" / f"signal_snapshot_{as_of}.json"
+        review_path = tmp_out / "signal_snapshot_review.json"
+        alerts_path = tmp_out / "signal_alerts.json"
+        today_scan_path = tmp_out / "today_scan.json"
+        today_scan_snapshot_path = tmp_out / "today_scans" / f"today_scan_{as_of}.json"
+
+        assert snapshot_path.exists()
+        assert review_path.exists()
+        assert alerts_path.exists()
+        assert today_scan_path.exists()
+        assert today_scan_snapshot_path.exists()
+        assert "signal_snapshot_review.json" in signals_result["files_written"]
+        assert f"signal_snapshots/signal_snapshot_{as_of}.json" in signals_result["files_written"]
+        assert "signal_alerts.json" in signals_result["files_written"]
+        assert "today_scan.json" in signals_result["files_written"]
+        assert f"today_scans/today_scan_{as_of}.json" in signals_result["files_written"]
+        assert "signal_alert_count" in signals_result
+        assert "signal_alert_summary" in signals_result
 
     def test_load_positions_from_trades_includes_buy_fee(self, monkeypatch):
         import app.services.signals_service as svc
@@ -116,6 +141,7 @@ class TestSignalsOutput:
 
     def test_each_signal_has_required_fields(self, signals_result):
         required = ("code", "data_ok", "data_missing", "signal",
+                    "calculation_status", "calculation_error",
                     "entry_type", "no_buy_reason",
                     "close", "ma5", "ma10", "ma20", "ma60", "rsi14", "volume", "vol_ratio")
         for sig in signals_result["signals"]:
@@ -132,6 +158,8 @@ class TestSignalsOutput:
             "stage", "entry_price_low", "entry_price_high",
             "stop_price", "target_price", "risk_pct", "reward_pct",
             "reward_risk_ratio", "price_plan_note",
+            "support_source", "resistance_source",
+            "entry_source", "stop_source", "target_source",
             "position_size_pct", "position_size_note",
             "holding_shares", "holding_avg_cost", "holding_position_pct",
             "strategy_alignment", "aligned_strategies", "strategy_conflict_notes",
@@ -146,11 +174,11 @@ class TestSignalsOutput:
             "old_wang_previous_high_state", "old_wang_previous_high_price",
             "old_wang_volume_high_breakout", "old_wang_volume_high_price",
             "old_wang_all_ma_reclaim", "old_wang_parabolic_ma10_hold",
-            "buffett_flag", "buffett_tag", "buffett_score", "buffett_signal",
-            "buffett_reason", "buffett_data_ok", "buffett_data_missing_reason",
-            "buffett_quality_score", "buffett_value_score", "buffett_safety_score",
-            "buffett_growth_score", "buffett_data_completeness_pct",
-            "buffett_missing_fields", "buffett_scored_groups",
+            "fundamental_flag", "fundamental_tag", "fundamental_score", "fundamental_signal",
+            "fundamental_reason", "fundamental_data_ok", "fundamental_data_missing_reason",
+            "fundamental_quality_score", "fundamental_value_score", "fundamental_safety_score",
+            "fundamental_growth_score", "fundamental_data_completeness_pct",
+            "fundamental_missing_fields", "fundamental_scored_groups",
             "daily_action", "daily_action_label", "daily_action_identity",
             "daily_action_reason", "daily_key_price", "daily_invalidation",
             "daily_priority", "daily_checklist",
@@ -158,6 +186,15 @@ class TestSignalsOutput:
         for sig in signals_result["signals"]:
             for field in required:
                 assert field in sig, f"{sig['code']}: 專業濾網欄位缺失 {field}"
+
+    def test_price_source_fields_are_strings(self, signals_result):
+        source_fields = (
+            "support_source", "resistance_source",
+            "entry_source", "stop_source", "target_source",
+        )
+        for sig in signals_result["signals"]:
+            for field in source_fields:
+                assert isinstance(sig[field], str), f"{sig['code']}: {field} 應為字串"
 
     def test_daily_decision_fields_are_actionable(self, signals_result):
         valid_actions = {
@@ -203,20 +240,34 @@ class TestSignalsOutput:
     def test_summary_has_strategy_catalog_and_buckets(self, signals_result):
         catalog = signals_result["strategy_catalog"]
         buckets = signals_result["recommendation_buckets"]
-        assert "core_technical_v2" in catalog
         assert "old_wang_market_chip_rotation" in catalog
-        assert "buffett_quality_value_v1" in catalog
-        assert set(buckets.keys()) == {"core", "old_wang", "buffett"}
-        assert isinstance(buckets["core"], list)
+        assert "steady_momentum_v1" in catalog
+        assert "core_technical_v2" not in catalog
+        assert "fundamental_guard_v1" not in catalog
+        assert set(buckets.keys()) == {"old_wang", "steady_momentum"}
         assert isinstance(buckets["old_wang"], list)
-        assert isinstance(buckets["buffett"], list)
+        assert isinstance(buckets["steady_momentum"], list)
 
-    def test_buffett_indicator_requires_fundamental_data(self, signals_result):
+    def test_steady_momentum_candidates_have_score_breakdown(self, signals_result):
+        candidates = [
+            s for s in signals_result["signals"] if s.get("steady_momentum_flag")
+        ]
+        for sig in candidates:
+            assert 75 <= sig["steady_momentum_score"] <= 100
+            reason = sig["steady_momentum_reason"]
+            assert "趨勢" in reason
+            assert "相對強度" in reason
+            assert "進場位置" in reason
+            assert "風險報酬" in reason
+            assert "過熱控制" in reason
+            assert "基本面避雷" in reason
+
+    def test_fundamental_guard_requires_fundamental_data(self, signals_result):
         for sig in signals_result["signals"]:
-            assert sig["buffett_data_ok"] is False
-            assert sig["buffett_flag"] is False
-            assert sig["buffett_score"] is None
-            assert "fundamentals" in sig["buffett_data_missing_reason"]
+            assert sig["fundamental_data_ok"] is False
+            assert sig["fundamental_flag"] is False
+            assert sig["fundamental_score"] is None
+            assert "fundamentals" in sig["fundamental_data_missing_reason"]
 
     def test_signal_values_are_valid(self, signals_result):
         valid = {"BUY", "SELL", "HOLD", "DATA_MISSING"}
@@ -245,10 +296,16 @@ class TestSignalsOutput:
         assert (tmp_out / "universe_report.csv").exists()
 
     def test_files_written_lists_both_files(self, signals_result):
+        as_of = signals_result["as_of"]
         assert set(signals_result["files_written"]) == {
             "summary.json",
             "universe_report.csv",
             "daily_brief.json",
+            "today_scan.json",
+            f"today_scans/today_scan_{as_of}.json",
+            "signal_snapshot_review.json",
+            f"signal_snapshots/signal_snapshot_{as_of}.json",
+            "signal_alerts.json",
             "fundamentals_report.json",
             "fundamentals_priority_fill.csv",
         }
@@ -258,6 +315,16 @@ class TestSignalsOutput:
         assert on_disk["as_of"] == signals_result["as_of"]
         assert on_disk["data_ok_count"] == signals_result["data_ok_count"]
         assert len(on_disk["signals"]) == len(signals_result["signals"])
+        assert on_disk["rules_version"] == signals_result["rules_version"]
+        assert on_disk["rules_metadata"]["strategy_profile"] == "two_strategy_daily_v1"
+
+    def test_manual_run_creates_signal_lineage(self, signals_result, tmp_out):
+        on_disk = json.loads((tmp_out / "summary.json").read_text(encoding="utf-8"))
+
+        assert signals_result["batch_id"].startswith("signals-")
+        assert signals_result["lineage"]["batch_id"] == signals_result["batch_id"]
+        assert signals_result["lineage"]["source"] == "run_daily_signals"
+        assert on_disk["batch_id"] == signals_result["batch_id"]
 
     def test_as_of_date_param_accepted(self, tmp_out):
         result = run_daily_signals(as_of_date="2025-12-31")
@@ -536,12 +603,14 @@ class TestRecommendations:
                     "old_wang_previous_high_state", "old_wang_previous_high_price",
                     "old_wang_volume_high_breakout", "old_wang_volume_high_price",
                     "old_wang_all_ma_reclaim", "old_wang_parabolic_ma10_hold",
-                    "buffett_flag", "buffett_tag", "buffett_score",
-                    "buffett_signal", "buffett_reason", "buffett_data_ok",
-                    "buffett_data_missing_reason", "buffett_quality_score",
-                    "buffett_value_score", "buffett_safety_score",
-                    "buffett_growth_score", "buffett_data_completeness_pct",
-                    "buffett_missing_fields", "buffett_scored_groups")
+                    "steady_momentum_flag", "steady_momentum_tag", "steady_momentum_score",
+                    "steady_momentum_signal", "steady_momentum_reason",
+                    "fundamental_flag", "fundamental_tag", "fundamental_score",
+                    "fundamental_signal", "fundamental_reason", "fundamental_data_ok",
+                    "fundamental_data_missing_reason", "fundamental_quality_score",
+                    "fundamental_value_score", "fundamental_safety_score",
+                    "fundamental_growth_score", "fundamental_data_completeness_pct",
+                    "fundamental_missing_fields", "fundamental_scored_groups")
         for rec in body:
             for field in required:
                 assert field in rec, f"StockRecommendation 欄位缺失：{field}"
@@ -573,12 +642,14 @@ class TestRecommendations:
             assert 0 <= rec["score"] <= 100, \
                 f"{rec['stock_id']} score={rec['score']} 超出 0–100 範圍"
 
-    def test_all_are_buy_signals(self, client, signals_result, tmp_out):
-        buy_codes = {s["code"] for s in signals_result["signals"] if s["signal"] == "BUY"}
+    def test_default_strategy_returns_steady_momentum_signals(self, client, signals_result, tmp_out):
+        buy_codes = {
+            s["code"] for s in signals_result["signals"] if s.get("steady_momentum_flag")
+        }
         rec_codes  = {r["stock_id"]
                       for r in client.get("/api/stocks/recommendations").json()}
         assert rec_codes == buy_codes, \
-            f"recommendations 與 BUY signals 不一致：{rec_codes} vs {buy_codes}"
+            f"recommendations 與穩健動能 signals 不一致：{rec_codes} vs {buy_codes}"
 
     def test_old_wang_strategy_returns_tagged_signals(self, client, signals_result):
         old_wang_codes = {
@@ -590,16 +661,27 @@ class TestRecommendations:
         }
         assert rec_codes == old_wang_codes
 
-    def test_buffett_strategy_returns_buffett_flagged_signals(self, client, signals_result):
+    def test_steady_momentum_strategy_returns_steady_momentum_flagged_signals(self, client, signals_result):
         expected = {
             s["code"] for s in signals_result["signals"]
-            if s.get("buffett_flag")
+            if s.get("steady_momentum_flag")
         }
         rec_codes = {
             r["stock_id"]
-            for r in client.get("/api/stocks/recommendations?strategy=buffett").json()
+            for r in client.get("/api/stocks/recommendations?strategy=steady_momentum").json()
         }
         assert rec_codes == expected
+
+    def test_unknown_strategy_uses_default_recommendation_bucket(self, client, signals_result):
+        steady_codes = {
+            r["stock_id"]
+            for r in client.get("/api/stocks/recommendations?strategy=steady_momentum").json()
+        }
+        unknown_codes = {
+            r["stock_id"]
+            for r in client.get("/api/stocks/recommendations?strategy=unknown").json()
+        }
+        assert unknown_codes == steady_codes
 
     def test_empty_list_when_no_summary(self, client, tmp_out):
         body = client.get("/api/stocks/recommendations").json()

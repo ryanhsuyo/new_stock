@@ -89,8 +89,8 @@ def get_intraday_monitor(
 @router.get("/stocks/recommendations", response_model=list[StockRecommendation])
 def list_recommendations(
     strategy: str = Query(
-        default="core",
-        description="core=核心技術策略V2；old_wang=老王短波段；buffett=巴菲特長期品質價值",
+        default="steady_momentum",
+        description="steady_momentum=穩健動能；old_wang=老王短波段；舊參數 core 會導回 steady_momentum",
     ),
 ) -> list[StockRecommendation]:
     return get_recommendations(strategy=strategy)

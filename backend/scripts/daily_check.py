@@ -17,12 +17,22 @@ if str(_BACKEND) not in sys.path:
     sys.path.insert(0, str(_BACKEND))
 
 from app.storage.atomic_write import atomic_write_text  # noqa: E402
+from app.services.signal_alert_service import load_signal_alerts  # noqa: E402
 from app.services.signals_service import get_universe  # noqa: E402
+from app.services.today_scan_service import load_today_scan_report  # noqa: E402
 from app.services.workflow_outputs import expected_outputs_for_command  # noqa: E402
 from app.services.workflow_text import preview_numbered_lines  # noqa: E402
 from doctor import build_doctor_report  # noqa: E402
 
 _SEVERITY_RANK = {"block": 0, "warn": 1, "ok": 2}
+_ACTION_KEY_RANK = {
+    "outputs": 0,
+    "signal_alerts": 1,
+    "fundamentals": 2,
+    "data_repair": 3,
+    "today_scan": 4,
+    "decision_journal": 5,
+}
 _DATA_REPAIR_COMMAND = "python3 scripts/daily_update.py --months 12"
 _DATA_REPAIR_REQUIRED_ROWS = 60
 
@@ -51,7 +61,7 @@ def _data_as_of_from_report(report: dict[str, Any]) -> str | None:
 def _can_use_trade_outputs(report: dict[str, Any]) -> bool:
     checks = report.get("checks") or []
     return not any(
-        check.get("key") == "outputs" and check.get("status") == "block"
+        check.get("key") in {"outputs", "data_coverage"} and check.get("status") == "block"
         for check in checks
     )
 
@@ -111,6 +121,102 @@ def _data_repair_action(repair: dict[str, Any]) -> dict[str, Any] | None:
     }
 
 
+def _signal_alert_action(alerts: dict[str, Any] | None) -> dict[str, Any] | None:
+    if not alerts or int(alerts.get("alert_count") or 0) <= 0:
+        return None
+    severity_counts = alerts.get("severity_counts") or {}
+    status = "block" if int(severity_counts.get("block") or 0) > 0 else "warn"
+    alert_count = int(alerts.get("alert_count") or 0)
+    return {
+        "key": "signal_alerts",
+        "status": status,
+        "title": "隔日訊號警示",
+        "message": str(alerts.get("message") or f"有 {alert_count} 筆隔日訊號變化警示。"),
+        "next_action": "查看 backend/out/signal_alerts.json 並先處理 block / warn 項目。",
+        "details": {
+            "as_of": alerts.get("as_of"),
+            "previous_as_of": alerts.get("previous_as_of"),
+            "alert_count": alert_count,
+            "severity_counts": severity_counts,
+        },
+        "action_payload": {
+            "kind": "file",
+            "file_path": "backend/out/signal_alerts.json",
+            "preview_items": [
+                f"{item.get('code')} {item.get('name')}：{item.get('title')}"
+                for item in (alerts.get("alerts") or [])[:5]
+            ],
+        },
+    }
+
+
+def _item_label(item: dict[str, Any]) -> str:
+    code = str(item.get("code") or "")
+    name = str(item.get("name") or code)
+    return f"{code} {name}".strip()
+
+
+def _today_scan_summary(today_scan: dict[str, Any] | None) -> dict[str, Any]:
+    today_scan = today_scan or {}
+    formal_entries = today_scan.get("formal_entries") or []
+    old_wang = today_scan.get("old_wang_candidates") or []
+    steady = today_scan.get("steady_momentum_candidates") or []
+    risks = today_scan.get("risk_items") or []
+    return {
+        "as_of": today_scan.get("as_of"),
+        "generated_at": today_scan.get("generated_at"),
+        "formal_entry_count": len(formal_entries),
+        "old_wang_count": len(old_wang),
+        "steady_momentum_count": len(steady),
+        "risk_count": len(risks),
+        "notes": today_scan.get("notes") or [],
+        "top_formal_entries": formal_entries[:5],
+        "top_risk_items": risks[:5],
+    }
+
+
+def _today_scan_action(today_scan_summary: dict[str, Any], can_use_trade_outputs: bool) -> dict[str, Any] | None:
+    if not can_use_trade_outputs:
+        return None
+    counts = {
+        "formal": int(today_scan_summary.get("formal_entry_count") or 0),
+        "old_wang": int(today_scan_summary.get("old_wang_count") or 0),
+        "steady": int(today_scan_summary.get("steady_momentum_count") or 0),
+        "risk": int(today_scan_summary.get("risk_count") or 0),
+    }
+    if not any(counts.values()):
+        return None
+    preview_items: list[str] = []
+    formal_labels = [_item_label(item) for item in today_scan_summary.get("top_formal_entries") or []]
+    risk_labels = [_item_label(item) for item in today_scan_summary.get("top_risk_items") or []]
+    if formal_labels:
+        preview_items.append(f"可小試：{', '.join(formal_labels[:5])}")
+    if risk_labels:
+        preview_items.append(f"風險：{', '.join(risk_labels[:5])}")
+    return {
+        "key": "today_scan",
+        "status": "warn" if counts["formal"] or counts["risk"] else "ok",
+        "title": "今日規則掃描",
+        "message": (
+            f"可小試 {counts['formal']} 檔、老王觀察 {counts['old_wang']} 檔、"
+            f"穩健動能 {counts['steady']} 檔、風險處理 {counts['risk']} 檔。"
+        ),
+        "next_action": "查看 backend/out/today_scan.json，依分桶做盤後復盤。",
+        "details": {
+            "as_of": today_scan_summary.get("as_of"),
+            "formal_entry_count": counts["formal"],
+            "old_wang_count": counts["old_wang"],
+            "steady_momentum_count": counts["steady"],
+            "risk_count": counts["risk"],
+        },
+        "action_payload": {
+            "kind": "file",
+            "file_path": "backend/out/today_scan.json",
+            "preview_items": preview_items,
+        },
+    }
+
+
 def _normalize_action_payload(payload: dict[str, Any]) -> dict[str, Any]:
     normalized = dict(payload)
     command = str(normalized.get("command") or "")
@@ -133,6 +239,12 @@ def _print_action_payload(payload: dict[str, Any]) -> None:
             print(f"   優先補基本面：{', '.join(preview_items)}")
         if payload.get("file_path"):
             print(f"   目標檔案：{payload['file_path']}")
+        if payload.get("write_template_command"):
+            print(f"   產生模板：{payload['write_template_command']}")
+        if payload.get("prepare_import_command"):
+            print(f"   匯入預覽：{payload['prepare_import_command']}")
+        if payload.get("prepare_import_apply_command"):
+            print(f"   正式寫入：{payload['prepare_import_apply_command']}")
     elif kind == "api" and payload.get("method") and payload.get("endpoint"):
         print(f"   API 動作：{payload['method']} {payload['endpoint']}")
     if payload.get("confirm_message"):
@@ -165,7 +277,13 @@ def _top_actions(
             item["action_payload"] = _normalize_action_payload(check["action_payload"])
         candidates.append(item)
     candidates.extend(extra_actions or [])
-    candidates.sort(key=lambda item: (_SEVERITY_RANK.get(item["status"], 9), item["key"]))
+    candidates.sort(
+        key=lambda item: (
+            _SEVERITY_RANK.get(item["status"], 9),
+            _ACTION_KEY_RANK.get(item["key"], 99),
+            item["key"],
+        )
+    )
     return candidates[: max(1, limit)]
 
 
@@ -173,18 +291,37 @@ def build_daily_summary(
     report: dict[str, Any],
     limit: int = 3,
     universe: list[dict[str, Any]] | None = None,
+    signal_alerts: dict[str, Any] | None = None,
+    today_scan: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     generated_at = report.get("generated_at")
     data_repair = _data_repair_summary(universe)
-    extra_actions = [action for action in [_data_repair_action(data_repair)] if action]
+    can_use_trade_outputs = _can_use_trade_outputs(report)
+    today_scan_summary = _today_scan_summary(today_scan)
+    extra_actions = [
+        action
+        for action in [
+            _signal_alert_action(signal_alerts),
+            _today_scan_action(today_scan_summary, can_use_trade_outputs),
+            _data_repair_action(data_repair),
+        ]
+        if action
+    ]
     return {
         "overall_status": report.get("overall_status"),
         "exit_code": int(report.get("exit_code") or 0),
         "generated_at": generated_at,
         "source_report_generated_at": generated_at,
         "data_as_of": _data_as_of_from_report(report),
-        "can_use_trade_outputs": _can_use_trade_outputs(report),
+        "can_use_trade_outputs": can_use_trade_outputs,
         "data_repair": data_repair,
+        "today_scan": today_scan_summary,
+        "signal_alerts": signal_alerts or {
+            "alert_count": 0,
+            "severity_counts": {},
+            "alerts": [],
+            "message": "尚未產生 signal_alerts.json，請先執行 run_signals.py。",
+        },
         "top_actions": _top_actions(report, limit=limit, extra_actions=extra_actions),
     }
 
@@ -202,6 +339,15 @@ def print_daily_summary(summary: dict[str, Any]) -> None:
             "資料修復："
             f"{repair.get('total_count')} 檔"
             f"（無日線 {repair.get('no_data_count') or 0} / 不足 {repair.get('insufficient_count') or 0}）"
+        )
+    today_scan = summary.get("today_scan") or {}
+    if any(int(today_scan.get(key) or 0) for key in ("formal_entry_count", "old_wang_count", "steady_momentum_count", "risk_count")):
+        print(
+            "今日掃描："
+            f"可小試 {today_scan.get('formal_entry_count') or 0} / "
+            f"老王 {today_scan.get('old_wang_count') or 0} / "
+            f"穩健 {today_scan.get('steady_momentum_count') or 0} / "
+            f"風險 {today_scan.get('risk_count') or 0}"
         )
 
     actions = summary.get("top_actions") or []
@@ -250,7 +396,13 @@ def load_universe_for_daily_check() -> list[dict[str, Any]]:
 
 def run_daily_check(args: argparse.Namespace) -> int:
     report = build_doctor_report(args.backend)
-    summary = build_daily_summary(report, limit=args.limit, universe=load_universe_for_daily_check())
+    summary = build_daily_summary(
+        report,
+        limit=args.limit,
+        universe=load_universe_for_daily_check(),
+        signal_alerts=load_signal_alerts(args.backend / "out"),
+        today_scan=load_today_scan_report(args.backend / "out"),
+    )
     if args.json:
         print(json.dumps(summary, ensure_ascii=False, indent=2))
     else:

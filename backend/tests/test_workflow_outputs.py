@@ -13,12 +13,13 @@ def test_workflow_outputs_define_primary_commands():
     assert expected_outputs_for_command("POST /api/system/fundamentals-priority-fill/merge") == []
 
 
-def test_signal_outputs_include_daily_check_snapshot():
+def test_signal_outputs_include_daily_check_and_today_scan_snapshots():
     from app.services.workflow_outputs import SIGNAL_OUTPUTS
 
     assert SIGNAL_OUTPUTS == [
         "backend/out/summary.json",
         "backend/out/universe_report.csv",
         "backend/out/daily_brief.json",
+        "backend/out/today_scan.json",
         "backend/out/daily_check.json",
     ]

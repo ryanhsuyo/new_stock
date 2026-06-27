@@ -31,6 +31,7 @@ update_all_data.py — 統一資料更新入口
 """
 
 import argparse
+import inspect
 import logging
 import os
 import sys
@@ -42,6 +43,8 @@ _BACKEND = _HERE.parent                      # backend/
 sys.path.insert(0, str(_BACKEND))
 
 from app.services.notify_service import notify_update_failure, notify_update_success  # noqa: E402
+from app.services.signal_alert_service import load_signal_alerts  # noqa: E402
+from app.services.today_scan_service import load_today_scan_report  # noqa: E402
 from app.services.update_service import run_full_update  # noqa: E402
 from daily_check import build_daily_summary, write_daily_summary  # noqa: E402
 
@@ -118,8 +121,24 @@ def write_daily_check_report(backend: Path = _BACKEND) -> Path:
     import doctor
 
     report = doctor.build_doctor_report(backend)
-    summary = build_daily_summary(report, limit=3)
+    summary = build_daily_summary(
+        report,
+        limit=3,
+        signal_alerts=load_signal_alerts(backend / "out"),
+        today_scan=load_today_scan_report(backend / "out"),
+    )
     return write_daily_summary(summary, backend)
+
+
+def _run_full_update_cli(months: int) -> dict:
+    """CLI 執行時盡量串流子程序輸出；舊測試 stub 仍維持相容。"""
+    try:
+        parameters = inspect.signature(run_full_update).parameters
+    except (TypeError, ValueError):
+        parameters = {}
+    if "stream_subprocess_output" in parameters:
+        return run_full_update(months=months, stream_subprocess_output=True)
+    return run_full_update(months=months)
 
 
 # ---------------------------------------------------------------------------
@@ -174,7 +193,7 @@ def run_update_job(
             return 2
 
     try:
-        status = run_full_update(months=months)
+        status = _run_full_update_cli(months)
         try:
             path = write_daily_check_report(_BACKEND)
             log.info("✓ Daily Check 已更新：%s", path)
@@ -215,6 +234,11 @@ def run_update_job(
         log.exception("未預期錯誤: %s", exc)
         notify_update_failure(str(exc))
         return 1
+    except KeyboardInterrupt:
+        message = "使用者中斷資料更新。"
+        log.warning(message)
+        notify_update_failure(message)
+        return 130
 
     finally:
         if not skip_lock:

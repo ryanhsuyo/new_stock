@@ -1,13 +1,13 @@
 """
-buffett_service.py — 巴菲特品質價值指標 V1。
+fundamental_guard_service.py — 基本面避雷品質價值指標 V1。
 
 此服務只做基本面品質/價值評估，不參與短線 BUY/SELL 判斷。
 若沒有 fundamentals.json 或單檔資料不足，必須明確回傳 data_missing，
-避免用技術線型假裝巴菲特分數。
+避免用技術線型假裝基本面避雷分數。
 """
 
-BUFFETT_TAG = "buffett_quality_value_v1"
-BUFFETT_NAME = "巴菲特品質價值指標V1"
+FUNDAMENTAL_GUARD_TAG = "fundamental_guard_v1"
+FUNDAMENTAL_GUARD_NAME = "基本面避雷品質價值指標V1"
 REQUIRED_FIELDS = (
     "roe_5y_avg",
     "operating_margin_5y_avg",
@@ -147,20 +147,20 @@ def _score_value(data: dict) -> int:
 
 def _missing_result(reason: str) -> dict:
     return {
-        "buffett_flag": False,
-        "buffett_tag": BUFFETT_TAG,
-        "buffett_score": None,
-        "buffett_signal": "data_missing",
-        "buffett_reason": "",
-        "buffett_data_ok": False,
-        "buffett_data_missing_reason": reason,
-        "buffett_quality_score": None,
-        "buffett_value_score": None,
-        "buffett_safety_score": None,
-        "buffett_growth_score": None,
-        "buffett_data_completeness_pct": 0.0,
-        "buffett_missing_fields": [],
-        "buffett_scored_groups": [],
+        "fundamental_flag": False,
+        "fundamental_tag": FUNDAMENTAL_GUARD_TAG,
+        "fundamental_score": None,
+        "fundamental_signal": "data_missing",
+        "fundamental_reason": "",
+        "fundamental_data_ok": False,
+        "fundamental_data_missing_reason": reason,
+        "fundamental_quality_score": None,
+        "fundamental_value_score": None,
+        "fundamental_safety_score": None,
+        "fundamental_growth_score": None,
+        "fundamental_data_completeness_pct": 0.0,
+        "fundamental_missing_fields": [],
+        "fundamental_scored_groups": [],
     }
 
 
@@ -193,7 +193,7 @@ def _weighted_score(scores: dict[str, int | None], groups: list[str]) -> int:
     return _clamp(weighted / available_weight)
 
 
-def evaluate_buffett_indicator(code: str, fundamentals: dict | None) -> dict:
+def evaluate_fundamental_guard(code: str, fundamentals: dict | None) -> dict:
     if not fundamentals:
         return _missing_result(f"缺少 fundamentals.json 中 {code} 的基本面資料")
 
@@ -206,9 +206,9 @@ def evaluate_buffett_indicator(code: str, fundamentals: dict | None) -> dict:
             f"fundamentals.json 中 {code} 至少 {MIN_SCORABLE_GROUPS} 組基本面資料才可評分；"
             f"目前可用 {len(available_groups)} 組，缺欄位：{joined}"
         )
-        result["buffett_data_completeness_pct"] = completeness
-        result["buffett_missing_fields"] = missing_fields
-        result["buffett_scored_groups"] = available_groups
+        result["fundamental_data_completeness_pct"] = completeness
+        result["fundamental_missing_fields"] = missing_fields
+        result["fundamental_scored_groups"] = available_groups
         return result
 
     quality = _score_quality(fundamentals) if "quality" in available_groups else None
@@ -255,18 +255,18 @@ def evaluate_buffett_indicator(code: str, fundamentals: dict | None) -> dict:
         reason_parts.append(f"5年平均 ROE {fundamentals['roe_5y_avg']}%")
 
     return {
-        "buffett_flag": flag,
-        "buffett_tag": BUFFETT_TAG if flag else "",
-        "buffett_score": score,
-        "buffett_signal": signal,
-        "buffett_reason": "；".join(reason_parts),
-        "buffett_data_ok": True,
-        "buffett_data_missing_reason": "、".join(missing_fields),
-        "buffett_quality_score": quality,
-        "buffett_value_score": value,
-        "buffett_safety_score": safety,
-        "buffett_growth_score": growth,
-        "buffett_data_completeness_pct": completeness,
-        "buffett_missing_fields": missing_fields,
-        "buffett_scored_groups": available_groups,
+        "fundamental_flag": flag,
+        "fundamental_tag": FUNDAMENTAL_GUARD_TAG if flag else "",
+        "fundamental_score": score,
+        "fundamental_signal": signal,
+        "fundamental_reason": "；".join(reason_parts),
+        "fundamental_data_ok": True,
+        "fundamental_data_missing_reason": "、".join(missing_fields),
+        "fundamental_quality_score": quality,
+        "fundamental_value_score": value,
+        "fundamental_safety_score": safety,
+        "fundamental_growth_score": growth,
+        "fundamental_data_completeness_pct": completeness,
+        "fundamental_missing_fields": missing_fields,
+        "fundamental_scored_groups": available_groups,
     }

@@ -9,7 +9,13 @@ FastAPI 後端，所有端點皆以 `/api` 為前綴。
 
 ### `GET /api/stocks/recommendations`
 
-取得目前的推薦買入清單（由最近一次 `run_signals` 產生）。
+取得目前的推薦清單（由最近一次 `run_signals` 產生）。
+
+**查詢參數**：
+
+- `strategy=steady_momentum`：預設，回傳穩健動能候選。
+- `strategy=old_wang`：回傳老王短波段候選。
+- 舊版相容參數：後端導回 `steady_momentum`，不代表獨立推薦策略。
 
 **回應**（`StockRecommendation[]`）：
 
@@ -179,6 +185,8 @@ FastAPI 後端，所有端點皆以 `/api` 為前綴。
 - `position_guidance`：建議持股水位與風險語氣
 - `rotation_plan`：續抱、等回測、可進場、優先減碼、暫不碰五桶
 - `tomorrow_tasks`：隔日可執行任務，包含觀察價、進場計畫、失效條件與停利 / 出場計畫
+
+`run_signals.py` 也會產生 `backend/out/signal_snapshots/signal_snapshot_YYYY-MM-DD.json` 與 `backend/out/signal_snapshot_review.json`。snapshot 保存當日計畫；review 比較上一份 snapshot 與本次訊號，標示 `risk_triggered`、`risk_eased`、`action_changed`、`unchanged`、`missing_current`。此 review 是復盤稽核，不是績效證明或新交易訊號。
 
 ---
 
@@ -633,6 +641,9 @@ FastAPI 後端，所有端點皆以 `/api` 為前綴。
   "last_warning": null,
   "last_warning_summary": null,
   "last_data_as_of": "2026-04-11",
+  "schedule_health_status": "healthy",
+  "schedule_is_overdue": false,
+  "schedule_health_message": "最近一次排程更新已完成，未錯過已結束的平日。",
   "is_stale": false,
   "stale_days": 3
 }
@@ -645,7 +656,18 @@ FastAPI 後端，所有端點皆以 `/api` 為前綴。
 - `stale`：更新流程跑完，但資料最新日仍過期；需檢查資料源 / 網路 / backfill SKIP 原因
 - `null`：從未執行過
 
-> 當 `is_stale: true` 時，表示資料距今超過 3 個交易日，前端會顯示警示 Banner。
+> 當 `is_stale: true` 時，表示資料已錯過至少 1 個已結束交易日（週一至週五），前端會顯示警示 Banner。`stale_days` 仍是日曆天數，僅供畫面顯示。
+
+**`schedule_health_status` 可能值**：
+
+- `healthy`：最近一次完成後沒有錯過已結束的平日更新
+- `running`：更新目前執行中
+- `failed`：最近一次更新失敗
+- `overdue`：已錯過至少一個已結束的平日更新
+- `never_run`：沒有任何排程執行紀錄
+- `invalid_timestamp`：完成時間缺少或格式無效
+
+`schedule_health_status` 描述自動更新流程是否有執行；`is_stale` 描述市場資料是否過期。兩者彼此獨立，例如手動重算輸出可能讓資料恢復新鮮，但排程仍為 `overdue`。
 
 若 `summary.json.as_of` 比 `update_status.json.last_data_as_of` 新，API 會以較新的 `summary.json.as_of` 作為 `last_data_as_of`，並重新計算 `is_stale` / `stale_days`。這是為了支援手動 backfill 後再單獨重算 signals 的流程。
 
@@ -750,7 +772,9 @@ PM 視角的每日工作流狀態。此 endpoint 彙整 data-status、signals/st
 
 ### `GET /api/system/fundamentals-priority-fill`
 
-下載目前基本面優先補資料 CSV（`fundamentals_priority_fill.csv`）。內容由 `fundamental_service` 依 `fundamentals-status.next_fill_targets` 產生，供手動補齊 `fundamentals.csv` 使用。
+下載目前基本面優先補資料 CSV（`fundamentals_priority_fill.csv`）。內容由 `fundamental_service` 依 `fundamentals-status.next_fill_targets` 產生，供基本面避雷補資料流程使用。
+
+外部資料建議先用 `python3 scripts/prepare_fundamentals_priority_import.py --write-template` 產生 `fundamentals_priority_import_template.csv`，整理真實 CSV 後 dry-run，再用 `--apply` 寫入 `fundamentals_priority_fill.csv`。不得直接偽造或手動改寫 `fundamentals.json`。
 
 **回應**：`text/csv`
 
@@ -925,6 +949,41 @@ PM 視角的每日工作流狀態。此 endpoint 彙整 data-status、signals/st
 ```
 
 找不到指定 id 時回傳 404。
+
+---
+
+## Personal Backups
+
+個人資料備份只包含 `trades.json`、`decision_journal.json`、`watchlists.json`、`market_notes.json` 與 `settings.json`。不包含行情、fundamentals、chips、stock names 或 `backend/out/*` 產物。
+
+### `GET /api/system/personal-backups`
+
+列出已建立的個人資料備份。
+
+### `POST /api/system/personal-backups`
+
+建立新的個人資料備份，回傳 `backup_id`、檔案數、缺檔數與每個檔案 checksum。
+
+### `POST /api/system/personal-backups/restore-preview`
+
+Dry-run 預覽還原，不寫入任何檔案。
+
+```json
+{ "backup_id": "personal_20260625T030000000000" }
+```
+
+回傳每個檔案會 `create`、`overwrite`、`skip_missing` 或因 checksum / 缺檔被阻擋。
+
+### `POST /api/system/personal-backups/restore`
+
+正式還原個人資料。必須提供確認字串，且還原前會自動建立 pre-restore backup。
+
+```json
+{
+  "backup_id": "personal_20260625T030000000000",
+  "confirm": "RESTORE_PERSONAL_DATA"
+}
+```
 
 ---
 

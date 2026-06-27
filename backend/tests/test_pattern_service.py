@@ -140,6 +140,27 @@ def _head_shoulders_bottom_prices_failed() -> list[float]:
     return base + crash
 
 
+def _head_shoulders_top_prices(end_close: float) -> list[float]:
+    """合成左肩約 100、頭部約 110、右肩約 99 的頭肩頂。"""
+    seg1 = [80 + i * 1.0 for i in range(21)]
+    seg2 = [100 - i * 0.65 for i in range(21)]
+    seg3 = [87 + i * 1.15 for i in range(21)]
+    seg4 = [110 - i * 1.15 for i in range(21)]
+    seg5 = [87 + i * 0.6 for i in range(21)]
+    start = seg5[-1]
+    seg6 = [
+        round(start + (end_close - start) * i / 20, 2)
+        for i in range(21)
+    ]
+    return seg1 + seg2 + seg3 + seg4 + seg5 + seg6
+
+
+def _head_shoulders_top_prices_failed() -> list[float]:
+    base = _head_shoulders_top_prices(end_close=94.0)
+    surge = [94 + (116 - 94) / 8 * i for i in range(9)]
+    return base + surge
+
+
 # ---------------------------------------------------------------------------
 # W底測試
 # ---------------------------------------------------------------------------
@@ -256,6 +277,57 @@ class TestHeadAndShouldersBottom:
 
 
 # ---------------------------------------------------------------------------
+# 頭肩頂測試
+# ---------------------------------------------------------------------------
+
+class TestHeadAndShouldersTop:
+
+    def test_head_shoulders_top_forming(self):
+        rows = _rows(_head_shoulders_top_prices(end_close=94.0))
+        result = detect_pattern(rows, window=3)
+        assert result.pattern_type == "head_and_shoulders_top"
+        assert result.pattern_status == "forming"
+        assert result.neckline is not None
+        assert "形成中" in result.note
+
+    def test_head_shoulders_top_confirmed(self):
+        rows = _rows(_head_shoulders_top_prices(end_close=84.0))
+        result = detect_pattern(rows, window=3)
+        assert result.pattern_type == "head_and_shoulders_top"
+        assert result.pattern_status == "confirmed"
+        assert "確認" in result.note
+
+    def test_head_shoulders_top_failed(self):
+        rows = _rows(_head_shoulders_top_prices_failed())
+        result = detect_pattern(rows, window=3)
+        assert result.pattern_type == "head_and_shoulders_top"
+        assert result.pattern_status == "failed"
+        assert "失效" in result.note
+
+    def test_head_shoulders_top_rejects_mismatched_shoulders(self, monkeypatch):
+        import app.services.pattern_service as svc
+
+        rows = _rows([90.0] * 30)
+        monkeypatch.setattr(svc, "_swing_highs", lambda rows, window: [
+            {"date": rows[5]["date"], "price": 100.0},
+            {"date": rows[15]["date"], "price": 115.0},
+            {"date": rows[25]["date"], "price": 80.0},
+        ])
+        assert svc._detect_head_and_shoulders_top(rows, window=3) == {"found": False}
+
+    def test_head_shoulders_top_rejects_shallow_head(self, monkeypatch):
+        import app.services.pattern_service as svc
+
+        rows = _rows([90.0] * 30)
+        monkeypatch.setattr(svc, "_swing_highs", lambda rows, window: [
+            {"date": rows[5]["date"], "price": 100.0},
+            {"date": rows[15]["date"], "price": 102.0},
+            {"date": rows[25]["date"], "price": 99.0},
+        ])
+        assert svc._detect_head_and_shoulders_top(rows, window=3) == {"found": False}
+
+
+# ---------------------------------------------------------------------------
 # None 路徑
 # ---------------------------------------------------------------------------
 
@@ -277,7 +349,10 @@ class TestPatternNone:
 
     def test_pattern_type_in_valid_set(self):
         """pattern_type 必須是合法值。"""
-        valid = {"none", "w_bottom", "m_top", "head_and_shoulders_bottom"}
+        valid = {
+            "none", "w_bottom", "m_top",
+            "head_and_shoulders_bottom", "head_and_shoulders_top",
+        }
         rows = _rows([100.0 + (i % 3) * 0.5 for i in range(60)])
         result = detect_pattern(rows)
         assert result.pattern_type in valid

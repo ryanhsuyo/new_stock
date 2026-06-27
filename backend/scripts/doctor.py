@@ -18,6 +18,12 @@ if str(_BACKEND) not in sys.path:
     sys.path.insert(0, str(_BACKEND))
 
 from app.services.fundamental_service import get_fundamentals_status  # noqa: E402
+from app.services.workflow_outputs import (  # noqa: E402
+    FUNDAMENTALS_PRIORITY_IMPORT_APPLY_COMMAND,
+    FUNDAMENTALS_PRIORITY_IMPORT_COMMAND,
+    FUNDAMENTALS_PRIORITY_IMPORT_OUTPUTS,
+    FUNDAMENTALS_PRIORITY_TEMPLATE_COMMAND,
+)
 from app.services.workflow_outputs import expected_outputs_for_command  # noqa: E402
 from app.services.workflow_text import preview_numbered_lines  # noqa: E402
 
@@ -27,6 +33,7 @@ _ACTIONABLE_ACTIONS = {"enter", "wait_pullback", "reduce", "exit"}
 _SEVERITY_RANK = {"ok": 0, "warn": 1, "block": 2}
 _CD_BACKEND_PREFIX = "cd backend && "
 _DAILY_UPDATE_COMMAND = "cd backend && python3 scripts/daily_update.py --months 1"
+_COVERAGE_BLOCK_THRESHOLD = 80.0
 
 
 def _read_json(path: Path, default: Any) -> Any:
@@ -232,6 +239,61 @@ def _check_universe(universe_rows: list[dict[str, str]]) -> dict:
     )
 
 
+def _check_data_coverage(backend: Path) -> dict:
+    path = backend / "out" / "data_coverage_report.json"
+    report = _read_json(path, None)
+    if not isinstance(report, dict):
+        return _check(
+            "data_coverage",
+            "warn",
+            "資料覆蓋率報告缺失",
+            "尚無 data_coverage_report.json，無法確認追蹤清單日線覆蓋率。",
+            details={"coverage_report_path": str(path)},
+            next_action=_DAILY_UPDATE_COMMAND,
+            action_payload={
+                "kind": "command",
+                "command": _DAILY_UPDATE_COMMAND,
+            },
+        )
+
+    coverage_pct = float(report.get("coverage_pct") or 0.0)
+    tracked_count = int(report.get("tracked_count") or 0)
+    ok_count = int(report.get("ok_count") or 0)
+    status = "ok"
+    title = "資料覆蓋率可用"
+    next_action = ""
+    if tracked_count and coverage_pct < _COVERAGE_BLOCK_THRESHOLD:
+        status = "block"
+        title = "資料覆蓋率不足"
+        next_action = _DAILY_UPDATE_COMMAND
+    elif tracked_count and coverage_pct < 100.0:
+        status = "warn"
+        title = "資料覆蓋率未滿"
+        next_action = _DAILY_UPDATE_COMMAND
+
+    message = f"追蹤清單覆蓋率 {coverage_pct:.2f}%（{ok_count}/{tracked_count}）。"
+    return _check(
+        "data_coverage",
+        status,
+        title,
+        message,
+        details={
+            "batch_id": report.get("batch_id"),
+            "coverage_pct": coverage_pct,
+            "tracked_count": tracked_count,
+            "ok_count": ok_count,
+            "expected_trading_day": report.get("expected_trading_day"),
+            "raw_ohlcv_as_of": report.get("raw_ohlcv_as_of"),
+            "coverage_report_path": str(path),
+        },
+        next_action=next_action,
+        action_payload={
+            "kind": "command",
+            "command": _DAILY_UPDATE_COMMAND,
+        } if next_action else None,
+    )
+
+
 def _format_priority_issue(validation: dict) -> str:
     errors = validation.get("errors") or []
     warnings = validation.get("warnings") or []
@@ -264,9 +326,9 @@ def _load_fundamentals_report(backend: Path) -> dict:
     return {**report, **fresh} if isinstance(fresh, dict) else report
 
 
-def _check_buffett(backend: Path, universe_rows: list[dict[str, str]]) -> dict:
+def _check_fundamentals(backend: Path, universe_rows: list[dict[str, str]]) -> dict:
     total = len(universe_rows)
-    complete = sum(1 for row in universe_rows if _truthy(row.get("buffett_data_ok")))
+    complete = sum(1 for row in universe_rows if _truthy(row.get("fundamental_data_ok")))
     report = _load_fundamentals_report(backend)
     readiness = report.get("priority_fill_readiness") or {}
     validation = report.get("priority_csv_validation") or {}
@@ -293,9 +355,9 @@ def _check_buffett(backend: Path, universe_rows: list[dict[str, str]]) -> dict:
 
     if fill_status == "invalid":
         return _check(
-            "buffett",
+            "fundamentals",
             "block",
-            "巴菲特基本面補資料有誤",
+            "基本面避雷補資料有誤",
             f"priority CSV 有 {error_count} 個錯誤、{warning_count} 個警告，需先修正再合併。",
             details=details,
             next_action=readiness.get("suggested_action") or "修正 backend/data/fundamentals_priority_fill.csv 後重新預覽",
@@ -317,7 +379,7 @@ def _check_buffett(backend: Path, universe_rows: list[dict[str, str]]) -> dict:
             "method": "POST",
             "endpoint": "/api/system/fundamentals-priority-fill/merge",
             "dry_run": True,
-            "confirm_message": "先預覽巴菲特基本面補資料合併結果，不會正式改寫 fundamentals.json。",
+            "confirm_message": "先預覽基本面避雷補資料合併結果，不會正式改寫 fundamentals.json。",
         }
     elif fill_status in {"empty", "ready_to_preview"}:
         status = "warn"
@@ -326,9 +388,17 @@ def _check_buffett(backend: Path, universe_rows: list[dict[str, str]]) -> dict:
             "kind": "copy_text",
             "copy_text": fill_targets_copy_text,
             "file_path": priority_csv_path,
+            "write_template_command": FUNDAMENTALS_PRIORITY_TEMPLATE_COMMAND,
+            "prepare_import_command": FUNDAMENTALS_PRIORITY_IMPORT_COMMAND,
+            "prepare_import_apply_command": FUNDAMENTALS_PRIORITY_IMPORT_APPLY_COMMAND,
+            "expected_outputs": list(FUNDAMENTALS_PRIORITY_IMPORT_OUTPUTS),
         } if fill_targets_copy_text else {
             "kind": "file",
             "file_path": priority_csv_path,
+            "write_template_command": FUNDAMENTALS_PRIORITY_TEMPLATE_COMMAND,
+            "prepare_import_command": FUNDAMENTALS_PRIORITY_IMPORT_COMMAND,
+            "prepare_import_apply_command": FUNDAMENTALS_PRIORITY_IMPORT_APPLY_COMMAND,
+            "expected_outputs": list(FUNDAMENTALS_PRIORITY_IMPORT_OUTPUTS),
         }
     else:
         status = "warn"
@@ -339,10 +409,10 @@ def _check_buffett(backend: Path, universe_rows: list[dict[str, str]]) -> dict:
         }
 
     return _check(
-        "buffett",
+        "fundamentals",
         status,
-        "巴菲特基本面覆蓋",
-        f"{complete}/{total} 檔可進行 Buffett 評分。",
+        "基本面避雷覆蓋",
+        f"{complete}/{total} 檔可進行基本面避雷評分。",
         details=details,
         next_action=next_action,
         action_payload=action_payload if status != "ok" else None,
@@ -425,8 +495,9 @@ def build_doctor_report(backend: Path = _BACKEND) -> dict:
     checks = [
         _check_python(),
         _check_outputs(backend, universe_rows),
+        _check_data_coverage(backend),
         _check_universe(universe_rows),
-        _check_buffett(backend, universe_rows),
+        _check_fundamentals(backend, universe_rows),
         _check_decision_journal(backend, universe_rows),
         _check_trades(backend),
     ]
@@ -481,7 +552,7 @@ def print_report(report: dict) -> None:
 
 
 def parse_args() -> argparse.Namespace:
-    parser = argparse.ArgumentParser(description="檢查資料流、輸出檔、Buffett 覆蓋率與復盤缺口")
+    parser = argparse.ArgumentParser(description="檢查資料流、輸出檔、基本面避雷覆蓋率與復盤缺口")
     parser.add_argument("--backend", type=Path, default=_BACKEND, help="backend 目錄路徑")
     parser.add_argument("--json", action="store_true", help="輸出 JSON")
     return parser.parse_args()

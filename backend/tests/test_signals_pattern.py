@@ -67,7 +67,10 @@ class TestPatternFields:
         assert "pattern_status" in sig
 
     def test_pattern_type_in_valid_set(self):
-        valid = {"none", "w_bottom", "m_top", "head_and_shoulders_bottom"}
+        valid = {
+            "none", "w_bottom", "m_top",
+            "head_and_shoulders_bottom", "head_and_shoulders_top",
+        }
         rows  = _make_rows(_flat_uptrend())
         sig   = _compute_signal("2330", rows, {})
         assert sig["pattern_type"] in valid
@@ -186,6 +189,51 @@ class TestPatternScoreEffect:
         sig = _compute_signal("2330", rows, {})
         assert sig["score"] == max(0, base - 10)
 
+    def test_head_shoulders_top_forming_subtracts_10(self, monkeypatch):
+        from app.models.analysis import PatternResult
+        import app.services.signals_service as svc
+
+        rows = _make_rows(_flat_uptrend())
+        base = self._base_score(rows, monkeypatch)
+        monkeypatch.setattr(svc, "_detect_pattern", lambda r, **kw: PatternResult(
+            pattern_type="head_and_shoulders_top", pattern_status="forming",
+            neckline=95.0, note="頭肩頂形成中",
+        ))
+
+        sig = _compute_signal("2330", rows, {})
+
+        assert sig["score"] == max(0, base - 10)
+
+    def test_head_shoulders_top_confirmed_subtracts_20(self, monkeypatch):
+        from app.models.analysis import PatternResult
+        import app.services.signals_service as svc
+
+        rows = _make_rows(_flat_uptrend())
+        base = self._base_score(rows, monkeypatch)
+        monkeypatch.setattr(svc, "_detect_pattern", lambda r, **kw: PatternResult(
+            pattern_type="head_and_shoulders_top", pattern_status="confirmed",
+            neckline=95.0, note="頭肩頂確認",
+        ))
+
+        sig = _compute_signal("2330", rows, {})
+
+        assert sig["score"] == max(0, base - 20)
+
+    def test_head_shoulders_top_failed_has_no_bearish_penalty(self, monkeypatch):
+        from app.models.analysis import PatternResult
+        import app.services.signals_service as svc
+
+        rows = _make_rows(_flat_uptrend())
+        base = self._base_score(rows, monkeypatch)
+        monkeypatch.setattr(svc, "_detect_pattern", lambda r, **kw: PatternResult(
+            pattern_type="head_and_shoulders_top", pattern_status="failed",
+            neckline=95.0, note="頭肩頂失效",
+        ))
+
+        sig = _compute_signal("2330", rows, {})
+
+        assert sig["score"] == base
+
     def test_score_clamped_between_0_and_100(self, monkeypatch):
         from app.models.analysis import PatternResult
         import app.services.signals_service as svc
@@ -271,6 +319,33 @@ class TestPatternText:
         sig = _compute_signal("2330", _make_rows(_flat_uptrend()), {})
         assert any("M頂失效" in r for r in sig["reasons"])
 
+    @pytest.mark.parametrize("status", ["forming", "confirmed"])
+    def test_head_shoulders_top_bearish_status_in_risk_note(self, monkeypatch, status):
+        from app.models.analysis import PatternResult
+        import app.services.signals_service as svc
+
+        monkeypatch.setattr(svc, "_detect_pattern", lambda r, **kw: PatternResult(
+            pattern_type="head_and_shoulders_top", pattern_status=status,
+            neckline=95.0, note=f"頭肩頂 {status}",
+        ))
+
+        sig = _compute_signal("2330", _make_rows(_flat_uptrend()), {})
+
+        assert "頭肩頂" in sig["risk_note"]
+
+    def test_head_shoulders_top_failed_in_reasons(self, monkeypatch):
+        from app.models.analysis import PatternResult
+        import app.services.signals_service as svc
+
+        monkeypatch.setattr(svc, "_detect_pattern", lambda r, **kw: PatternResult(
+            pattern_type="head_and_shoulders_top", pattern_status="failed",
+            neckline=95.0, note="頭肩頂失效：收盤突破頭部",
+        ))
+
+        sig = _compute_signal("2330", _make_rows(_flat_uptrend()), {})
+
+        assert any("頭肩頂失效" in reason for reason in sig["reasons"])
+
 
 # ---------------------------------------------------------------------------
 # 強勢反轉保護
@@ -334,6 +409,19 @@ class TestUniverseReportPatternColumns:
             fieldnames = csv.DictReader(f).fieldnames or []
         assert "pattern_status" in fieldnames
 
+    def test_csv_has_calculation_columns(self, tmp_path, monkeypatch):
+        import app.services.signals_service as svc
+        monkeypatch.setattr(svc, "_OUT", tmp_path)
+
+        rows = _make_rows(_flat_uptrend())
+        sig = _compute_signal("2330", rows, {})
+        _write_universe_report([sig])
+
+        with (tmp_path / "universe_report.csv").open(encoding="utf-8") as f:
+            fieldnames = csv.DictReader(f).fieldnames or []
+        assert "calculation_status" in fieldnames
+        assert "calculation_error" in fieldnames
+
     def test_csv_has_professional_filter_columns(self, tmp_path, monkeypatch):
         import app.services.signals_service as svc
         monkeypatch.setattr(svc, "_OUT", tmp_path)
@@ -349,6 +437,8 @@ class TestUniverseReportPatternColumns:
             "market_regime", "relative_strength_score", "stage",
             "entry_price_low", "entry_price_high",
             "reward_risk_ratio", "price_plan_note",
+            "support_source", "resistance_source",
+            "entry_source", "stop_source", "target_source",
         ):
             assert field in fieldnames
 
@@ -370,7 +460,10 @@ class TestUniverseReportPatternColumns:
         import app.services.signals_service as svc
         monkeypatch.setattr(svc, "_OUT", tmp_path)
 
-        valid = {"none", "w_bottom", "m_top", "head_and_shoulders_bottom"}
+        valid = {
+            "none", "w_bottom", "m_top",
+            "head_and_shoulders_bottom", "head_and_shoulders_top",
+        }
         rows = _make_rows(_flat_uptrend())
         sig  = _compute_signal("2330", rows, {})
         _write_universe_report([sig])

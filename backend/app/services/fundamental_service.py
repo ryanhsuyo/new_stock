@@ -4,8 +4,9 @@ from collections import Counter
 import csv
 import json
 from pathlib import Path
+import tempfile
 
-from app.services.buffett_service import evaluate_buffett_indicator
+from app.services.fundamental_guard_service import evaluate_fundamental_guard
 from app.storage.fundamental_store import (
     FUNDAMENTALS_PATH,
     FUNDAMENTALS_CSV_PATH,
@@ -61,6 +62,39 @@ FIELD_EXAMPLE_VALUES = {
 
 FILL_FORMAT_NOTE = "百分比欄位請填 28.5，不要填 0.285；倍數與年數填一般數字。"
 
+IMPORT_FIELD_ALIASES = {
+    "code": "code",
+    "stockid": "code",
+    "stock_id": "code",
+    "ticker": "code",
+    "代號": "code",
+    "股票代號": "code",
+    "roe5y": "roe_5y_avg",
+    "roe5yavg": "roe_5y_avg",
+    "5年平均roe": "roe_5y_avg",
+    "營業利益率": "operating_margin_5y_avg",
+    "5年平均營業利益率": "operating_margin_5y_avg",
+    "fcfpositiveyears": "free_cash_flow_positive_years",
+    "近5年自由現金流為正年數": "free_cash_flow_positive_years",
+    "ocftoni": "operating_cash_flow_to_net_income",
+    "營業現金流淨利": "operating_cash_flow_to_net_income",
+    "營業現金流/淨利": "operating_cash_flow_to_net_income",
+    "debttoequity": "debt_to_equity",
+    "負債權益比": "debt_to_equity",
+    "interestcoverage": "interest_coverage",
+    "利息保障倍數": "interest_coverage",
+    "revenuegrowth5ycagr": "revenue_growth_5y_cagr",
+    "營收5年cagr": "revenue_growth_5y_cagr",
+    "epsgrowth5ycagr": "eps_growth_5y_cagr",
+    "eps5年cagr": "eps_growth_5y_cagr",
+    "pe": "pe",
+    "本益比": "pe",
+    "fcfyield": "fcf_yield",
+    "自由現金流殖利率": "fcf_yield",
+    "dividendyears": "dividend_years",
+    "連續配息年數": "dividend_years",
+}
+
 
 def _flatten_codes(obj) -> list[str]:
     codes: list[str] = []
@@ -101,7 +135,7 @@ def _load_recommendation_priority(path: Path = _SUMMARY_PATH) -> list[str]:
     priority: list[str] = []
     seen: set[str] = set()
     buckets = summary.get("recommendation_buckets") or {}
-    for key in ("old_wang", "core", "buffett"):
+    for key in ("old_wang", "steady_momentum"):
         for item in buckets.get(key) or []:
             code = str(item.get("code") or "").strip()
             if code and code not in seen:
@@ -184,7 +218,7 @@ def _priority_fill_readiness(validation: dict | None) -> dict:
             "can_preview": True,
             "can_merge": False,
             "message": f"補資料 CSV 已部分填寫 {filled_code_count} 檔、{filled_field_count} 個欄位，但尚無完整 11 欄股票。",
-            "suggested_action": "已部分填寫，仍需補齊 11 欄才會產生巴菲特候選。",
+            "suggested_action": "已部分填寫，仍需補齊 11 欄才會產生基本面避雷結果。",
             "filled_code_count": filled_code_count,
             "filled_field_count": filled_field_count,
             "complete_code_count": complete_code_count,
@@ -196,7 +230,7 @@ def _priority_fill_readiness(validation: dict | None) -> dict:
         "status": "ready_to_merge",
         "can_preview": True,
         "can_merge": True,
-        "message": f"補資料 CSV 已有 {complete_code_count} 檔完整可評分，合併後可產生巴菲特候選。",
+        "message": f"補資料 CSV 已有 {complete_code_count} 檔完整可評分，合併後可產生基本面避雷結果。",
         "suggested_action": "先按預覽合併，確認更新檔數與欄位數後再合併匯入。",
         "filled_code_count": filled_code_count,
         "filled_field_count": filled_field_count,
@@ -257,7 +291,7 @@ def _fill_targets_copy_text(
     limit: int = 10,
 ) -> str:
     lines = [
-        "巴菲特基本面優先補資料清單",
+        "基本面避雷優先補資料清單",
         f"覆蓋率 {complete}/{total}，優先補 {min(limit, len(next_fill_targets))} 檔",
         FILL_FORMAT_NOTE,
         "",
@@ -291,7 +325,7 @@ def _fundamentals_workflow_summary(
 
     if readiness_status == "invalid":
         stage = "fix_priority_csv"
-        headline = "先修正巴菲特補資料 CSV"
+        headline = "先修正基本面避雷補資料 CSV"
         detail = readiness.get("message") or "priority CSV 有錯誤，修正後才能預覽或合併。"
         primary_action = {
             "label": "修正 CSV",
@@ -301,7 +335,7 @@ def _fundamentals_workflow_summary(
         checklist_status = ("done", "blocked", "blocked", "blocked")
     elif readiness_status == "ready_to_merge":
         stage = "ready_to_merge"
-        headline = "先預覽，再合併巴菲特基本面資料"
+        headline = "先預覽，再合併基本面避雷資料"
         detail = (
             f"目前有 {complete_ready_count} 檔已補齊 11 欄，可先預覽分數與更新欄位，確認後合併匯入。"
         )
@@ -313,10 +347,10 @@ def _fundamentals_workflow_summary(
         checklist_status = ("done", "done", "todo", "blocked")
     elif readiness_status == "ready_to_preview":
         stage = "fill_priority_csv"
-        headline = "補齊巴菲特必要欄位"
+        headline = "補齊基本面避雷必要欄位"
         detail = (
             f"補資料 CSV 已部分填寫 {partial_count} 檔、{filled_field_count} 個欄位；"
-            "每檔需補齊 11 欄才會進入 Buffett 評分。"
+            "每檔需補齊 11 欄才會進入基本面避雷評分。"
         )
         primary_action = {
             "label": "繼續填 CSV",
@@ -326,7 +360,7 @@ def _fundamentals_workflow_summary(
         checklist_status = ("done", "todo", "blocked", "blocked")
     elif readiness_status == "empty":
         stage = "fill_priority_csv"
-        headline = "開始填巴菲特優先補資料 CSV"
+        headline = "開始填基本面避雷優先補資料 CSV"
         detail = "補資料 CSV 已產生，但尚未填入基本面欄位；先補優先清單前幾檔即可。"
         primary_action = {
             "label": "填寫 CSV",
@@ -336,9 +370,9 @@ def _fundamentals_workflow_summary(
         checklist_status = ("done", "todo", "blocked", "blocked")
     else:
         stage = "generate_priority_csv"
-        headline = "先產生巴菲特優先補資料 CSV"
+        headline = "先產生基本面避雷優先補資料 CSV"
         detail = (
-            f"目前 Buffett 覆蓋率 {complete}/{total}（{coverage_pct:.1f}%）；"
+            f"目前基本面避雷覆蓋率 {complete}/{total}（{coverage_pct:.1f}%）；"
             "先下載優先補資料 CSV，不必一次補完全部追蹤股。"
         )
         primary_action = {
@@ -364,13 +398,13 @@ def _fundamentals_workflow_summary(
         _workflow_step(
             "preview_and_merge",
             "預覽並合併",
-            "先預覽 Buffett 試算與更新欄位，再正式合併匯入 fundamentals.json。",
+            "先預覽基本面避雷試算與更新欄位，再正式合併匯入 fundamentals.json。",
             checklist_status[2],
         ),
         _workflow_step(
             "rerun_signals",
             "重新產生訊號",
-            "合併後執行 python3 scripts/run_signals.py，讓 Buffett 分數進入 summary / universe_report。",
+            "合併後執行 python3 scripts/run_signals.py，讓基本面避雷分數進入 summary / universe_report。",
             checklist_status[3],
         ),
     ]
@@ -388,7 +422,7 @@ def _fundamentals_workflow_summary(
     }
 
 
-def _buffett_preview_from_priority_csv(validation: dict | None) -> list[dict]:
+def _fundamental_preview_from_priority_csv(validation: dict | None) -> list[dict]:
     if not validation or not validation.get("valid"):
         return []
     complete_codes = [str(code) for code in validation.get("complete_codes") or []]
@@ -399,20 +433,20 @@ def _buffett_preview_from_priority_csv(validation: dict | None) -> list[dict]:
     priority_data = load_fundamentals_from_csv(_PRIORITY_CSV_PATH)
     preview: list[dict] = []
     for code in complete_codes:
-        result = evaluate_buffett_indicator(code, priority_data.get(code))
+        result = evaluate_fundamental_guard(code, priority_data.get(code))
         preview.append({
             "code": code,
             "name": names.get(code, code),
-            "buffett_flag": result.get("buffett_flag"),
-            "buffett_score": result.get("buffett_score"),
-            "buffett_signal": result.get("buffett_signal"),
-            "buffett_data_ok": result.get("buffett_data_ok"),
-            "buffett_reason": result.get("buffett_reason"),
-            "buffett_data_missing_reason": result.get("buffett_data_missing_reason"),
-            "buffett_quality_score": result.get("buffett_quality_score"),
-            "buffett_value_score": result.get("buffett_value_score"),
-            "buffett_safety_score": result.get("buffett_safety_score"),
-            "buffett_growth_score": result.get("buffett_growth_score"),
+            "fundamental_flag": result.get("fundamental_flag"),
+            "fundamental_score": result.get("fundamental_score"),
+            "fundamental_signal": result.get("fundamental_signal"),
+            "fundamental_data_ok": result.get("fundamental_data_ok"),
+            "fundamental_reason": result.get("fundamental_reason"),
+            "fundamental_data_missing_reason": result.get("fundamental_data_missing_reason"),
+            "fundamental_quality_score": result.get("fundamental_quality_score"),
+            "fundamental_value_score": result.get("fundamental_value_score"),
+            "fundamental_safety_score": result.get("fundamental_safety_score"),
+            "fundamental_growth_score": result.get("fundamental_growth_score"),
         })
     return preview
 
@@ -522,6 +556,25 @@ def build_priority_fill_rows(limit: int = 20) -> list[dict]:
     return rows
 
 
+def build_priority_import_template_rows(limit: int = 20) -> list[dict]:
+    """產生外部基本面資料整理模板，不填任何實際數字。"""
+    status = build_fundamentals_status()
+    rows: list[dict] = []
+    note = "外部資料填入後，先 dry-run 匯入 priority CSV；百分比請填 28.5，不要填 0.285。"
+
+    for target in status["next_fill_targets"][:limit]:
+        row = {
+            "code": str(target["code"]),
+            "name": target["name"],
+            "source_note": note,
+        }
+        for field in REQUIRED_FIELDS:
+            row[field] = ""
+        rows.append(row)
+
+    return rows
+
+
 def _load_existing_priority_fill_raw_values(path: Path) -> dict[str, dict[str, str]]:
     if not path.exists():
         return {}
@@ -541,6 +594,165 @@ def _load_existing_priority_fill_raw_values(path: Path) -> dict[str, dict[str, s
     except OSError:
         return {}
     return values
+
+
+def _normalize_import_header(value: str) -> str:
+    return (
+        str(value or "")
+        .strip()
+        .lower()
+        .replace(" ", "")
+        .replace("_", "")
+        .replace("-", "")
+        .replace("％", "%")
+    )
+
+
+def _map_import_headers(fieldnames: list[str] | None) -> dict[str, str]:
+    mapped: dict[str, str] = {}
+    for header in fieldnames or []:
+        raw = str(header or "").strip()
+        if not raw:
+            continue
+        normalized = _normalize_import_header(raw)
+        target = IMPORT_FIELD_ALIASES.get(normalized)
+        if target is None and raw in REQUIRED_FIELDS:
+            target = raw
+        if target is None:
+            for field, label in FIELD_LABELS.items():
+                if normalized == _normalize_import_header(label):
+                    target = field
+                    break
+        if target:
+            mapped[raw] = target
+    return mapped
+
+
+def _write_priority_rows(path: Path, fieldnames: list[str], rows: list[dict]) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    with path.open("w", encoding="utf-8", newline="") as f:
+        writer = csv.DictWriter(f, fieldnames=fieldnames)
+        writer.writeheader()
+        writer.writerows(rows)
+
+
+def write_priority_import_template_csv(
+    out_dir: Path | None = None,
+    limit: int = 20,
+) -> Path:
+    """寫出給外部資料整理用的空白 CSV 模板。"""
+    target_dir = out_dir or _OUT
+    target_dir.mkdir(parents=True, exist_ok=True)
+    path = target_dir / "fundamentals_priority_import_template.csv"
+    fieldnames = ["code", "name", "source_note", *REQUIRED_FIELDS]
+    rows = build_priority_import_template_rows(limit=limit)
+    _write_priority_rows(path, fieldnames, rows)
+    return path
+
+
+def prepare_priority_fundamentals_import(
+    source_csv_path: Path,
+    dry_run: bool = True,
+) -> dict:
+    """把外部整理好的基本面 CSV 正規化填入 priority CSV。
+
+    此步驟只更新 `fundamentals_priority_fill.csv` 的 11 個基本面欄位。
+    不會合併到正式 `fundamentals.csv`，也不會更新 `fundamentals.json`。
+    """
+    source_csv_path = Path(source_csv_path)
+    if not source_csv_path.exists():
+        raise ValueError(f"找不到匯入 CSV: {source_csv_path}")
+    if not _PRIORITY_CSV_PATH.exists():
+        write_priority_fill_csv(_OUT)
+
+    with _PRIORITY_CSV_PATH.open(encoding="utf-8-sig", newline="") as f:
+        priority_reader = csv.DictReader(f)
+        fieldnames = list(priority_reader.fieldnames or [])
+        rows = [dict(row) for row in priority_reader]
+
+    missing_required_columns = [field for field in REQUIRED_FIELDS if field not in fieldnames]
+    if "code" not in fieldnames or missing_required_columns:
+        raise ValueError(
+            "priority CSV 缺少必要欄位: "
+            + ", ".join(["code", *missing_required_columns])
+        )
+
+    row_by_code = {
+        str(row.get("code") or "").strip(): row
+        for row in rows
+        if str(row.get("code") or "").strip()
+    }
+    updated_codes: list[str] = []
+    skipped_codes: list[str] = []
+    updated_field_count = 0
+    source_row_count = 0
+
+    with source_csv_path.open(encoding="utf-8-sig", newline="") as f:
+        source_reader = csv.DictReader(f)
+        header_map = _map_import_headers(source_reader.fieldnames)
+        code_headers = [header for header, target in header_map.items() if target == "code"]
+        if not code_headers:
+            raise ValueError("匯入 CSV 缺少 code / stock_id / 代號 欄位")
+        code_header = code_headers[0]
+
+        for raw_row in source_reader:
+            source_row_count += 1
+            code = str(raw_row.get(code_header) or "").strip()
+            if not code:
+                continue
+            target_row = row_by_code.get(code)
+            if target_row is None:
+                if code not in skipped_codes:
+                    skipped_codes.append(code)
+                continue
+
+            row_updated = False
+            for header, target_field in header_map.items():
+                if target_field == "code" or target_field not in REQUIRED_FIELDS:
+                    continue
+                raw_value = str(raw_row.get(header) or "").strip()
+                if raw_value == "":
+                    continue
+                if str(target_row.get(target_field) or "").strip() != raw_value:
+                    target_row[target_field] = raw_value
+                    updated_field_count += 1
+                    row_updated = True
+
+            if row_updated and code not in updated_codes:
+                updated_codes.append(code)
+
+    if dry_run:
+        with tempfile.NamedTemporaryFile("w", encoding="utf-8", newline="", suffix=".csv", delete=False) as tmp:
+            tmp_path = Path(tmp.name)
+        try:
+            _write_priority_rows(tmp_path, fieldnames, rows)
+            validation = validate_priority_csv(tmp_path)
+        finally:
+            try:
+                tmp_path.unlink()
+            except OSError:
+                pass
+    else:
+        _write_priority_rows(_PRIORITY_CSV_PATH, fieldnames, rows)
+        validation = validate_priority_csv(_PRIORITY_CSV_PATH)
+
+    return {
+        "dry_run": dry_run,
+        "source_csv_path": str(source_csv_path),
+        "priority_csv_path": str(_PRIORITY_CSV_PATH),
+        "source_row_count": source_row_count,
+        "updated_code_count": len(updated_codes),
+        "updated_codes": updated_codes,
+        "updated_field_count": updated_field_count,
+        "skipped_code_count": len(skipped_codes),
+        "skipped_codes": skipped_codes,
+        "validation": validation,
+        "next_action_label": (
+            "檢查 priority CSV 驗證結果，若有完整 11 欄即可預覽合併"
+            if not dry_run
+            else "確認 dry-run 更新清單後，用 --apply 寫入 priority CSV"
+        ),
+    }
 
 
 def write_priority_fill_csv(
@@ -627,7 +839,7 @@ def merge_priority_fill_csv(
         "row_statuses": validation.get("row_statuses") or [],
         "warning_count": len(validation.get("warnings") or []),
         "warnings": validation.get("warnings") or [],
-        "buffett_preview": _buffett_preview_from_priority_csv(validation),
+        "fundamental_preview": _fundamental_preview_from_priority_csv(validation),
         "signals_refresh_required": False,
         "next_action_label": next_action_label,
     }

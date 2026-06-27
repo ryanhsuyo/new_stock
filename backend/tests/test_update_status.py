@@ -19,7 +19,7 @@ update_status 測試
 """
 
 import json
-from datetime import date, timedelta
+from datetime import date, datetime, timedelta
 from pathlib import Path
 
 import pytest
@@ -83,6 +83,9 @@ class TestDataStatusAPI:
             "last_warning",
             "last_warning_summary",
             "last_data_as_of",
+            "schedule_health_status",
+            "schedule_is_overdue",
+            "schedule_health_message",
             "price_basis",
             "price_basis_label",
             "price_basis_note",
@@ -104,6 +107,13 @@ class TestDataStatusAPI:
         body = client.get("/api/system/data-status").json()
         assert body["last_run_status"] is None
 
+    def test_schedule_health_reports_never_run(self, client, tmp_update):
+        body = client.get("/api/system/data-status").json()
+
+        assert body["schedule_health_status"] == "never_run"
+        assert body["schedule_is_overdue"] is False
+        assert body["schedule_health_message"]
+
     def test_is_stale_field_is_bool(self, client, tmp_update):
         body = client.get("/api/system/data-status").json()
         assert isinstance(body["is_stale"], bool)
@@ -116,6 +126,36 @@ class TestDataStatusAPI:
         assert body["last_run_status"] == "success"
         assert body["last_data_as_of"] is not None
 
+    def test_recent_running_status_stays_running(self, client, tmp_update):
+        import app.storage.update_store as store
+
+        store.save_update_status({
+            **store._EMPTY,
+            "last_run_started_at": datetime.now().isoformat(timespec="seconds"),
+            "last_run_status": "running",
+        })
+
+        body = client.get("/api/system/data-status").json()
+
+        assert body["last_run_status"] == "running"
+        assert body["schedule_health_status"] == "running"
+
+    def test_stale_running_status_is_marked_stalled(self, client, tmp_update):
+        import app.storage.update_store as store
+
+        started = datetime.now() - timedelta(hours=3)
+        store.save_update_status({
+            **store._EMPTY,
+            "last_run_started_at": started.isoformat(timespec="seconds"),
+            "last_run_status": "running",
+        })
+
+        body = client.get("/api/system/data-status").json()
+
+        assert body["last_run_status"] == "stalled"
+        assert body["schedule_health_status"] == "stalled"
+        assert "超過" in body["schedule_health_message"]
+
     def test_run_full_update_refreshes_daily_check_report(self, tmp_update, monkeypatch):
         import app.services.update_service as svc
 
@@ -125,6 +165,52 @@ class TestDataStatusAPI:
         svc.run_full_update(months=1)
 
         assert calls == ["daily_check"]
+
+    def test_run_full_update_writes_shared_batch_lineage(self, tmp_update, monkeypatch):
+        import app.services.update_service as svc
+        import app.storage.update_store as store
+
+        monkeypatch.setattr(svc, "_run_chips_update", lambda: (True, "chips ok"))
+        monkeypatch.setattr(svc, "_sync_fundamentals_template", lambda: (True, "sync ok"))
+        monkeypatch.setattr(svc, "_import_fundamentals", lambda: (True, "import ok"))
+
+        def fake_coverage_report(*, batch_id=None, **kwargs):
+            return {
+                "generated_at": "2026-06-23T20:00:00",
+                "batch_id": batch_id,
+                "expected_trading_day": "2026-06-22",
+                "raw_ohlcv_as_of": "2026-06-22",
+                "tracked_count": 1,
+                "ok_count": 1,
+                "coverage_pct": 100.0,
+                "symbols": [],
+            }
+
+        def fake_write_coverage(report, out_dir):
+            path = out_dir / "data_coverage_report.json"
+            path.write_text(json.dumps(report, ensure_ascii=False), encoding="utf-8")
+            return path
+
+        def fake_run_daily_signals(lineage=None):
+            assert lineage["batch_id"]
+            summary = {"as_of": "2026-06-22", "lineage": lineage, "batch_id": lineage["batch_id"]}
+            (tmp_update / "summary.json").write_text(json.dumps(summary), encoding="utf-8")
+            return summary
+
+        monkeypatch.setattr(svc, "build_data_coverage_report", fake_coverage_report)
+        monkeypatch.setattr(svc, "write_data_coverage_report", fake_write_coverage)
+        monkeypatch.setattr(svc, "run_daily_signals", fake_run_daily_signals)
+
+        svc.run_full_update(months=1)
+
+        status = json.loads(store.UPDATE_STATUS_PATH.read_text(encoding="utf-8"))
+        summary = json.loads((tmp_update / "summary.json").read_text(encoding="utf-8"))
+        coverage = json.loads((tmp_update / "data_coverage_report.json").read_text(encoding="utf-8"))
+
+        assert status["batch_id"]
+        assert status["coverage_report_path"].endswith("data_coverage_report.json")
+        assert summary["batch_id"] == status["batch_id"]
+        assert coverage["batch_id"] == status["batch_id"]
 
     def test_failed_run_full_update_refreshes_daily_check_report(self, tmp_update, monkeypatch):
         import app.services.update_service as svc
@@ -162,9 +248,9 @@ class TestDailyCheckAPI:
                 "data_as_of": "2026-05-29",
                 "can_use_trade_outputs": True,
                 "top_actions": [{
-                    "key": "buffett",
+                    "key": "fundamentals",
                     "status": "warn",
-                    "title": "巴菲特基本面覆蓋",
+                    "title": "基本面避雷覆蓋",
                     "message": "0/74",
                     "next_action": "補資料",
                 }],
@@ -178,7 +264,7 @@ class TestDailyCheckAPI:
         body = response.json()
         assert body["overall_status"] == "warn"
         assert body["data_as_of"] == "2026-05-29"
-        assert body["top_actions"][0]["key"] == "buffett"
+        assert body["top_actions"][0]["key"] == "fundamentals"
 
     def test_returns_404_when_daily_check_report_missing(self, client, tmp_path, monkeypatch):
         import app.services.daily_check_service as svc
@@ -420,6 +506,39 @@ class TestRunFullUpdateSuccess:
         assert ok is True
         assert "--include-current-month" in seen["cmd"]
 
+    def test_backfill_can_stream_subprocess_output(self, monkeypatch, capsys):
+        import subprocess
+        import app.services.update_service as svc
+
+        seen = {}
+
+        class FakeStdout:
+            def __iter__(self):
+                return iter(["[  1/76] 2330 ...\n", "  OK [TWSE]\n"])
+
+        class FakeProcess:
+            stdout = FakeStdout()
+            returncode = 0
+
+            def wait(self):
+                return self.returncode
+
+        def fake_popen(cmd, **kwargs):
+            seen["cmd"] = cmd
+            seen["kwargs"] = kwargs
+            return FakeProcess()
+
+        monkeypatch.setattr(subprocess, "Popen", fake_popen)
+
+        ok, output = svc._run_backfill(months=1, stream_output=True)
+
+        captured = capsys.readouterr().out
+        assert ok is True
+        assert "--include-current-month" in seen["cmd"]
+        assert seen["kwargs"]["stdout"] == subprocess.PIPE
+        assert "[  1/76] 2330 ..." in captured
+        assert "OK [TWSE]" in output
+
 
 # ---------------------------------------------------------------------------
 # run_full_update — failure path (backfill fails)
@@ -461,6 +580,23 @@ class TestRunFullUpdateBackfillFailure:
         monkeypatch.setattr(svc, "_run_backfill", lambda months: (False, "timeout"))
         status = svc.run_full_update(months=1)
         assert status["last_run_finished_at"] is not None
+
+    def test_keyboard_interrupt_marks_status_failed(self, tmp_update, monkeypatch):
+        import app.services.update_service as svc
+        import app.storage.update_store as store
+
+        def interrupted(months):
+            raise KeyboardInterrupt()
+
+        monkeypatch.setattr(svc, "_run_backfill", interrupted)
+
+        with pytest.raises(KeyboardInterrupt):
+            svc.run_full_update(months=1)
+
+        saved = json.loads(store.UPDATE_STATUS_PATH.read_text(encoding="utf-8"))
+        assert saved["last_run_status"] == "failed"
+        assert saved["last_run_finished_at"] is not None
+        assert "中斷" in saved["last_error_summary"]
 
 
 # ---------------------------------------------------------------------------
@@ -516,6 +652,23 @@ class TestStaleCalculation:
         yesterday = (date.today() - timedelta(days=1)).isoformat()
         is_stale, stale_days = _compute_stale(yesterday)
         assert stale_days == 1
+        assert is_stale is False
+
+    def test_weekend_gap_is_not_stale_on_monday(self, monkeypatch):
+        import app.services.update_service as svc
+        import app.utils as utils
+
+        class FakeDate(date):
+            @classmethod
+            def today(cls):
+                return cls(2026, 6, 15)  # Monday
+
+        monkeypatch.setattr(svc, "date", FakeDate)
+        monkeypatch.setattr(utils, "date", FakeDate)
+
+        is_stale, stale_days = svc._compute_stale("2026-06-12")  # Friday
+
+        assert stale_days == 3
         assert is_stale is False
 
     def test_ten_days_ago_is_stale(self):
@@ -662,9 +815,31 @@ class TestUpdateNowAPI:
     def test_returns_409_when_already_running(self, client, tmp_update, monkeypatch):
         """狀態為 running 時，應回傳 409。"""
         import app.storage.update_store as store
-        store.save_update_status({**store._EMPTY, "last_run_status": "running"})
+        store.save_update_status({
+            **store._EMPTY,
+            "last_run_started_at": datetime.now().isoformat(timespec="seconds"),
+            "last_run_status": "running",
+        })
 
         resp = client.post("/api/system/update-now")
         assert resp.status_code == 409
         body = resp.json()
         assert body["detail"]["status"] == "running"
+
+    def test_allows_restart_when_running_status_is_stalled(self, client, tmp_update, monkeypatch):
+        import app.services.update_service as svc
+        import app.storage.update_store as store
+
+        started = datetime.now() - timedelta(hours=3)
+        store.save_update_status({
+            **store._EMPTY,
+            "last_run_started_at": started.isoformat(timespec="seconds"),
+            "last_run_status": "running",
+        })
+        monkeypatch.setattr(svc, "run_full_update", lambda months=1: None)
+        monkeypatch.setattr(svc, "_bg_lock", __import__("threading").Lock())
+
+        resp = client.post("/api/system/update-now")
+
+        assert resp.status_code == 200
+        assert resp.json()["status"] == "started"

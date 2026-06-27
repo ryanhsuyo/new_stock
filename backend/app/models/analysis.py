@@ -42,7 +42,7 @@ class TrendLine(BaseModel):
 
 class PatternResult(BaseModel):
     """型態辨識結果。"""
-    pattern_type: str    # "none" | "w_bottom" | "m_top" | "head_and_shoulders_bottom"
+    pattern_type: str    # none | w_bottom | m_top | head_and_shoulders_bottom | head_and_shoulders_top
     pattern_status: str  # "none" | "forming" | "confirmed" | "failed"
     neckline: float | None = None   # 頸線價格；pattern_type="none" 時為 null
     note: str = ""       # 說明文字

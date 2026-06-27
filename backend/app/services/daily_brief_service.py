@@ -129,6 +129,11 @@ def _brief_stock(sig: dict, *, reason_key: str = "daily_action_reason") -> dict:
         "stop_price": sig.get("stop_price"),
         "target_price": sig.get("target_price"),
         "price_plan_note": sig.get("price_plan_note"),
+        "support_source": sig.get("support_source"),
+        "resistance_source": sig.get("resistance_source"),
+        "entry_source": sig.get("entry_source"),
+        "stop_source": sig.get("stop_source"),
+        "target_source": sig.get("target_source"),
         "reason": sig.get(reason_key) or sig.get("no_buy_reason") or sig.get("old_wang_reason") or "",
     }
 
@@ -191,6 +196,11 @@ def _tomorrow_task(sig: dict) -> dict:
         "priority": sig.get("daily_priority") or 0,
         "reason": sig.get("daily_action_reason") or sig.get("no_buy_reason") or sig.get("old_wang_reason") or "",
         "price_plan_note": sig.get("price_plan_note") or "",
+        "support_source": sig.get("support_source") or "",
+        "resistance_source": sig.get("resistance_source") or "",
+        "entry_source": sig.get("entry_source") or "",
+        "stop_source": sig.get("stop_source") or "",
+        "target_source": sig.get("target_source") or "",
     }
 
 
@@ -284,6 +294,11 @@ def _manual_watchlist_review(active_manual_note: dict | None, signals: list[dict
             "invalidation": task.get("invalidation") or "",
             "reason": task.get("reason") or "",
             "price_plan_note": task.get("price_plan_note") or "",
+            "support_source": task.get("support_source") or "",
+            "resistance_source": task.get("resistance_source") or "",
+            "entry_source": task.get("entry_source") or "",
+            "stop_source": task.get("stop_source") or "",
+            "target_source": task.get("target_source") or "",
         })
 
     return {"items": items, "summary": summary}
@@ -498,12 +513,12 @@ def build_daily_brief(summary: dict) -> dict:
         reverse=True,
     )
 
-    buffett_total = sum(1 for sig in signals if sig.get("buffett_data_ok") is not None)
-    buffett_ready = sum(1 for sig in signals if _as_bool(sig.get("buffett_data_ok")))
-    buffett_candidates = [
-        _brief_stock(sig, reason_key="buffett_reason")
+    fundamental_total = sum(1 for sig in signals if sig.get("fundamental_data_ok") is not None)
+    fundamental_ready = sum(1 for sig in signals if _as_bool(sig.get("fundamental_data_ok")))
+    fundamental_candidates = [
+        _brief_stock(sig, reason_key="fundamental_reason")
         for sig in signals
-        if _as_bool(sig.get("buffett_flag"))
+        if _as_bool(sig.get("fundamental_flag"))
     ]
 
     note_rules = []
@@ -514,6 +529,8 @@ def build_daily_brief(summary: dict) -> dict:
     return {
         "as_of": summary.get("as_of"),
         "generated_at": summary.get("generated_at"),
+        "rules_version": summary.get("rules_version"),
+        "rules_metadata": summary.get("rules_metadata") or {},
         "brief_generated_from": "summary.json",
         "data_status": _data_status(summary),
         "position_guidance": _position_level(active_manual_note, market_context),
@@ -529,12 +546,12 @@ def build_daily_brief(summary: dict) -> dict:
         "no_chase": [_brief_stock(sig, reason_key="no_buy_reason") for sig in no_chase[:15]],
         "trim_weak": [_brief_stock(sig, reason_key="no_buy_reason") for sig in trim_weak[:20]],
         "entry_watch": [_brief_stock(sig) for sig in entry_watch[:15]],
-        "buffett_status": {
-            "total": buffett_total,
-            "ready": buffett_ready,
-            "missing": max(buffett_total - buffett_ready, 0),
-            "candidates": buffett_candidates[:15],
-            "note": "Buffett 方案需要 fundamentals.csv 欄位補齊後才會產生候選。",
+        "fundamental_status": {
+            "total": fundamental_total,
+            "ready": fundamental_ready,
+            "missing": max(fundamental_total - fundamental_ready, 0),
+            "candidates": fundamental_candidates[:15],
+            "note": "基本面資料補齊後才會進入穩健動能的避雷輔助分數，不是獨立候選策略。",
         },
         "tomorrow_checklist": note_rules,
         "summary": {

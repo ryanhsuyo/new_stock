@@ -12,12 +12,58 @@ from app.services.fundamental_service import get_fundamentals_status
 from app.services.signals_service import get_universe, get_universe_report_json
 from app.services.update_workflow_service import get_update_workflow_status
 from app.services.workflow_outputs import DAILY_UPDATE_OUTPUTS
+from app.services.workflow_outputs import (
+    FUNDAMENTALS_PRIORITY_IMPORT_APPLY_COMMAND,
+    FUNDAMENTALS_PRIORITY_IMPORT_COMMAND,
+    FUNDAMENTALS_PRIORITY_IMPORT_OUTPUTS,
+    FUNDAMENTALS_PRIORITY_TEMPLATE_COMMAND,
+)
 from app.services.workflow_service import get_workflow_status
 from app.services.workflow_text import preview_numbered_lines
 
 _DATA_REPAIR_COMMAND = "python3 scripts/daily_update.py --months 12"
 _BACKEND = Path(__file__).resolve().parent.parent.parent
 _PRICE_BASIS_LABEL = "最新收盤價（非即時市價）"
+_SHORT_REASON_MAX = 42
+
+
+def _short_display_reason(value: str) -> str:
+    text = " ".join(str(value or "").split())
+    for separator in ("。", "；", "\n"):
+        if separator in text:
+            text = text.split(separator, 1)[0]
+            break
+    if len(text) <= _SHORT_REASON_MAX:
+        return text
+    for separator in ("，", ","):
+        prefix = text.split(separator, 1)[0]
+        if 8 <= len(prefix) <= _SHORT_REASON_MAX:
+            return prefix
+    return f"{text[:_SHORT_REASON_MAX - 1]}…"
+
+
+def _format_display_price(value: Any) -> str:
+    try:
+        number = float(value)
+    except (TypeError, ValueError):
+        return ""
+    if number.is_integer():
+        return str(int(number))
+    return f"{number:.2f}".rstrip("0").rstrip(".")
+
+
+def _entry_primary_metric(row: dict[str, Any]) -> str:
+    low = _format_display_price(row.get("entry_price_low"))
+    high = _format_display_price(row.get("entry_price_high"))
+    if low and high:
+        return f"進場 {low}–{high}"
+    if low or high:
+        return f"進場 {low or high}"
+    key_price = str(row.get("daily_key_price") or "").strip()
+    if key_price:
+        return key_price
+    close = _format_display_price(row.get("close"))
+    return f"收盤 {close}" if close else ""
 
 
 def _normalize_action_payload(payload: dict[str, Any] | None) -> dict[str, Any]:
@@ -137,6 +183,10 @@ def _fundamentals_item() -> dict[str, Any] | None:
         "copy_text": str(workflow.get("fill_targets_copy_text") or ""),
         "file_path": str(action.get("command") or ""),
         "focus_limit": min(5, len(focus_targets)),
+        "write_template_command": FUNDAMENTALS_PRIORITY_TEMPLATE_COMMAND,
+        "prepare_import_command": FUNDAMENTALS_PRIORITY_IMPORT_COMMAND,
+        "prepare_import_apply_command": FUNDAMENTALS_PRIORITY_IMPORT_APPLY_COMMAND,
+        "expected_outputs": list(FUNDAMENTALS_PRIORITY_IMPORT_OUTPUTS),
     }
     if action_kind == "api":
         action_payload = {
@@ -144,12 +194,12 @@ def _fundamentals_item() -> dict[str, Any] | None:
             "method": "POST",
             "endpoint": "/api/system/fundamentals-priority-fill/merge",
             "dry_run": True,
-            "confirm_message": "先預覽巴菲特基本面補資料合併結果，不會正式改寫 fundamentals.json。",
+            "confirm_message": "先預覽基本面避雷補資料合併結果，不會正式改寫 fundamentals.json。",
         }
     return _item(
-        key="buffett_fundamentals",
-        title=str(workflow.get("headline") or "補巴菲特基本面資料"),
-        detail=str(workflow.get("detail") or "補齊 Buffett 必要欄位後，長期品質價值策略才可評分。"),
+        key="fundamentals",
+        title=str(workflow.get("headline") or "補基本面避雷資料"),
+        detail=str(workflow.get("detail") or "補齊必要欄位後，基本面避雷分數才可評分。"),
         priority=70,
         severity=severity,
         action_type="fundamentals",
@@ -200,7 +250,6 @@ def _daily_check_items(existing_keys: set[str]) -> list[dict[str, Any]]:
     report = get_daily_check_report() or {}
     mapped: list[dict[str, Any]] = []
     duplicate_map = {
-        "buffett": "buffett_fundamentals",
         "data_repair": "data_repair",
         "decision_journal": "universe_report_review",
     }
@@ -235,14 +284,23 @@ def _focus_item(
     severity: str,
     source: str,
     as_of: str | None,
+    action_label: str = "查看詳情",
+    primary_metric: str = "",
+    short_reason: str | None = None,
+    detail_reason: str | None = None,
 ) -> dict[str, Any]:
+    full_reason = str(detail_reason or reason)
     return {
         "category": category,
         "code": code,
         "name": name,
         "label": label,
         "reason": reason,
+        "short_reason": short_reason or _short_display_reason(reason),
+        "detail_reason": full_reason,
         "next_action": next_action,
+        "action_label": action_label,
+        "primary_metric": primary_metric,
         "severity": severity,
         "source": source,
         "price_basis": _PRICE_BASIS_LABEL,
@@ -274,6 +332,8 @@ def _portfolio_focus_items(workflow: dict[str, Any], as_of: str | None) -> list[
             severity=str(task.get("severity") or "warning"),
             source="portfolio",
             as_of=as_of,
+            action_label="查看持股",
+            primary_metric=str(task.get("key_price") or ""),
         ))
     return focus
 
@@ -316,6 +376,8 @@ def _entry_focus_items(can_use_trade_outputs: bool, as_of: str | None) -> list[d
             severity="warning" if action == "wait_pullback" else "info",
             source="universe_report",
             as_of=as_of,
+            action_label="查看進場計畫",
+            primary_metric=_entry_primary_metric(row),
         ))
     return focus
 
@@ -340,6 +402,7 @@ def _review_focus_items(
             severity="danger",
             source="workflow",
             as_of=as_of,
+            action_label="先解除阻塞",
         ))
         return focus
 
@@ -356,6 +419,7 @@ def _review_focus_items(
             severity="warning",
             source="pm_worklist",
             as_of=as_of,
+            action_label="補復盤",
         ))
 
     if len(focus) >= 3:
@@ -377,6 +441,8 @@ def _review_focus_items(
                 severity=str(item.get("severity") or "warning"),
                 source=str(item.get("source") or "pm_worklist"),
                 as_of=as_of,
+                action_label=str(item.get("action_label") or "查看待辦"),
+                primary_metric=str(item.get("metric") or ""),
             ))
     return focus
 
@@ -421,6 +487,7 @@ def _build_today_focus(
             severity="info",
             source="pm_worklist",
             as_of=as_of,
+            action_label="維持觀察",
         ))
     return focus
 

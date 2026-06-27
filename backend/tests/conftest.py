@@ -7,6 +7,7 @@ pytest 設定：
 """
 
 import sys
+import time
 from pathlib import Path
 
 # backend/ 目錄
@@ -39,4 +40,13 @@ def tmp_out(tmp_path, monkeypatch):
     monkeypatch.setattr(svc, "_OUT", out)
     monkeypatch.setattr(brief_svc, "_OUT", out)
     monkeypatch.setattr(router, "_OUT", out)
-    return out
+    yield out
+
+    deadline = time.monotonic() + 30
+    while (
+        svc._signals_run_status.get("status") == "running"
+        and svc._signals_lock.locked()
+    ):
+        if time.monotonic() >= deadline:
+            pytest.fail("background signal run did not finish during fixture teardown")
+        time.sleep(0.01)

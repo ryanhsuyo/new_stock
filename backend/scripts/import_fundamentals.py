@@ -23,7 +23,7 @@ from app.storage.fundamental_store import (  # noqa: E402
 
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(
-        description="將 fundamentals.csv 轉成巴菲特方案使用的 fundamentals.json"
+        description="將 fundamentals.csv 轉成基本面避雷使用的 fundamentals.json"
     )
     parser.add_argument(
         "--csv",

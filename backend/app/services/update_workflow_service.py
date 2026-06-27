@@ -16,6 +16,7 @@ from app.services.workflow_outputs import DAILY_UPDATE_OUTPUTS, SIGNAL_OUTPUTS, 
 DAILY_UPDATE_COMMAND = "python3 scripts/daily_update.py --months 1"
 RUN_SIGNALS_COMMAND = "python3 scripts/run_signals.py"
 DAILY_CHECK_COMMAND = "python3 scripts/daily_check.py --write-report"
+DATA_COVERAGE_BLOCK_THRESHOLD = 80.0
 _BACKEND = Path(__file__).resolve().parent.parent.parent
 
 
@@ -80,9 +81,16 @@ def get_update_workflow_status() -> dict[str, Any]:
 
     data_as_of = data_status.get("last_data_as_of")
     raw_as_of = data_status.get("raw_ohlcv_as_of")
+    batch_id = data_status.get("batch_id")
+    coverage_report_path = data_status.get("coverage_report_path")
+    data_coverage_pct = data_status.get("data_coverage_pct")
     last_run_status = data_status.get("last_run_status")
     data_is_stale = bool(data_status.get("is_stale"))
     outputs_lag_raw_data = bool(data_status.get("outputs_lag_raw_data"))
+    coverage_too_low = (
+        data_coverage_pct is not None
+        and float(data_coverage_pct) < DATA_COVERAGE_BLOCK_THRESHOLD
+    )
     daily_check_missing = daily_check is None
     daily_check_stale = bool((daily_check or {}).get("snapshot_is_stale"))
     daily_check_can_trade = bool((daily_check or {}).get("can_use_trade_outputs", True))
@@ -102,7 +110,7 @@ def get_update_workflow_status() -> dict[str, Any]:
         data_step_status = "running"
         signal_step_status = "blocked"
         daily_step_status = "blocked"
-    elif last_run_status == "failed" or data_is_stale or not data_as_of:
+    elif last_run_status in {"failed", "stalled"} or data_is_stale or not data_as_of:
         next_action = _action(
             "update_market_data",
             "先更新日線與訊號資料",
@@ -130,6 +138,21 @@ def get_update_workflow_status() -> dict[str, Any]:
         headline = "原始日線已更新，但交易輸出仍落後。"
         can_use_trade_outputs = False
         data_step_status = "done"
+        signal_step_status = "blocked"
+        daily_step_status = "blocked"
+    elif coverage_too_low:
+        next_action = _action(
+            "improve_data_coverage",
+            "補齊追蹤清單日線覆蓋率",
+            f"資料覆蓋率 {float(data_coverage_pct):.2f}% 低於 {DATA_COVERAGE_BLOCK_THRESHOLD:.0f}% 門檻，請重新執行每日更新。",
+            DAILY_UPDATE_COMMAND,
+            DAILY_UPDATE_OUTPUTS,
+        )
+        current_step = "improve_data_coverage"
+        overall_status = "blocked"
+        headline = "追蹤清單資料覆蓋率不足，交易輸出暫停使用。"
+        can_use_trade_outputs = False
+        data_step_status = "blocked"
         signal_step_status = "blocked"
         daily_step_status = "blocked"
     elif daily_check_missing or daily_check_stale:
@@ -210,6 +233,9 @@ def get_update_workflow_status() -> dict[str, Any]:
             "data_as_of": data_as_of,
             "raw_ohlcv_as_of": raw_as_of,
             "last_run_status": last_run_status,
+            "batch_id": batch_id,
+            "coverage_report_path": coverage_report_path,
+            "data_coverage_pct": data_coverage_pct,
             "data_is_stale": data_is_stale,
             "outputs_lag_raw_data": outputs_lag_raw_data,
             "daily_check_missing": daily_check_missing,

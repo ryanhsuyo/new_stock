@@ -2,7 +2,7 @@ def test_preview_numbered_lines_supports_dash_and_plain_items():
     from app.services.workflow_text import preview_numbered_lines
 
     text = "\n".join([
-        "巴菲特基本面優先補資料清單",
+        "基本面避雷優先補資料清單",
         "1. 台積電 2330 - 缺 11 欄",
         "2. 聯發科 2454",
         "   - ROE",

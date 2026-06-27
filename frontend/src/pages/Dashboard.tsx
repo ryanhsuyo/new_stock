@@ -1,10 +1,20 @@
 import { type KeyboardEvent, type RefObject, useEffect, useRef, useState } from 'react'
 import { api } from '../api/client'
+import ChangeReport from '../components/ChangeReport'
+import DailyBriefBox from '../components/DailyBriefBox'
+import DailyCheckBox from '../components/DailyCheckBox'
 import DailyChecklist from '../components/DailyChecklist'
+import DataRepairQueueBox from '../components/DataRepairQueueBox'
+import DecisionStatusStrip from '../components/DecisionStatusStrip'
+import { StatusRow } from '../components/FileStatusRows'
+import MarketPostureCard from '../components/MarketPostureCard'
+import { ManualMarketNoteBox, OldWangMarketBox } from '../components/MarketSummaryBoxes'
 import NoSignalExplainer from '../components/NoSignalExplainer'
-import type { DailyBrief, DailyBriefStock, DailyBriefTask, DailyCheckReport, DataStatus, DecisionJournalCreate, DecisionJournalDecision, DecisionJournalEntry, DecisionJournalSummary, FileInfo, FundamentalsPriorityMergeResult, FundamentalsStatus, ManualWatchlistReview, ManualWatchlistReviewItem, MarketNoteInput, PmWorklist, SignalsSummary, SignalsStatus, StockRecommendation, StockUniverseItem, UniverseReportReviewWorkflow, UpdateWorkflowStatus, WorkflowPortfolioTask, WorkflowStatus } from '../types'
-
-type RecommendationStrategy = 'core' | 'old_wang' | 'buffett'
+import ParseErrorAlert from '../components/ParseErrorAlert'
+import PrimaryActionCard from '../components/PrimaryActionCard'
+import TodayFocusCards from '../components/TodayFocusCards'
+import UpdateWorkflowBox from '../components/UpdateWorkflowBox'
+import type { DailyBrief, DailyCheckReport, DataStatus, DecisionJournalCreate, DecisionJournalDecision, DecisionJournalEntry, DecisionJournalSummary, FundamentalsPriorityMergeResult, FundamentalsStatus, ManualWatchlistReview, MarketNoteInput, PmWorklist, RecommendationStrategy, SignalsSummary, SignalsStatus, StockRecommendation, StockUniverseItem, UniverseReportReviewWorkflow, UpdateWorkflowStatus, WorkflowPortfolioTask, WorkflowStatus } from '../types'
 
 interface WorkflowUniversePendingItem {
   code: string
@@ -28,94 +38,6 @@ function isWorkflowUniversePendingItem(value: unknown): value is WorkflowUnivers
   )
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// Sub-components
-// ─────────────────────────────────────────────────────────────────────────────
-
-function StatusDot({ exists }: { exists: boolean }) {
-  return (
-    <span style={{ color: exists ? '#2e7d32' : '#bbb', fontSize: 16, marginRight: 6 }}>
-      {exists ? '●' : '○'}
-    </span>
-  )
-}
-
-function StatusRow({
-  label,
-  info,
-  optional,
-  extra,
-}: {
-  label: string
-  info: FileInfo
-  optional?: boolean
-  extra?: string
-}) {
-  const fmtTime = (s?: string) => s ? s.slice(0, 16).replace('T', ' ') : ''
-
-  return (
-    <tr>
-      <td style={{ width: 24, verticalAlign: 'middle' }}>
-        <StatusDot exists={info.exists} />
-      </td>
-      <td style={{ fontWeight: 600, paddingRight: 20, whiteSpace: 'nowrap' }}>
-        {label}
-      </td>
-      <td style={{ fontSize: 13, color: '#555' }}>
-        {info.exists ? (
-          <>
-            {info.as_of && <span style={{ marginRight: 16 }}>as_of: <strong>{info.as_of}</strong></span>}
-            {info.generated_at && <span style={{ marginRight: 16, color: '#666' }}>產生: {fmtTime(info.generated_at)}</span>}
-            {info.row_count != null && <span style={{ marginRight: 16, color: '#666' }}>筆數: {info.row_count.toLocaleString()}</span>}
-            {info.last_modified && <span style={{ color: '#888' }}>檔案: {fmtTime(info.last_modified)}</span>}
-            {info.status_label && (
-              <span style={{ marginLeft: 16, color: info.update_required ? '#b45309' : '#2e7d32', fontWeight: 700 }}>
-                {info.status_label}
-              </span>
-            )}
-            {info.parse_error && (
-              <span
-                style={{ marginLeft: 16, color: '#b71c1c', fontWeight: 700 }}
-                title={info.parse_error}
-              >
-                解析失敗
-              </span>
-            )}
-            {extra && <span style={{ marginLeft: 16, color: '#92400e', fontWeight: 700 }}>{extra}</span>}
-          </>
-        ) : (
-          <span style={{ color: '#aaa' }}>{optional ? '不存在（選填）' : '不存在'}</span>
-        )}
-      </td>
-    </tr>
-  )
-}
-
-function ParseErrorAlert({ status }: { status: SignalsStatus | null }) {
-  const files = status ? [
-    { label: 'summary.json', info: status.out_files.summary_json },
-    { label: 'universe_report.csv', info: status.out_files.universe_report_csv },
-    { label: 'daily_brief.json', info: status.out_files.daily_brief_json },
-  ].filter(item => item.info.parse_error) : []
-
-  if (!files.length) return null
-
-  return (
-    <div className="alert alert-error" role="alert" style={{ marginBottom: 20 }}>
-      <div className="alert-title">輸出檔案解析失敗</div>
-      <div className="alert-meta">請重新產生訊號；若仍失敗，檢查後端寫檔流程或手動修改的 JSON / CSV 格式。</div>
-      <div className="parse-error-list">
-        {files.map(file => (
-          <div key={file.label}>
-            <strong>{file.label}</strong>
-            <code>{file.info.parse_error}</code>
-          </div>
-        ))}
-      </div>
-    </div>
-  )
-}
-
 function fmtChipLots(value: number | null): string {
   if (value === null || value === undefined) return '待匯入'
   const sign = value > 0 ? '+' : ''
@@ -135,9 +57,8 @@ function fmtVolume(value: number | null): string {
 }
 
 const STRATEGY_OPTIONS: Array<{ key: RecommendationStrategy; label: string; desc: string }> = [
-  { key: 'core', label: '核心', desc: '只看正式買點' },
-  { key: 'old_wang', label: '老王', desc: '只看老王短波段旗標' },
-  { key: 'buffett', label: '巴菲特', desc: '只看長期品質價值條件' },
+  { key: 'steady_momentum', label: '穩健動能', desc: '中期趨勢、相對強度、風險報酬與基本面避雷' },
+  { key: 'old_wang', label: '老王短波段', desc: '短線資金、族群輪動、跳空與短均線訊號' },
 ]
 
 const DECISION_OPTIONS: Array<{ key: DecisionJournalDecision; label: string }> = [
@@ -150,11 +71,6 @@ const DECISION_OPTIONS: Array<{ key: DecisionJournalDecision; label: string }> =
 ]
 
 const DECISION_LABELS = Object.fromEntries(DECISION_OPTIONS.map(item => [item.key, item.label])) as Record<string, string>
-
-const DATA_REPAIR_COMMAND = [
-  'cd /Users/ryan/Desktop/code/new_stock/backend',
-  'python3 scripts/daily_update.py --months 12',
-].join('\n')
 
 function todayInputValue(): string {
   const today = new Date()
@@ -193,55 +109,37 @@ function workflowActionToDecision(action?: string | null): DecisionJournalDecisi
 
 const STRATEGY_GUIDE = [
   {
-    key: 'core',
-    title: '核心技術',
-    role: '正式進出場',
-    detail: '用支撐壓力、MA20/MA60、型態、量能與 R/R 決定是否可分批進場。',
+    key: 'steady_momentum',
+    title: '穩健動能',
+    role: '主線策略',
+    detail: '看中期趨勢、相對強度、進場位置、風險報酬、過熱控制與基本面避雷。',
   },
   {
     key: 'old_wang',
     title: '老王短波段',
-    role: '大盤風控與強勢股',
+    role: '攻擊策略',
     detail: '看 TSE/OTC、MA5/MA10、族群輪動、爆大量低點與前高壓力，避免追高。',
   },
   {
-    key: 'buffett',
-    title: '巴菲特長期價值',
-    role: '基本面觀察',
-    detail: '看 ROE、自由現金流、負債安全、成長與估值；需 fundamentals.json，不參與短線買賣。',
+    key: 'fundamentals',
+    title: '基本面避雷 / 補資料',
+    role: '輔助資料',
+    detail: 'fundamentals 只輔助穩健動能避雷與補資料流程，不再獨立列候選股。',
   },
 ]
 
-const BUFFETT_SCORE_LABELS = [
-  { key: 'buffett_quality_score', label: '品質' },
-  { key: 'buffett_safety_score', label: '安全' },
-  { key: 'buffett_value_score', label: '估值' },
-  { key: 'buffett_growth_score', label: '成長' },
+const FUNDAMENTAL_SCORE_LABELS = [
+  { key: 'fundamental_quality_score', label: '品質' },
+  { key: 'fundamental_safety_score', label: '安全' },
+  { key: 'fundamental_value_score', label: '估值' },
+  { key: 'fundamental_growth_score', label: '成長' },
 ] as const
 
-const SIGNAL_TEXT: Record<string, string> = {
-  entry_confirmed: '入場確認',
-  ready_to_enter: '準備入場',
-  watchlist: '觀察中',
-  hold: '持股中',
-  take_profit_warning: '停利觀察',
-  exit_warning: '出場警示',
-  invalidated: '訊號失效',
-  DATA_MISSING: '資料不足',
-}
-
-function buffettScoreClass(value?: number | null): string {
+function fundamentalScoreClass(value?: number | null): string {
   if (value == null) return 'missing'
   if (value >= 70) return 'good'
   if (value >= 45) return 'mid'
   return 'weak'
-}
-
-const OLD_WANG_MARKET_TEXT: Record<string, string> = {
-  strong: '偏多',
-  caution: '觀察',
-  risk: '風險',
-  unknown: '未知',
 }
 
 const todayTaipei = () => {
@@ -266,60 +164,6 @@ const emptyMarketNoteForm = (): MarketNoteInput => ({
   position_guidance: '',
   market_actions: [],
 })
-
-function OldWangMarketBox({ summary }: { summary: SignalsSummary | null }) {
-  const ctx = summary?.market_context
-  if (!ctx) return null
-  const regime = ctx.old_wang_market_regime || 'unknown'
-  const cls = regime === 'strong' ? 'strong' : regime === 'risk' ? 'risk' : 'caution'
-
-  return (
-    <div className={`old-wang-market-box ${cls}`}>
-      <div>
-        <span className="old-wang-market-label">老王大盤濾網</span>
-        <strong>{OLD_WANG_MARKET_TEXT[regime] ?? regime}</strong>
-      </div>
-      <p>{ctx.old_wang_market_reason || ctx.reason || '尚無大盤濾網說明'}</p>
-      <em>來源 {ctx.old_wang_market_source || ctx.benchmark_code || '—'} · {ctx.old_wang_market_filter || 'neutral'}</em>
-    </div>
-  )
-}
-
-function ManualMarketNoteBox({ summary }: { summary: SignalsSummary | null }) {
-  const note = summary?.manual_market_note
-  if (!note) return null
-  const cls = note.risk_level === 'risk' ? 'risk' : note.risk_level === 'caution' ? 'caution' : 'strong'
-  const actions = note.market_actions?.slice(0, 4) ?? []
-  const staleDays = note.stale_trading_days ?? 0
-  const statusText = note.is_stale
-    ? `舊筆記 · 距基準日 ${staleDays} 個交易日`
-    : note.status_label ?? '最新筆記'
-
-  return (
-    <div className={`manual-market-note ${cls} ${note.is_stale ? 'stale' : ''}`}>
-      <div className="manual-market-note-main">
-        <div>
-          <span className="old-wang-market-label">
-            人工盤後筆記 · {note.date}
-            {note.applies_to_as_of && ` / 訊號基準 ${note.applies_to_as_of}`}
-          </span>
-          <span className={`manual-note-status ${note.is_stale ? 'stale' : 'fresh'}`}>
-            {statusText}
-          </span>
-          <strong>{note.title}</strong>
-        </div>
-        <p>{note.headline}</p>
-        {note.is_stale && note.stale_reason && <p className="manual-note-warning">{note.stale_reason}</p>}
-        {note.position_guidance && <em>{note.position_guidance}</em>}
-      </div>
-      {actions.length > 0 && (
-        <ul>
-          {actions.map((action, index) => <li key={index}>{action}</li>)}
-        </ul>
-      )}
-    </div>
-  )
-}
 
 function StrategyGuideBox({
   status,
@@ -383,7 +227,7 @@ function StrategyGuideBox({
       ].join('\n')
     })
     const text = [
-      '巴菲特基本面優先補資料清單',
+      '基本面避雷優先補資料清單',
       `覆蓋率 ${complete}/${total}，優先補 ${nextFillTargets.length} 檔`,
       fillGuide?.format_note ?? '',
       '',
@@ -421,9 +265,9 @@ function StrategyGuideBox({
         </div>
       ))}
       <div className={`strategy-guide-status ${ready ? 'ready' : 'missing'}`}>
-        <span>巴菲特資料</span>
+        <span>基本面避雷資料</span>
         <strong>{total > 0 ? `${complete}/${total} 完整` : fundamentals?.exists ? '已匯入' : '尚未匯入'}</strong>
-        <div className="fundamentals-progress" aria-label="巴菲特基本面資料覆蓋率">
+        <div className="fundamentals-progress" aria-label="基本面避雷資料覆蓋率">
           <i style={{ width: `${Math.max(0, Math.min(100, pct))}%` }} />
         </div>
         <p>
@@ -431,14 +275,14 @@ function StrategyGuideBox({
             ? `可評分 ${complete} 檔，覆蓋率 ${pct.toFixed(1)}%。`
             : fundamentals?.exists
               ? `尚無完整可評分股票；缺欄位 ${incomplete} 檔，缺整檔資料 ${missing} 檔。`
-              : '建立 backend/data/fundamentals.json 後，巴菲特方案才會產生候選。'}
+              : '建立 backend/data/fundamentals.json 後，穩健動能才能納入基本面避雷。'}
         </p>
       </div>
       {workflowSummary && (
         <div className={`fundamentals-workflow-card stage-${workflowSummary.stage}`}>
           <div className="fundamentals-workflow-head">
             <div>
-              <span>Buffett PM 工作流</span>
+              <span>基本面避雷 PM 工作流</span>
               <strong>{workflowSummary.headline}</strong>
               <p>{workflowSummary.detail}</p>
             </div>
@@ -602,27 +446,27 @@ function StrategyGuideBox({
                   ))}
                 </div>
               )}
-              {(mergeResult.buffett_preview?.length ?? 0) > 0 && (
-                <div className="fundamentals-buffett-preview">
-                  <strong>巴菲特試算</strong>
-                  {mergeResult.buffett_preview?.slice(0, 5).map(item => (
+              {(mergeResult.fundamental_preview?.length ?? 0) > 0 && (
+                <div className="fundamentals-guard-preview">
+                  <strong>基本面避雷試算</strong>
+                  {mergeResult.fundamental_preview?.slice(0, 5).map(item => (
                     <div key={item.code}>
-                      <div className="fundamentals-buffett-main">
+                      <div className="fundamentals-guard-main">
                         <span>{item.name} {item.code}</span>
-                        <b className={buffettScoreClass(item.buffett_score)}>{item.buffett_score ?? 'NA'}</b>
-                        <small>{item.buffett_signal || (item.buffett_data_ok ? '可評分' : '資料不足')}</small>
+                        <b className={fundamentalScoreClass(item.fundamental_score)}>{item.fundamental_score ?? 'NA'}</b>
+                        <small>{item.fundamental_signal || (item.fundamental_data_ok ? '可評分' : '資料不足')}</small>
                       </div>
-                      <div className="fundamentals-buffett-score-badges">
-                        {BUFFETT_SCORE_LABELS.map(score => {
+                      <div className="fundamentals-guard-score-badges">
+                        {FUNDAMENTAL_SCORE_LABELS.map(score => {
                           const value = item[score.key]
                           return (
-                            <span className={buffettScoreClass(value)} key={`${item.code}-${score.key}`}>
+                            <span className={fundamentalScoreClass(value)} key={`${item.code}-${score.key}`}>
                               {score.label} {value ?? 'NA'}
                             </span>
                           )
                         })}
                       </div>
-                      {item.buffett_reason && <p>{item.buffett_reason}</p>}
+                      {item.fundamental_reason && <p>{item.fundamental_reason}</p>}
                     </div>
                   ))}
                 </div>
@@ -657,386 +501,6 @@ function StrategyGuideBox({
             </div>
           )}
         </div>
-      )}
-    </div>
-  )
-}
-
-function ChangeReport({ summary }: { summary: SignalsSummary | null }) {
-  const report = summary?.change_report
-  if (!report) return null
-
-  const newItems = report.new_recommendations.slice(0, 5)
-  const removedItems = report.removed_recommendations.slice(0, 5)
-  const changedItems = report.signal_changes.slice(0, 6)
-
-  return (
-    <div className="dash-section">
-      <h3 className="dash-section-title">本次變化</h3>
-      <div className="change-report">
-        <div className="change-report-meta">
-          {report.has_previous
-            ? <>與前次資料日 <strong>{report.previous_as_of ?? '—'}</strong> 比較</>
-            : '尚無前次 summary，這次先建立比較基準'}
-        </div>
-        <div className="change-summary-grid">
-          <div><span>新增推薦</span><strong>{report.summary.new_count}</strong></div>
-          <div><span>移出推薦</span><strong>{report.summary.removed_count}</strong></div>
-          <div><span>狀態變化</span><strong>{report.summary.changed_count}</strong></div>
-        </div>
-        {(newItems.length > 0 || removedItems.length > 0 || changedItems.length > 0) && (
-          <div className="change-columns">
-            {newItems.length > 0 && (
-              <div>
-                <div className="change-title">新增推薦</div>
-                {newItems.map(item => (
-                  <div className="change-item" key={`new-${item.code}`}>
-                    <strong>{item.name}</strong><span>{item.code}</span>
-                    <em>{SIGNAL_TEXT[item.internal_signal] ?? item.internal_signal}</em>
-                  </div>
-                ))}
-              </div>
-            )}
-            {removedItems.length > 0 && (
-              <div>
-                <div className="change-title">移出推薦</div>
-                {removedItems.map(item => (
-                  <div className="change-item" key={`removed-${item.code}`}>
-                    <strong>{item.name}</strong><span>{item.code}</span>
-                    <em>{item.no_buy_reason || SIGNAL_TEXT[item.internal_signal] || item.internal_signal}</em>
-                  </div>
-                ))}
-              </div>
-            )}
-            {changedItems.length > 0 && (
-              <div>
-                <div className="change-title">狀態變化</div>
-                {changedItems.map(item => (
-                  <div className="change-item" key={`changed-${item.code}`}>
-                    <strong>{item.name}</strong><span>{item.code}</span>
-                    <em>{SIGNAL_TEXT[item.previous_signal ?? ''] ?? item.previous_signal} → {SIGNAL_TEXT[item.internal_signal] ?? item.internal_signal}</em>
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
-        )}
-      </div>
-    </div>
-  )
-}
-
-const BRIEF_BUCKETS: Array<{
-  key: keyof DailyBrief['rotation_plan']
-  countKey: string
-  label: string
-  cls: string
-}> = [
-  { key: 'priority_reduce', countKey: 'priority_reduce_count', label: '優先減碼', cls: 'brief-risk' },
-  { key: 'entry_candidates', countKey: 'entry_candidates_count', label: '可進場', cls: 'brief-enter' },
-  { key: 'continue_hold', countKey: 'continue_hold_count', label: '續抱', cls: 'brief-hold' },
-  { key: 'wait_pullback', countKey: 'wait_pullback_count', label: '等回測', cls: 'brief-watch' },
-  { key: 'avoid_no_chase', countKey: 'avoid_no_chase_count', label: '暫不碰', cls: 'brief-muted' },
-]
-
-const TASK_BUCKET_LABEL: Record<string, string> = {
-  priority_reduce: '優先減碼',
-  entry_candidates: '可進場',
-  continue_hold: '續抱',
-  wait_pullback: '等回測',
-  avoid_no_chase: '暫不碰',
-  long_watch: '長期觀察',
-  unassigned_watch: '觀察',
-}
-
-function BriefStockList({
-  stocks,
-  onAnalysis,
-}: {
-  stocks: DailyBriefStock[]
-  onAnalysis?: (code: string) => void
-}) {
-  if (!stocks.length) return <span className="brief-empty">—</span>
-  return (
-    <div className="brief-stock-list">
-      {stocks.slice(0, 4).map(stock => (
-        <button
-          type="button"
-          className="brief-stock-token"
-          key={stock.code}
-          onClick={() => onAnalysis?.(stock.code)}
-          disabled={!onAnalysis}
-          title={onAnalysis ? '查看技術分析與線圖' : undefined}
-        >
-          <strong>{stock.name}</strong>
-          <em>{stock.code}</em>
-        </button>
-      ))}
-      {stocks.length > 4 && <span className="brief-more">+{stocks.length - 4}</span>}
-    </div>
-  )
-}
-
-function TomorrowTaskList({
-  tasks,
-  onAnalysis,
-}: {
-  tasks: DailyBriefTask[]
-  onAnalysis?: (code: string) => void
-}) {
-  const topTasks = tasks.slice(0, 6)
-  if (!topTasks.length) {
-    return <p className="empty-hint">尚無明日任務，請先重新產生訊號。</p>
-  }
-  return (
-    <div className="brief-task-list">
-      {topTasks.map(task => (
-        <button
-          type="button"
-          className={`brief-task${onAnalysis ? ' brief-task-clickable' : ''}`}
-          key={`${task.bucket}-${task.code}`}
-          onClick={() => onAnalysis?.(task.code)}
-          disabled={!onAnalysis}
-          title={onAnalysis ? '查看技術分析與線圖' : undefined}
-        >
-          <div className="brief-task-main">
-            <span className={`brief-badge ${task.bucket}`}>{TASK_BUCKET_LABEL[task.bucket] ?? task.bucket}</span>
-            <strong>{task.name} <em>{task.code}</em></strong>
-            <p>{task.reason || task.trigger_action}</p>
-          </div>
-          <div className="brief-task-plan">
-            <span>觀察：{task.watch_price || '—'}</span>
-            <span>進場：{task.entry_plan || '—'}</span>
-            <span>失效：{task.invalidation || task.stop_plan || '—'}</span>
-          </div>
-        </button>
-      ))}
-    </div>
-  )
-}
-
-const MANUAL_REVIEW_SUMMARY_KEYS: Array<{ key: string; label: string }> = [
-  { key: 'entry_candidates_count', label: '可小試' },
-  { key: 'continue_hold_count', label: '續抱' },
-  { key: 'wait_pullback_count', label: '等回測' },
-  { key: 'avoid_no_chase_count', label: '先觀察' },
-  { key: 'missing_count', label: '缺資料' },
-]
-
-function ManualReviewStockCard({
-  item,
-  onAnalysis,
-}: {
-  item: ManualWatchlistReviewItem
-  onAnalysis?: (code: string) => void
-}) {
-  const clickable = Boolean(onAnalysis && item.found)
-  return (
-    <button
-      type="button"
-      className={`manual-review-item ${item.bucket}${item.found ? '' : ' missing'}`}
-      onClick={() => clickable && onAnalysis?.(item.code)}
-      disabled={!clickable}
-      title={clickable ? '查看技術分析與線圖' : undefined}
-    >
-      <div className="manual-review-main">
-        <span className={`brief-badge ${item.bucket}`}>{TASK_BUCKET_LABEL[item.bucket] ?? item.decision_hint ?? item.bucket}</span>
-        <strong>{item.name || item.code} <em>{item.code}</em></strong>
-        <p>{item.reason || item.decision_hint || '依人工盤後筆記列入觀察'}</p>
-      </div>
-      <div className="manual-review-plan">
-        <span>觀察：{item.watch_price || item.daily_key_price || '—'}</span>
-        <span>進場：{item.entry_plan || item.price_plan_note || '—'}</span>
-        <span>失效：{item.invalidation || item.daily_invalidation || item.stop_plan || '—'}</span>
-      </div>
-    </button>
-  )
-}
-
-function ManualWatchlistReviewPanel({
-  review,
-  onAnalysis,
-}: {
-  review: ManualWatchlistReview | null
-  onAnalysis?: (code: string) => void
-}) {
-  if (!review?.items?.length) return null
-
-  const playbook = review.manual_playbook
-  const visibleItems = review.items.slice(0, 9)
-  const focusSectors = playbook?.focus_sectors?.slice(0, 4) ?? []
-
-  return (
-    <div className="manual-review-panel">
-      <div className="manual-review-head">
-        <div>
-          <span className="old-wang-market-label">盤後觀察股校正</span>
-          <strong>{review.manual_note_title || '依人工盤後筆記校正觀察清單'}</strong>
-          <em>
-            資料日 {review.as_of ?? '—'}
-            {playbook?.target_level ? ` · 水位 ${playbook.target_level}` : ''}
-            {playbook?.target_position_pct != null ? ` · 約 ${playbook.target_position_pct}%` : ''}
-          </em>
-        </div>
-        {focusSectors.length > 0 && (
-          <div className="manual-review-sectors">
-            {focusSectors.map(sector => <span key={sector}>{sector}</span>)}
-          </div>
-        )}
-      </div>
-      <div className="manual-review-summary">
-        {MANUAL_REVIEW_SUMMARY_KEYS.map(item => (
-          <span key={item.key}>
-            {item.label}
-            <strong>{review.summary?.[item.key] ?? 0}</strong>
-          </span>
-        ))}
-      </div>
-      <div className="manual-review-grid">
-        {visibleItems.map(item => (
-          <ManualReviewStockCard
-            key={`${item.bucket}-${item.code}`}
-            item={item}
-            onAnalysis={onAnalysis}
-          />
-        ))}
-      </div>
-      {review.items.length > visibleItems.length && (
-        <div className="manual-review-more">尚有 {review.items.length - visibleItems.length} 檔可在詳細報表查看</div>
-      )}
-    </div>
-  )
-}
-
-function DailyBriefBox({
-  brief,
-  manualReview,
-  running,
-  onNavigateAnalysis,
-}: {
-  brief: DailyBrief | null
-  manualReview: ManualWatchlistReview | null
-  running: boolean
-  onNavigateAnalysis?: (code: string) => void
-}) {
-  if (!brief && !running) return null
-
-  const dataStatus = brief?.data_status
-  const guidance = brief?.position_guidance
-  const rotation = brief?.rotation_plan
-  const missingStocks = dataStatus?.missing_stocks ?? []
-  const embeddedManualReview = brief?.manual_watchlist_review
-    ? {
-      as_of: brief.as_of,
-      generated_at: brief.generated_at,
-      manual_note_title: brief.manual_note_title,
-      position_guidance: brief.position_guidance,
-      manual_playbook: brief.manual_playbook ?? null,
-      items: brief.manual_watchlist_review.items,
-      summary: brief.manual_watchlist_review.summary,
-    }
-    : null
-  const effectiveManualReview = manualReview ?? embeddedManualReview
-
-  return (
-    <div className="dash-section">
-      <div className="dash-section-heading">
-        <h3 className="dash-section-title">每日作戰表</h3>
-        {brief && (
-          <span className="brief-meta">
-            as_of <strong>{brief.as_of ?? '—'}</strong>
-            {brief.generated_at ? ` · ${brief.generated_at.slice(0, 16).replace('T', ' ')}` : ''}
-          </span>
-        )}
-      </div>
-
-      {running && (
-        <div className="alert alert-running" role="status" style={{ marginBottom: 12 }}>
-          <div className="alert-title">
-            <span className="spinner" aria-hidden="true" />
-            每日作戰表正在重新整理…
-          </div>
-        </div>
-      )}
-
-      {brief ? (
-        <div className="daily-brief-card">
-          <div className="brief-topline">
-            <div className={`brief-status ${dataStatus?.is_stale ? 'stale' : 'fresh'}`}>
-              <span>{dataStatus?.status_label ?? '資料狀態'}</span>
-              <strong>{dataStatus?.last_data_as_of ?? '—'}</strong>
-              <em>{dataStatus?.message ?? ''}</em>
-            </div>
-            <div className={`brief-position ${guidance?.risk_level ?? 'neutral'}`}>
-              <span>建議水位</span>
-              <strong>{guidance?.target_level ?? '依系統水位'}</strong>
-              <em>{guidance?.reason || guidance?.old_wang_market_reason || '依大盤濾網與個股訊號調整'}</em>
-            </div>
-          </div>
-
-          {dataStatus?.update_required && (
-            <div className="brief-warning">
-              這份作戰表需要更新：{dataStatus.update_command}
-            </div>
-          )}
-
-          {dataStatus && (
-            <div className="brief-data-strip">
-              <span>覆蓋 <strong>{dataStatus.data_ok_count}/{dataStatus.universe_size}</strong></span>
-              <span>完整率 <strong>{dataStatus.data_ok_pct.toFixed(1)}%</strong></span>
-              {dataStatus.data_missing_count > 0 && (
-                <span className="brief-data-warning">缺資料 {dataStatus.data_missing_count}</span>
-              )}
-            </div>
-          )}
-
-          {missingStocks.length > 0 && (
-            <div className="brief-missing-list">
-              {missingStocks.slice(0, 6).map((stock, idx) => (
-                <span key={`${stock.code ?? 'missing'}-${idx}`}>
-                  <strong>{stock.name ?? stock.code ?? '未知'}</strong>
-                  {stock.code && <em>{stock.code}</em>}
-                  {stock.reason && <small>{stock.reason}</small>}
-                </span>
-              ))}
-              {missingStocks.length > 6 && <span className="brief-more">+{missingStocks.length - 6}</span>}
-            </div>
-          )}
-
-          <ManualWatchlistReviewPanel
-            review={effectiveManualReview}
-            onAnalysis={onNavigateAnalysis}
-          />
-
-          {rotation && (
-            <div className="brief-rotation-grid">
-              {BRIEF_BUCKETS.map(bucket => {
-                const stocks = rotation[bucket.key]
-                if (!Array.isArray(stocks)) return null
-                const count = rotation.summary?.[bucket.countKey] ?? stocks.length
-	                return (
-	                  <div className={`brief-rotation-card ${bucket.cls}`} key={bucket.key}>
-	                    <span>{bucket.label}</span>
-	                    <strong>{count}</strong>
-	                    <BriefStockList stocks={stocks} onAnalysis={onNavigateAnalysis} />
-	                  </div>
-	                )
-              })}
-            </div>
-          )}
-
-          {brief.tomorrow_checklist?.length > 0 && (
-            <div className="brief-checklist">
-              {brief.tomorrow_checklist.slice(0, 6).map(item => (
-                <span key={item}>{item}</span>
-              ))}
-            </div>
-          )}
-
-          <TomorrowTaskList tasks={brief.tomorrow_tasks ?? []} onAnalysis={onNavigateAnalysis} />
-        </div>
-      ) : (
-        <p className="empty-hint">尚無每日作戰表，完成訊號計算後會自動產生。</p>
       )}
     </div>
   )
@@ -1435,323 +899,6 @@ function WorkflowStatusBox({
   )
 }
 
-function DailyCheckBox({
-  report,
-  expectedDataAsOf,
-}: {
-  report: DailyCheckReport | null
-  expectedDataAsOf?: string | null
-}) {
-  const [copiedActionKey, setCopiedActionKey] = useState<string | null>(null)
-  const statusText: Record<string, string> = {
-    ok: '正常',
-    warn: '待補',
-    block: '阻塞',
-  }
-  const actionText: Record<string, string> = {
-    ok: '完成',
-    warn: '待補',
-    block: '阻塞',
-    info: '提醒',
-  }
-
-  const copyDailyCheckAction = async (key: string, text: string) => {
-    if (!text) return
-    try {
-      if (navigator.clipboard?.writeText) {
-        await navigator.clipboard.writeText(text)
-      } else {
-        const textarea = document.createElement('textarea')
-        textarea.value = text
-        textarea.setAttribute('readonly', 'true')
-        textarea.style.position = 'fixed'
-        textarea.style.left = '-9999px'
-        document.body.appendChild(textarea)
-        textarea.select()
-        document.execCommand('copy')
-        document.body.removeChild(textarea)
-      }
-      setCopiedActionKey(key)
-      window.setTimeout(() => setCopiedActionKey(null), 1600)
-    } catch (error) {
-      console.error('copy daily check action failed', error)
-    }
-  }
-
-  const dailyCheckActionButton = (action: DailyCheckReport['top_actions'][number]) => {
-    const payload = action.action_payload
-    if (!payload) return null
-
-    if (payload.kind === 'copy_text' && payload.copy_text) {
-      return (
-        <button className="btn btn-ghost btn-xs" onClick={() => copyDailyCheckAction(action.key, payload.copy_text || '')}>
-          {copiedActionKey === action.key ? '已複製' : '複製清單'}
-        </button>
-      )
-    }
-    if (payload.kind === 'command' && payload.command) {
-      return (
-        <button className="btn btn-ghost btn-xs" onClick={() => copyDailyCheckAction(action.key, payload.copy_command || payload.command || '')}>
-          {copiedActionKey === action.key ? '已複製' : '複製指令'}
-        </button>
-      )
-    }
-    if (payload.kind === 'file' && payload.file_path) {
-      return (
-        <button className="btn btn-ghost btn-xs" onClick={() => copyDailyCheckAction(action.key, payload.file_path || '')}>
-          {copiedActionKey === action.key ? '已複製' : '複製路徑'}
-        </button>
-      )
-    }
-    return null
-  }
-
-  if (!report) {
-    return (
-      <div className="daily-check-box daily-check-missing">
-        <div className="daily-check-head">
-          <div>
-            <span className="old-wang-market-label">PM Daily Check</span>
-            <strong>尚未產生每日摘要</strong>
-            <em>先在後端產生 daily_check.json，Dashboard 會讀取最新快照。</em>
-          </div>
-          <span className="daily-check-badge warn">待產生</span>
-        </div>
-        <code>python3 scripts/daily_check.py --write-report</code>
-      </div>
-    )
-  }
-
-  const dataDateNeedsRefresh = Boolean(
-    report.data_as_of
-    && expectedDataAsOf
-    && report.data_as_of < expectedDataAsOf
-  )
-  const snapshotNeedsRefresh = Boolean(report.snapshot_is_stale)
-  const needsRefresh = dataDateNeedsRefresh || snapshotNeedsRefresh
-  const dataRepair = report.data_repair
-  const dataRepairCount = dataRepair?.total_count ?? 0
-
-  return (
-    <div className={`daily-check-box daily-check-${report.overall_status}`}>
-      <div className="daily-check-head">
-        <div>
-          <span className="old-wang-market-label">PM Daily Check</span>
-          <strong>每日摘要快照</strong>
-          <em>
-            摘要 {report.generated_at || '—'}
-            {' '}· 資料日 {report.data_as_of || '—'}
-            {report.source_report_generated_at ? ` · 來源 ${report.source_report_generated_at}` : ''}
-          </em>
-          {dataDateNeedsRefresh && (
-            <em className="daily-check-stale">
-              摘要需刷新：目前資料已到 {expectedDataAsOf}，Daily Check 仍停在 {report.data_as_of}
-            </em>
-          )}
-          {snapshotNeedsRefresh && (
-            <em className="daily-check-stale">
-              {report.snapshot_stale_reason || 'Daily Check 快照需刷新。'}
-              {report.snapshot_refresh_command ? ` 指令：${report.snapshot_refresh_command}` : ''}
-              {report.snapshot_refresh_command && (
-                <button
-                  type="button"
-                  className="btn btn-ghost btn-xs"
-                  onClick={() => copyDailyCheckAction(
-                    'snapshot_refresh',
-                    report.snapshot_refresh_copy_command || report.snapshot_refresh_command || '',
-                  )}
-                >
-                  {copiedActionKey === 'snapshot_refresh' ? '已複製' : '複製刷新指令'}
-                </button>
-              )}
-            </em>
-          )}
-        </div>
-        <span className={`daily-check-badge ${needsRefresh ? 'warn' : report.overall_status}`}>
-          {needsRefresh ? '需刷新' : (statusText[report.overall_status] ?? report.overall_status)}
-        </span>
-      </div>
-
-      <div className="daily-check-summary-grid">
-        <div className={report.can_use_trade_outputs ? 'ok' : 'block'}>
-          <span>交易輸出</span>
-          <strong>{report.can_use_trade_outputs ? '可使用' : '暫停'}</strong>
-        </div>
-        <div className={report.exit_code === 0 ? 'ok' : 'warn'}>
-          <span>檢查代碼</span>
-          <strong>{report.exit_code}</strong>
-        </div>
-        <div className={report.top_actions.length > 0 ? 'warn' : 'ok'}>
-          <span>Top 待辦</span>
-          <strong>{report.top_actions.length}</strong>
-        </div>
-        <div className={dataRepairCount > 0 ? 'warn' : 'ok'}>
-          <span>資料修復</span>
-          <strong>{dataRepairCount}</strong>
-        </div>
-      </div>
-
-      {dataRepair && dataRepair.total_count > 0 && (
-        <div className="daily-check-repair-strip">
-          <div>
-            <strong>追蹤股日線需修復</strong>
-            <span>
-              缺日線 {dataRepair.no_data_count} 檔 / 資料不足 {dataRepair.insufficient_count} 檔
-            </span>
-          </div>
-          <div className="daily-check-repair-list">
-            {dataRepair.top_items.slice(0, 4).map(item => (
-              <span key={item.code}>
-                {item.name || item.code}
-                <em>{item.code}</em>
-                <small>{item.status_label} · {item.row_count}/{item.required_rows}</small>
-              </span>
-            ))}
-          </div>
-        </div>
-      )}
-
-      {report.top_actions.length > 0 ? (
-        <div className="daily-check-action-list">
-          {report.top_actions.slice(0, 3).map(action => (
-            <div className={`daily-check-action ${action.status}`} key={action.key}>
-              <span>{actionText[action.status] ?? action.status}</span>
-              <strong>{action.title}</strong>
-              <p>{action.message}</p>
-              <small>{action.next_action}</small>
-              {action.action_payload?.expected_outputs && action.action_payload.expected_outputs.length > 0 && (
-                <ul className="daily-check-outputs">
-                  {action.action_payload.expected_outputs.slice(0, 4).map(output => (
-                    <li key={output}>{output}</li>
-                  ))}
-                </ul>
-              )}
-              {dailyCheckActionButton(action)}
-            </div>
-          ))}
-        </div>
-      ) : (
-        <p className="workflow-ready-text">目前沒有 PM 優先待辦。</p>
-      )}
-    </div>
-  )
-}
-
-function UpdateWorkflowBox({ workflow }: { workflow: UpdateWorkflowStatus | null }) {
-  const [copied, setCopied] = useState(false)
-  const statusText: Record<string, string> = {
-    ready: '完成',
-    action_required: '待處理',
-    blocked: '阻塞',
-  }
-  const stepText: Record<string, string> = {
-    done: '完成',
-    warning: '提醒',
-    blocked: '阻塞',
-    running: '執行中',
-  }
-
-  const copyCommand = async () => {
-    const command = workflow?.next_action?.copy_command || workflow?.next_action?.command
-    if (!command) return
-    try {
-      if (navigator.clipboard?.writeText) {
-        await navigator.clipboard.writeText(command)
-      } else {
-        const textarea = document.createElement('textarea')
-        textarea.value = command
-        textarea.setAttribute('readonly', 'true')
-        textarea.style.position = 'fixed'
-        textarea.style.left = '-9999px'
-        document.body.appendChild(textarea)
-        textarea.select()
-        document.execCommand('copy')
-        document.body.removeChild(textarea)
-      }
-      setCopied(true)
-      window.setTimeout(() => setCopied(false), 1600)
-    } catch (error) {
-      console.error('copy update workflow command failed', error)
-    }
-  }
-
-  if (!workflow) {
-    return (
-      <div className="daily-check-box daily-check-missing">
-        <div className="daily-check-head">
-          <div>
-            <span className="old-wang-market-label">Update Workflow</span>
-            <strong>每日更新流程尚未讀取</strong>
-            <em>重新整理 Dashboard 後會顯示目前卡在哪一步。</em>
-          </div>
-          <span className="daily-check-badge warn">待讀取</span>
-        </div>
-      </div>
-    )
-  }
-
-  const badgeClass = workflow.overall_status === 'ready'
-    ? 'ok'
-    : workflow.overall_status === 'blocked' ? 'block' : 'warn'
-
-  return (
-    <div className={`daily-check-box daily-check-${badgeClass}`}>
-      <div className="daily-check-head">
-        <div>
-          <span className="old-wang-market-label">Update Workflow</span>
-          <strong>每日更新流程</strong>
-          <em>{workflow.headline}</em>
-          {workflow.next_action && (
-            <em className="daily-check-stale">
-              下一步：{workflow.next_action.title}
-              {workflow.next_action.command ? ` · ${workflow.next_action.command}` : ''}
-            </em>
-          )}
-        </div>
-        <span className={`daily-check-badge ${badgeClass}`}>
-          {statusText[workflow.overall_status] ?? workflow.overall_status}
-        </span>
-      </div>
-
-      <div className="daily-check-summary-grid">
-        <div className={workflow.can_use_trade_outputs ? 'ok' : 'block'}>
-          <span>交易輸出</span>
-          <strong>{workflow.can_use_trade_outputs ? '可使用' : '暫停'}</strong>
-        </div>
-        {workflow.steps.map(step => (
-          <div className={step.status === 'done' ? 'ok' : step.status === 'blocked' ? 'block' : 'warn'} key={step.key}>
-            <span>{step.label}</span>
-            <strong>{stepText[step.status] ?? step.status}</strong>
-          </div>
-        ))}
-      </div>
-
-      {workflow.next_action && (
-        <div className="daily-check-action-list">
-          <div className={`daily-check-action ${workflow.overall_status === 'blocked' ? 'block' : 'warn'}`}>
-            <span>{workflow.next_action.action_type === 'wait' ? '等待' : '下一步'}</span>
-            <strong>{workflow.next_action.title}</strong>
-            <p>{workflow.next_action.detail}</p>
-            {workflow.next_action.command && <small>{workflow.next_action.command}</small>}
-            {workflow.next_action.expected_outputs.length > 0 && (
-              <ul className="workflow-outputs">
-                {workflow.next_action.expected_outputs.slice(0, 6).map(output => (
-                  <li key={output}>{output}</li>
-                ))}
-              </ul>
-            )}
-            {workflow.next_action.command && (
-              <button className="btn btn-ghost btn-xs" onClick={copyCommand}>
-                {copied ? '已複製' : '複製指令'}
-              </button>
-            )}
-          </div>
-        </div>
-      )}
-    </div>
-  )
-}
-
 function PmWorklistBox({
   worklist,
   busy,
@@ -2038,9 +1185,28 @@ function DecisionConsole({
   const positionGuidance = dailyBrief?.position_guidance
   const playbook = dailyBrief?.manual_playbook
   const focusSectors = playbook?.focus_sectors?.slice(0, 4) ?? []
+  const marketPostureTitle = playbook?.target_level || positionGuidance?.target_level || '待確認'
+  const marketPostureReason = marketNoteStatus?.is_stale
+    ? (marketNoteStatus.stale_reason || '人工盤後筆記已過期，先更新今天盤勢再沿用水位語氣。')
+    : (positionGuidance?.reason || updateWorkflow?.headline || '先完成每日資料閉環，再判讀今日盤勢。')
+  const lastUpdatedAt = dataStatus?.last_run_finished_at?.slice(0, 16).replace('T', ' ')
+    ?? worklist?.generated_at?.slice(0, 16).replace('T', ' ')
+    ?? null
   const todayFocus = worklist?.today_focus ?? []
   const portfolioFocus = todayFocus.filter(item => item.category === 'portfolio_risk').slice(0, 3)
   const followupFocus = todayFocus.filter(item => item.category !== 'portfolio_risk').slice(0, 3)
+  const marketPostureProps = {
+    isStale: Boolean(marketNoteStatus?.is_stale),
+    title: marketPostureTitle,
+    reason: marketPostureReason,
+    riskLevel: positionGuidance?.risk_level ?? playbook?.stance ?? '風險待確認',
+    source: positionGuidance?.source,
+    noteStatusLabel: marketNoteStatus?.status_label,
+    noteDate: marketNoteStatus?.date,
+    appliesToAsOf: marketNoteStatus?.applies_to_as_of,
+    focusSectors,
+    onFocusMarketNote,
+  }
 
   const copyText = async (value: string) => {
     if (!value) return
@@ -2090,214 +1256,44 @@ function DecisionConsole({
 
   return (
     <section className={`decision-console ${statusClass}`} aria-label="首頁決策工作台">
-      <div className="decision-status-strip">
-        <div>
-          <span>資料日</span>
-          <strong>{dataAsOf ?? '—'}</strong>
-          {rawAsOf && rawAsOf !== dataAsOf && <em>OHLCV {rawAsOf}</em>}
-        </div>
-        <div>
-          <span>交易輸出</span>
-          <strong>{canUseTradeOutputs ? '可使用' : '暫停'}</strong>
-          <em>{statusLabel}</em>
-        </div>
-        <div>
-          <span>價格基準</span>
-          <strong>{dataStatus?.price_basis_label ?? '最新收盤價'}</strong>
-          <em>非即時市價</em>
-        </div>
-        <div>
-          <span>最後更新</span>
-          <strong>{dataStatus?.last_run_finished_at?.slice(0, 16).replace('T', ' ') ?? worklist?.generated_at?.slice(0, 16).replace('T', ' ') ?? '—'}</strong>
-          {dataStatus?.is_stale && <em>已 {dataStatus.stale_days ?? '?'} 天未更新</em>}
-        </div>
-      </div>
+      <DecisionStatusStrip
+        dataAsOf={dataAsOf}
+        rawAsOf={rawAsOf}
+        canUseTradeOutputs={canUseTradeOutputs}
+        statusLabel={statusLabel}
+        priceBasisLabel={dataStatus?.price_basis_label ?? '最新收盤價'}
+        lastUpdatedAt={lastUpdatedAt}
+        isStale={Boolean(dataStatus?.is_stale)}
+        staleDays={dataStatus?.stale_days}
+      />
 
       <div className="decision-console-grid">
-        <div className={`decision-console-card primary ${primaryAction?.severity ?? statusClass}`}>
-          <span>現在最該做</span>
-          <strong>{primaryAction?.title ?? '目前沒有 PM 優先待辦'}</strong>
-          <p>{primaryAction?.detail ?? '資料流、復盤與基本面工作目前沒有阻塞項目。'}</p>
-          {primaryAction?.action_payload?.expected_outputs && primaryAction.action_payload.expected_outputs.length > 0 && (
-            <ul className="decision-console-outputs">
-              {primaryAction.action_payload.expected_outputs.slice(0, 4).map(output => (
-                <li key={output}>{output}</li>
-              ))}
-            </ul>
-          )}
-          {primaryAction && (
-            <button className="btn btn-secondary btn-sm" onClick={runPrimaryAction} disabled={busy}>
-              {copied ? '已複製' : primaryAction.action_label || '處理'}
-            </button>
-          )}
-        </div>
+        <PrimaryActionCard
+          primaryAction={primaryAction}
+          statusClass={statusClass}
+          copied={copied}
+          busy={busy}
+          onRunPrimaryAction={runPrimaryAction}
+        />
 
-        <div className="decision-console-card market">
-          <span>大盤姿態</span>
-          <strong>{positionGuidance?.target_level ?? '待確認'}</strong>
-          <p>{positionGuidance?.reason ?? updateWorkflow?.headline ?? '先完成每日資料閉環，再判讀今日盤勢。'}</p>
-          <div className="decision-console-meta">
-            <em>{positionGuidance?.risk_level ?? 'risk unknown'}</em>
-            {marketNoteStatus?.date && <em>筆記 {marketNoteStatus.date}</em>}
-            {marketNoteStatus?.is_stale && <button className="btn btn-ghost btn-xs" onClick={onFocusMarketNote}>更新筆記</button>}
-          </div>
-          {focusSectors.length > 0 && (
-            <div className="decision-console-tags">
-              {focusSectors.map(sector => <b key={sector}>{sector}</b>)}
-            </div>
-          )}
-        </div>
+        <MarketPostureCard
+          variant="card"
+          {...marketPostureProps}
+        />
 
-        <div className="decision-console-card focus">
-          <span>今日焦點</span>
-          <strong>持股風險優先</strong>
-          {portfolioFocus.length > 0 ? (
-            <div className="decision-focus-list">
-              {portfolioFocus.map(item => (
-                <button
-                  key={`${item.category}-${item.source}-${item.code || item.label}`}
-                  onClick={() => item.code ? onNavigateAnalysis?.(item.code) : undefined}
-                  disabled={!item.code}
-                  title={`${item.reason}｜${item.price_basis}`}
-                >
-                  <b>{item.name}{item.code ? ` ${item.code}` : ''}</b>
-                  <em>{item.label}</em>
-                </button>
-              ))}
-            </div>
-          ) : (
-            <p>目前沒有持股風險待辦。</p>
-          )}
-        </div>
-
-        <div className="decision-console-card focus">
-          <span>候選 / 復盤</span>
-          <strong>{followupFocus.length > 0 ? '後端契約排序' : '先補待辦'}</strong>
-          {followupFocus.length > 0 ? (
-            <div className="decision-focus-list">
-              {followupFocus.map(item => (
-                <button
-                  key={`${item.category}-${item.source}-${item.code || item.label}`}
-                  onClick={() => item.category === 'entry_candidate' && item.code ? onNavigateAnalysis?.(item.code) : onFocusDecisionJournal()}
-                  disabled={!item.code && item.category === 'entry_candidate'}
-                  title={`${item.reason}｜${item.next_action}｜${item.price_basis}`}
-                >
-                  <b>{item.name}{item.code ? ` ${item.code}` : ''}</b>
-                  <em>{item.label}</em>
-                </button>
-              ))}
-            </div>
-          ) : (
-            <p>目前沒有候選或復盤焦點。</p>
-          )}
-        </div>
+        <TodayFocusCards
+          portfolioFocus={portfolioFocus}
+          followupFocus={followupFocus}
+          onNavigateAnalysis={onNavigateAnalysis}
+          onFocusDecisionJournal={onFocusDecisionJournal}
+        />
       </div>
+
+      <MarketPostureCard
+        variant="disclosure"
+        {...marketPostureProps}
+      />
     </section>
-  )
-}
-
-function DataRepairQueueBox({
-  universe,
-  onNavigateAnalysis,
-}: {
-  universe: StockUniverseItem[]
-  onNavigateAnalysis?: (code: string) => void
-}) {
-  const [copied, setCopied] = useState(false)
-  const missing = universe.filter(item => item.data_status === 'no_data')
-  const insufficient = universe.filter(item => item.data_status === 'insufficient')
-  const repairItems = [...missing, ...insufficient].slice(0, 8)
-  const hiddenCount = missing.length + insufficient.length - repairItems.length
-
-  const copyRepairCommand = async () => {
-    try {
-      if (navigator.clipboard?.writeText) {
-        await navigator.clipboard.writeText(DATA_REPAIR_COMMAND)
-      } else {
-        const textarea = document.createElement('textarea')
-        textarea.value = DATA_REPAIR_COMMAND
-        textarea.setAttribute('readonly', 'true')
-        textarea.style.position = 'fixed'
-        textarea.style.left = '-9999px'
-        document.body.appendChild(textarea)
-        textarea.select()
-        document.execCommand('copy')
-        document.body.removeChild(textarea)
-      }
-      setCopied(true)
-      window.setTimeout(() => setCopied(false), 1600)
-    } catch (error) {
-      console.error('copy data repair command failed', error)
-    }
-  }
-
-  if (universe.length === 0) {
-    return (
-      <div className="data-repair-box data-repair-missing">
-        <div className="data-repair-head">
-          <div>
-            <span>資料修復隊列</span>
-            <strong>尚無追蹤股票資料</strong>
-            <em>請先確認 backend/data/leaders.json 是否存在。</em>
-          </div>
-        </div>
-      </div>
-    )
-  }
-
-  if (repairItems.length === 0) {
-    return (
-      <div className="data-repair-box data-repair-ready">
-        <div className="data-repair-head">
-          <div>
-            <span>資料修復隊列</span>
-            <strong>追蹤股票日線完整</strong>
-            <em>{universe.length} 檔皆已有足夠日線資料。</em>
-          </div>
-          <span className="data-repair-badge ok">OK</span>
-        </div>
-      </div>
-    )
-  }
-
-  return (
-    <div className="data-repair-box data-repair-warn">
-      <div className="data-repair-head">
-        <div>
-          <span>資料修復隊列</span>
-          <strong>有 {missing.length + insufficient.length} 檔需補日線</strong>
-          <em>缺日線 {missing.length} 檔 / 資料不足 {insufficient.length} 檔；修完再看正式交易判斷。</em>
-        </div>
-        <div className="data-repair-actions">
-          <button className="btn btn-primary btn-sm" onClick={copyRepairCommand}>
-            {copied ? '已複製' : '複製修復指令'}
-          </button>
-        </div>
-      </div>
-      <div className="data-repair-command">
-        <pre>{DATA_REPAIR_COMMAND}</pre>
-      </div>
-      <div className="data-repair-list">
-        {repairItems.map(item => (
-          <button
-            type="button"
-            className={`data-repair-item ${item.data_status}`}
-            key={item.code}
-            onClick={() => onNavigateAnalysis?.(item.code)}
-            disabled={!onNavigateAnalysis}
-            title={onNavigateAnalysis ? '前往技術分析頁查看單檔診斷' : undefined}
-          >
-            <strong>{item.name} <em>{item.code}</em></strong>
-            <span>{item.data_status === 'no_data' ? '尚未回補' : '資料不足'}</span>
-            <small>
-              {item.row_count}/{60} 筆
-              {item.last_data_as_of ? ` · 最後 ${item.last_data_as_of}` : ' · 無資料日'}
-            </small>
-          </button>
-        ))}
-      </div>
-      {hiddenCount > 0 && <p className="data-repair-more">另有 {hiddenCount} 檔未列出，修復指令會一起處理全部追蹤股票。</p>}
-    </div>
   )
 }
 
@@ -2864,14 +1860,14 @@ function RecCard({
         </div>
       )}
 
-      {rec.recommendation_source === 'buffett' && (
-        <div className="strategy-badges" aria-label="巴菲特品質價值條件">
+      {rec.recommendation_source === 'steady_momentum' && (
+        <div className="strategy-badges" aria-label="穩健動能條件">
           <span className="strategy-badge strategy-badge-source">
-            巴菲特{rec.buffett_score != null ? ` ${rec.buffett_score}` : ''}
+            穩健動能{rec.steady_momentum_score != null ? ` ${rec.steady_momentum_score}` : ''}
           </span>
-          {rec.buffett_quality_score != null && <span className="strategy-badge">品質 {rec.buffett_quality_score}</span>}
-          {rec.buffett_safety_score != null && <span className="strategy-badge">安全 {rec.buffett_safety_score}</span>}
-          {rec.buffett_value_score != null && <span className="strategy-badge">估值 {rec.buffett_value_score}</span>}
+          {rec.steady_momentum_signal && <span className="strategy-badge">{rec.steady_momentum_signal}</span>}
+          {rec.fundamental_quality_score != null && <span className="strategy-badge">基本面品質 {rec.fundamental_quality_score}</span>}
+          {rec.fundamental_safety_score != null && <span className="strategy-badge">安全 {rec.fundamental_safety_score}</span>}
         </div>
       )}
 
@@ -2948,7 +1944,7 @@ export default function Dashboard({ onNavigateAnalysis, onNavigateUniverseReport
   const [manualReview, setManualReview] = useState<ManualWatchlistReview | null>(null)
   const [universe, setUniverse]     = useState<StockUniverseItem[]>([])
   const [recs, setRecs]             = useState<StockRecommendation[]>([])
-  const [strategy, setStrategy]     = useState<RecommendationStrategy>('core')
+  const [strategy, setStrategy]     = useState<RecommendationStrategy>('steady_momentum')
   const [loading, setLoading]       = useState(true)
   const [refreshing, setRefreshing] = useState(false)
   const [running, setRunning]       = useState(false)
@@ -2966,7 +1962,11 @@ export default function Dashboard({ onNavigateAnalysis, onNavigateUniverseReport
   const fundamentalsRef = useRef<HTMLDivElement | null>(null)
 
   const focusSection = (ref: RefObject<HTMLDivElement | null>) => {
-    ref.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+    const target = ref.current
+    if (!target) return
+    const details = target.closest('details')
+    if (details) details.open = true
+    window.requestAnimationFrame(() => target.scrollIntoView({ behavior: 'smooth', block: 'start' }))
   }
 
   const journalFilters = (date: string, decision: DecisionJournalDecision | 'all', code: string) => ({
@@ -3499,40 +2499,14 @@ export default function Dashboard({ onNavigateAnalysis, onNavigateUniverseReport
       )}
       <ParseErrorAlert status={status} />
 
-      <PmWorklistBox
-        worklist={pmWorklist}
-        busy={isBusy || isDataRunning}
-        universeReviewWorkflow={universeReviewWorkflow}
-        onFocusFundamentals={() => focusSection(fundamentalsRef)}
-        onFocusDecisionJournal={() => focusSection(decisionJournalRef)}
-        onFocusDailyCheck={() => focusSection(dailyCheckRef)}
-        onRunUniverseReviewBatch={handleBulkCreateUniverseReviewJournal}
-      />
-      <UpdateWorkflowBox workflow={updateWorkflow} />
-      <div ref={dailyCheckRef}>
-        <DailyCheckBox
-          report={dailyCheck}
-          expectedDataAsOf={workflowStatus?.data_as_of || dataStatus?.last_data_as_of}
-        />
-      </div>
-      <DataRepairQueueBox
-        universe={universe}
-        onNavigateAnalysis={onNavigateAnalysis}
-      />
-      <WorkflowStatusBox
-        workflow={workflowStatus}
-        busy={isBusy || isDataRunning}
-        onUpdateData={handleUpdateNow}
-        onRunSignals={handleRun}
-        onFocusMarketNote={() => focusSection(marketNoteRef)}
-        onFocusDecisionJournal={() => focusSection(decisionJournalRef)}
-        onFocusFundamentals={() => focusSection(fundamentalsRef)}
-        onNavigateUniverseReport={onNavigateUniverseReport}
-        onNavigateAnalysis={onNavigateAnalysis}
-        onJournalDraft={handleJournalDraftFromTask}
-      />
-      <div ref={decisionJournalRef} className="dashboard-anchor-section">
-        <DecisionJournalBox
+      <details className="dashboard-detail-section dashboard-secondary-section">
+        <summary>
+          <span>決策復盤</span>
+          <small>持股決策、候選股復盤與決策日誌</small>
+        </summary>
+        <div className="dashboard-detail-section-body">
+          <div ref={decisionJournalRef} className="dashboard-anchor-section">
+            <DecisionJournalBox
           entries={decisionJournal}
           summary={decisionJournalSummary}
           universeReviewWorkflow={universeReviewWorkflow}
@@ -3551,18 +2525,27 @@ export default function Dashboard({ onNavigateAnalysis, onNavigateUniverseReport
           onBulkCreateUniverseReview={handleBulkCreateUniverseReviewJournal}
           onUpdate={handleUpdateDecisionJournal}
           onDelete={handleDeleteDecisionJournal}
-        />
-      </div>
-      <OldWangMarketBox summary={summary} />
-      <ManualMarketNoteBox summary={summary} />
-      <DailyBriefBox
-        brief={dailyBrief}
-        manualReview={manualReview}
-        running={isSignalsRunning}
-        onNavigateAnalysis={onNavigateAnalysis}
-      />
-      {showMarketNoteForm && (
-        <div className="market-note-editor dashboard-anchor-section" ref={marketNoteRef}>
+            />
+          </div>
+        </div>
+      </details>
+
+      <details className="dashboard-detail-section dashboard-secondary-section">
+        <summary>
+          <span>盤後研究</span>
+          <small>大盤濾網、人工筆記與每日作戰表</small>
+        </summary>
+        <div className="dashboard-detail-section-body">
+          <OldWangMarketBox summary={summary} />
+          <ManualMarketNoteBox summary={summary} />
+          <DailyBriefBox
+            brief={dailyBrief}
+            manualReview={manualReview}
+            running={isSignalsRunning}
+            onNavigateAnalysis={onNavigateAnalysis}
+          />
+          {showMarketNoteForm && (
+            <div className="market-note-editor dashboard-anchor-section" ref={marketNoteRef}>
           <div className="market-note-editor-head">
             <div>
               <span className="old-wang-market-label">更新人工盤後筆記</span>
@@ -3669,10 +2652,51 @@ export default function Dashboard({ onNavigateAnalysis, onNavigateUniverseReport
               />
             </div>
           </div>
+            </div>
+          )}
         </div>
-      )}
-      <div ref={fundamentalsRef} className="dashboard-anchor-section">
-        <StrategyGuideBox
+      </details>
+
+      <details className="dashboard-detail-section dashboard-secondary-section">
+        <summary>
+          <span>基本面與系統維護</span>
+          <small>PM 待辦、基本面避雷資料、更新操作與檔案健康</small>
+        </summary>
+        <div className="dashboard-detail-section-body">
+          <PmWorklistBox
+            worklist={pmWorklist}
+            busy={isBusy || isDataRunning}
+            universeReviewWorkflow={universeReviewWorkflow}
+            onFocusFundamentals={() => focusSection(fundamentalsRef)}
+            onFocusDecisionJournal={() => focusSection(decisionJournalRef)}
+            onFocusDailyCheck={() => focusSection(dailyCheckRef)}
+            onRunUniverseReviewBatch={handleBulkCreateUniverseReviewJournal}
+          />
+          <UpdateWorkflowBox workflow={updateWorkflow} />
+          <div ref={dailyCheckRef}>
+            <DailyCheckBox
+              report={dailyCheck}
+              expectedDataAsOf={workflowStatus?.data_as_of || dataStatus?.last_data_as_of}
+            />
+          </div>
+          <DataRepairQueueBox
+            universe={universe}
+            onNavigateAnalysis={onNavigateAnalysis}
+          />
+          <WorkflowStatusBox
+            workflow={workflowStatus}
+            busy={isBusy || isDataRunning}
+            onUpdateData={handleUpdateNow}
+            onRunSignals={handleRun}
+            onFocusMarketNote={() => focusSection(marketNoteRef)}
+            onFocusDecisionJournal={() => focusSection(decisionJournalRef)}
+            onFocusFundamentals={() => focusSection(fundamentalsRef)}
+            onNavigateUniverseReport={onNavigateUniverseReport}
+            onNavigateAnalysis={onNavigateAnalysis}
+            onJournalDraft={handleJournalDraftFromTask}
+          />
+          <div ref={fundamentalsRef} className="dashboard-anchor-section">
+            <StrategyGuideBox
           status={status}
           fundamentalsStatus={fundamentalsStatus}
           mergeResult={fundamentalsMergeResult}
@@ -3681,8 +2705,8 @@ export default function Dashboard({ onNavigateAnalysis, onNavigateUniverseReport
           onPreviewMerge={handlePreviewFundamentalsMerge}
           onApplyMerge={handleApplyFundamentalsMerge}
           onRunSignals={handleRun}
-        />
-      </div>
+            />
+          </div>
 
       {/* ── Actions ── */}
       <div className="dash-actions">
@@ -3773,10 +2797,17 @@ export default function Dashboard({ onNavigateAnalysis, onNavigateUniverseReport
         </>
       )}
 
-      <ChangeReport summary={summary} />
+          <ChangeReport summary={summary} />
+        </div>
+      </details>
 
       {/* ── Recommendations ── */}
-      <div className="dash-section">
+      <details className="dashboard-detail-section dashboard-secondary-section">
+        <summary>
+          <span>推薦卡片</span>
+          <small>穩健動能與老王短波段的完整推薦內容</small>
+        </summary>
+        <div className="dashboard-detail-section-body dash-section">
         <div className="dash-section-heading">
           <h3 className="dash-section-title">買入推薦</h3>
           <div className="segmented-control" aria-label="推薦策略切換">
@@ -3809,7 +2840,8 @@ export default function Dashboard({ onNavigateAnalysis, onNavigateUniverseReport
             ))}
           </div>
         )}
-      </div>
+        </div>
+      </details>
     </div>
   )
 }

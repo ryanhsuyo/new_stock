@@ -44,7 +44,7 @@ class StockRecommendation(BaseModel):
     strategy_alignment: str | None = None
     aligned_strategies: list[str] = Field(default_factory=list)
     strategy_conflict_notes: list[str] = Field(default_factory=list)
-    recommendation_source: str = "core"    # core | old_wang | buffett
+    recommendation_source: str = "steady_momentum"    # steady_momentum | old_wang
     old_wang_market_regime: str | None = None
     old_wang_market_filter: str | None = None
     old_wang_market_source: str | None = None
@@ -72,20 +72,25 @@ class StockRecommendation(BaseModel):
     old_wang_volume_high_price: float | None = None
     old_wang_all_ma_reclaim: bool | None = None
     old_wang_parabolic_ma10_hold: bool | None = None
-    buffett_flag: bool | None = None
-    buffett_tag: str | None = None
-    buffett_score: float | None = None
-    buffett_signal: str | None = None
-    buffett_reason: str | None = None
-    buffett_data_ok: bool | None = None
-    buffett_data_missing_reason: str | None = None
-    buffett_quality_score: float | None = None
-    buffett_value_score: float | None = None
-    buffett_safety_score: float | None = None
-    buffett_growth_score: float | None = None
-    buffett_data_completeness_pct: float | None = None
-    buffett_missing_fields: list[str] = Field(default_factory=list)
-    buffett_scored_groups: list[str] = Field(default_factory=list)
+    steady_momentum_flag: bool | None = None
+    steady_momentum_tag: str | None = None
+    steady_momentum_score: float | None = None
+    steady_momentum_signal: str | None = None
+    steady_momentum_reason: str | None = None
+    fundamental_flag: bool | None = None
+    fundamental_tag: str | None = None
+    fundamental_score: float | None = None
+    fundamental_signal: str | None = None
+    fundamental_reason: str | None = None
+    fundamental_data_ok: bool | None = None
+    fundamental_data_missing_reason: str | None = None
+    fundamental_quality_score: float | None = None
+    fundamental_value_score: float | None = None
+    fundamental_safety_score: float | None = None
+    fundamental_growth_score: float | None = None
+    fundamental_data_completeness_pct: float | None = None
+    fundamental_missing_fields: list[str] = Field(default_factory=list)
+    fundamental_scored_groups: list[str] = Field(default_factory=list)
     daily_checklist: list[dict] = Field(default_factory=list)
 
 
