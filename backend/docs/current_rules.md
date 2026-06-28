@@ -425,6 +425,7 @@ Dashboard 補資料流程：
 - `workflow-status` 應追蹤候選股報表可行動清單（可小試、等回測、減碼、出場）的決策日誌覆蓋率；僅計入 `source='universe_report'` 的同資料日紀錄，避免手動筆記誤判為報表復盤完成。
 - Dashboard 顯示基本面避雷狀態時，應優先使用 `GET /api/system/fundamentals-status` 的 `next_fill_targets`、`field_missing_counts` 與覆蓋率；只能呈現缺資料摘要，不得用前端補算長期價值訊號。
 - `fundamentals-status.priority_fill_readiness` 是補資料 CSV 的操作閘門；`invalid` 時不可預覽或合併，`empty` 時可預覽但不可正式合併，`ready_to_preview` 才能進入正式合併確認流程。
+- `doctor.py` / `daily_check.json` 的基本面待辦必須保留 `workflow_stage`、`workflow_headline`、`workflow_primary_action` 與 `workflow_checklist`；Daily Check 顯示 WARN 時，應能直接說明目前是產生 CSV、填寫 CSV、預覽合併或重跑 signals 的哪一步。
 - `GET /api/system/fundamentals-priority-fill` 只提供 `fundamentals_priority_fill.csv` 下載，內容由 fundamental service 依現有缺資料狀態產生；不得在 router 內組 CSV 或計算欄位。
 - `POST /api/system/fundamentals-priority-fill/merge` 可預覽或合併優先補資料 CSV；正式合併必須提供確認字串，並由 service 合併 `fundamentals.csv` 後匯入 `fundamentals.json`。
 - `workflow-status.close_checklist` 固定包含收盤流程六步：更新資料、補盤後筆記、重算訊號、檢查每日作戰表、檢查候選股報告、檢查持股風險；狀態只能是 `done` / `todo` / `blocked` / `running`。

@@ -174,6 +174,17 @@ def test_doctor_uses_priority_csv_suggested_action_when_fundamentals_fill_is_emp
             "warnings": [],
         },
         "workflow_summary": {
+            "stage": "fill_priority_csv",
+            "headline": "開始填基本面避雷優先補資料 CSV",
+            "primary_action": {
+                "label": "填寫 CSV",
+                "command": str(backend / "out" / "fundamentals_priority_fill.csv"),
+                "kind": "file",
+            },
+            "checklist": [
+                {"key": "download_priority_csv", "label": "產生優先 CSV", "status": "done"},
+                {"key": "fill_required_fields", "label": "補齊 11 欄", "status": "todo"},
+            ],
             "fill_targets_copy_text": "基本面避雷優先補資料清單\n1. 台積電 2330 - 缺 11 欄",
         },
     })
@@ -183,6 +194,10 @@ def test_doctor_uses_priority_csv_suggested_action_when_fundamentals_fill_is_emp
 
     assert fundamentals["status"] == "warn"
     assert fundamentals["details"]["priority_fill_status"] == "empty"
+    assert fundamentals["details"]["workflow_stage"] == "fill_priority_csv"
+    assert fundamentals["details"]["workflow_headline"] == "開始填基本面避雷優先補資料 CSV"
+    assert fundamentals["details"]["workflow_primary_action"]["label"] == "填寫 CSV"
+    assert fundamentals["details"]["workflow_checklist"][1]["key"] == "fill_required_fields"
     assert fundamentals["next_action"] == "先填優先 20 檔"
     assert fundamentals["action_payload"]["kind"] == "copy_text"
     assert "台積電 2330" in fundamentals["action_payload"]["copy_text"]

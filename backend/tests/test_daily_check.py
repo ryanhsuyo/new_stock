@@ -104,6 +104,47 @@ def test_daily_check_explains_warn_with_usable_trade_outputs():
     assert "保守" in summary["trade_outputs_note"]
 
 
+def test_daily_check_preserves_fundamentals_workflow_details():
+    import daily_check
+
+    report = {
+        "overall_status": "warn",
+        "exit_code": 1,
+        "generated_at": "2026-06-28",
+        "checks": [
+            {
+                "key": "fundamentals",
+                "status": "warn",
+                "title": "基本面避雷覆蓋",
+                "message": "0/76 檔可進行基本面避雷評分。",
+                "details": {
+                    "workflow_stage": "fill_priority_csv",
+                    "workflow_headline": "開始填基本面避雷優先補資料 CSV",
+                    "workflow_primary_action": {
+                        "label": "填寫 CSV",
+                        "kind": "file",
+                        "command": "backend/out/fundamentals_priority_fill.csv",
+                    },
+                    "workflow_checklist": [
+                        {"key": "download_priority_csv", "label": "產生優先 CSV", "status": "done"},
+                        {"key": "fill_required_fields", "label": "補齊 11 欄", "status": "todo"},
+                    ],
+                },
+                "next_action": "先填優先 20 檔",
+            },
+        ],
+    }
+
+    summary = daily_check.build_daily_summary(report, limit=3)
+    details = summary["top_actions"][0]["details"]
+
+    assert summary["top_actions"][0]["key"] == "fundamentals"
+    assert details["workflow_stage"] == "fill_priority_csv"
+    assert details["workflow_headline"] == "開始填基本面避雷優先補資料 CSV"
+    assert details["workflow_primary_action"]["label"] == "填寫 CSV"
+    assert details["workflow_checklist"][1]["key"] == "fill_required_fields"
+
+
 def test_daily_check_prioritizes_blockers_before_warnings():
     import daily_check
 

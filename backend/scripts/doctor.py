@@ -350,6 +350,13 @@ def _check_fundamentals(backend: Path, universe_rows: list[dict[str, str]]) -> d
         "first_priority_issue": first_issue,
     }
     workflow = report.get("workflow_summary") or {}
+    if workflow:
+        details.update({
+            "workflow_stage": workflow.get("stage"),
+            "workflow_headline": workflow.get("headline"),
+            "workflow_primary_action": workflow.get("primary_action") or {},
+            "workflow_checklist": workflow.get("checklist") or [],
+        })
     fill_targets_copy_text = str(workflow.get("fill_targets_copy_text") or "")
     priority_csv_path = str(backend / "out" / "fundamentals_priority_fill.csv")
 
