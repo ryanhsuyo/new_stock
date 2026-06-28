@@ -86,13 +86,13 @@ Hard-stop examples:
 
 ## 6. Active Phase
 
-Phase ID: none
+Phase ID: F6
 
-Phase name: No active phase
+Phase name: Official fundamentals report action
 
 Active phase file:
 
-None. D1.0 is complete; Daily Check / Today Scan now expose clearer explainability fields. The next meaningful blocker is still real external fundamentals data.
+`backend/docs/ai_tasks/F6_official_fundamentals_report_action.md`
 
 ## 7. Required Reading
 

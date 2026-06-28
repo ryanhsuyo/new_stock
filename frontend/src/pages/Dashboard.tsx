@@ -14,7 +14,7 @@ import ParseErrorAlert from '../components/ParseErrorAlert'
 import PrimaryActionCard from '../components/PrimaryActionCard'
 import TodayFocusCards from '../components/TodayFocusCards'
 import UpdateWorkflowBox from '../components/UpdateWorkflowBox'
-import type { DailyBrief, DailyCheckReport, DataStatus, DecisionJournalCreate, DecisionJournalDecision, DecisionJournalEntry, DecisionJournalSummary, FundamentalsPriorityMergeResult, FundamentalsStatus, ManualWatchlistReview, MarketNoteInput, PmWorklist, RecommendationStrategy, SignalsSummary, SignalsStatus, StockRecommendation, StockUniverseItem, UniverseReportReviewWorkflow, UpdateWorkflowStatus, WorkflowPortfolioTask, WorkflowStatus } from '../types'
+import type { DailyBrief, DailyCheckReport, DataStatus, DecisionJournalCreate, DecisionJournalDecision, DecisionJournalEntry, DecisionJournalSummary, FundamentalsPriorityMergeResult, FundamentalsStatus, ManualWatchlistReview, MarketNoteInput, OfficialFundamentalsStatus, PmWorklist, RecommendationStrategy, SignalsSummary, SignalsStatus, StockRecommendation, StockUniverseItem, UniverseReportReviewWorkflow, UpdateWorkflowStatus, WorkflowPortfolioTask, WorkflowStatus } from '../types'
 
 interface WorkflowUniversePendingItem {
   code: string
@@ -168,6 +168,7 @@ const emptyMarketNoteForm = (): MarketNoteInput => ({
 function StrategyGuideBox({
   status,
   fundamentalsStatus,
+  officialFundamentalsStatus,
   mergeResult,
   merging,
   signalsBusy,
@@ -177,6 +178,7 @@ function StrategyGuideBox({
 }: {
   status: SignalsStatus | null
   fundamentalsStatus: FundamentalsStatus | null
+  officialFundamentalsStatus: OfficialFundamentalsStatus | null
   mergeResult: FundamentalsPriorityMergeResult | null
   merging: boolean
   signalsBusy: boolean
@@ -196,6 +198,8 @@ function StrategyGuideBox({
   const fillReadiness = fundamentalsStatus?.priority_fill_readiness
   const fillGuide = fundamentalsStatus?.priority_fill_guide
   const workflowSummary = fundamentalsStatus?.workflow_summary
+  const officialReports = Object.values(officialFundamentalsStatus?.reports ?? {})
+  const officialReadyCount = officialReports.filter(report => report.exists).length
   const exampleValues = fillGuide?.example_values ?? {}
   const priorityValidation = fundamentalsStatus?.priority_csv_validation
   const priorityValidationIssues = [
@@ -326,6 +330,38 @@ function StrategyGuideBox({
           )}
         </div>
       )}
+      <div className={`official-fundamentals-card ${officialFundamentalsStatus?.overall_status ?? 'missing'}`}>
+        <div className="official-fundamentals-head">
+          <div>
+            <span>官方基本面報告</span>
+            <strong>
+              {officialFundamentalsStatus
+                ? `${officialReadyCount}/${officialReports.length} 份可用`
+                : '尚未讀取官方報告狀態'}
+            </strong>
+            <p>
+              這裡只顯示 official_fundamentals_*.csv 暫存報告狀態；HTTP 產生流程是 report-only，
+              不會直接 apply 到策略輸入。
+            </p>
+          </div>
+          <em>{officialFundamentalsStatus?.next_action_label ?? '可用後端 API 產生官方暫存報告'}</em>
+        </div>
+        {officialReports.length > 0 && (
+          <div className="official-fundamentals-grid">
+            {officialReports.map(report => (
+              <div className={`official-fundamentals-report ${report.exists ? 'ready' : 'missing'}`} key={report.key}>
+                <span>{report.exists ? '已產生' : '未產生'}</span>
+                <strong>{report.label}</strong>
+                <small>{report.source}</small>
+                <p>{report.row_count.toLocaleString()} rows · {report.modified_at ? report.modified_at.replace('T', ' ') : '尚無更新時間'}</p>
+              </div>
+            ))}
+          </div>
+        )}
+        <p className="official-fundamentals-guardrail">
+          ROE、EPS、FCF、interest coverage 等財報推導欄位仍等待穩定官方財報來源；未確認前不自動補值。
+        </p>
+      </div>
       {(nextFillTargets.length > 0 || missingFields.length > 0) && (
         <div className="fundamentals-gap-panel">
           <div className="fundamentals-gap-head">
@@ -1928,6 +1964,7 @@ export default function Dashboard({ onNavigateAnalysis, onNavigateUniverseReport
   const [status, setStatus]         = useState<SignalsStatus | null>(null)
   const [dataStatus, setDataStatus] = useState<DataStatus | null>(null)
   const [fundamentalsStatus, setFundamentalsStatus] = useState<FundamentalsStatus | null>(null)
+  const [officialFundamentalsStatus, setOfficialFundamentalsStatus] = useState<OfficialFundamentalsStatus | null>(null)
   const [workflowStatus, setWorkflowStatus] = useState<WorkflowStatus | null>(null)
   const [updateWorkflow, setUpdateWorkflow] = useState<UpdateWorkflowStatus | null>(null)
   const [pmWorklist, setPmWorklist] = useState<PmWorklist | null>(null)
@@ -1997,11 +2034,12 @@ export default function Dashboard({ onNavigateAnalysis, onNavigateUniverseReport
   }
 
   const fetchAll = async (nextStrategy: RecommendationStrategy = strategy) => {
-    const [s, r, ds, fs, wf, uw, pm, dc, sm, brief, manual, universeItems] = await Promise.all([
+    const [s, r, ds, fs, ofs, wf, uw, pm, dc, sm, brief, manual, universeItems] = await Promise.all([
       api.getSignalsStatus(),
       api.getRecommendations(nextStrategy),
       api.getDataStatus(),
       api.getFundamentalsStatus(),
+      api.getOfficialFundamentalsStatus(),
       api.getWorkflowStatus(),
       api.getUpdateWorkflow(),
       api.getPmWorklist(),
@@ -2015,6 +2053,7 @@ export default function Dashboard({ onNavigateAnalysis, onNavigateUniverseReport
     setRecs(r)
     setDataStatus(ds)
     setFundamentalsStatus(fs)
+    setOfficialFundamentalsStatus(ofs)
     setWorkflowStatus(wf)
     setUpdateWorkflow(uw)
     setPmWorklist(pm)
@@ -2368,11 +2407,13 @@ export default function Dashboard({ onNavigateAnalysis, onNavigateUniverseReport
   }
 
   const refreshFundamentalsWorkflow = async () => {
-    const [fs, wf] = await Promise.all([
+    const [fs, ofs, wf] = await Promise.all([
       api.getFundamentalsStatus(),
+      api.getOfficialFundamentalsStatus(),
       api.getWorkflowStatus(),
     ])
     setFundamentalsStatus(fs)
+    setOfficialFundamentalsStatus(ofs)
     setWorkflowStatus(wf)
   }
 
@@ -2677,6 +2718,7 @@ export default function Dashboard({ onNavigateAnalysis, onNavigateUniverseReport
             <DailyCheckBox
               report={dailyCheck}
               expectedDataAsOf={workflowStatus?.data_as_of || dataStatus?.last_data_as_of}
+              onFocusFundamentals={() => focusSection(fundamentalsRef)}
             />
           </div>
           <DataRepairQueueBox
@@ -2696,10 +2738,11 @@ export default function Dashboard({ onNavigateAnalysis, onNavigateUniverseReport
             onJournalDraft={handleJournalDraftFromTask}
           />
           <div ref={fundamentalsRef} className="dashboard-anchor-section">
-            <StrategyGuideBox
-          status={status}
-          fundamentalsStatus={fundamentalsStatus}
-          mergeResult={fundamentalsMergeResult}
+          <StrategyGuideBox
+        status={status}
+        fundamentalsStatus={fundamentalsStatus}
+        officialFundamentalsStatus={officialFundamentalsStatus}
+        mergeResult={fundamentalsMergeResult}
           merging={mergingFundamentals}
           signalsBusy={isSignalBusy}
           onPreviewMerge={handlePreviewFundamentalsMerge}

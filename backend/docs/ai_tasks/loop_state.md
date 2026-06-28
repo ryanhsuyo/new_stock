@@ -12,17 +12,17 @@ Rules:
 
 ## Current State
 
-Active phase: none
+Active phase: F6
 
-Loop mode: stopped after completed backend-only explainability phase
+Loop mode: active
 
 Last completed phase:
 
-* `D1.0_daily_check_today_scan_explainability.md` — Daily Check / Today Scan explainability
+* `F5_official_fundamentals_frontend_status.md` — official report status display in Dashboard
 
 Current phase status:
 
-* No active phase.
+* `F6_official_fundamentals_report_action.md` is in progress.
 
 ## Completed Phase History
 
@@ -73,13 +73,31 @@ Current phase status:
 * R9.1 — Surfaced fundamentals priority import commands in PM Worklist and Daily Check action payloads, with shared expected outputs and regression tests.
 * R9.2 — Added fundamentals external import template generation, CLI support, workflow payload hints, and focused tests.
 * D1.0 — Added Daily Check `status_reason` / `trade_outputs_note` / `blocked_by` and Today Scan `bucket_notes`.
+* F1 — Added Daily Check frontend rendering for fundamentals workflow stage, primary action, and checklist.
+* F2 — Added official TWSE fundamentals priority CSV dry-run/apply update for direct PE mapping and neutral BWIBBU reference report output.
+* F2.1 — Added TWSE listed-company monthly revenue report output for official YoY reference fields.
+* F2.2 — Added TPEx official PE/PB/dividend report output for OTC reference fields.
+* F3 — Mapped all 11 required fundamentals fields to direct / derived / blocked source decisions and formulas.
+* F4 — Added official fundamentals report status and report-only HTTP API wrapper.
+* F5 — Added Dashboard official fundamentals report status display and frontend API contract.
 
 ## Next Phase Candidates
 
-None selected. A new phase requires an explicit request or roadmap selection.
+* Complete `F6_official_fundamentals_report_action.md`.
 
 ## Last Verification
 
+* F1 frontend build: `cd frontend && npm run build` passed, with existing Vite chunk-size warning.
+* F1 frontend structure tests: `cd frontend && node --test tests/*.test.mjs` passed, 6 tests.
+* F2 official ingestion tests: `/Library/Frameworks/Python.framework/Versions/3.11/bin/python3 -m pytest backend/tests/test_official_fundamentals_cli.py backend/tests/test_official_fundamentals_service.py -q` passed, 7 tests.
+* F2 focused fundamentals flow tests: `/Library/Frameworks/Python.framework/Versions/3.11/bin/python3 -m pytest backend/tests/test_official_fundamentals_service.py backend/tests/test_official_fundamentals_cli.py backend/tests/test_fundamental_service.py backend/tests/test_fundamentals_cli.py -q` passed, 43 tests.
+* F2.1 official ingestion tests: `/Library/Frameworks/Python.framework/Versions/3.11/bin/python3 -m pytest backend/tests/test_official_fundamentals_cli.py backend/tests/test_official_fundamentals_service.py -q` passed, 9 tests.
+* F2.2 official ingestion tests: `/Library/Frameworks/Python.framework/Versions/3.11/bin/python3 -m pytest backend/tests/test_official_fundamentals_cli.py backend/tests/test_official_fundamentals_service.py -q` passed, 11 tests.
+* F2.2 focused fundamentals flow tests: `/Library/Frameworks/Python.framework/Versions/3.11/bin/python3 -m pytest backend/tests/test_official_fundamentals_service.py backend/tests/test_official_fundamentals_cli.py backend/tests/test_fundamental_service.py backend/tests/test_fundamentals_cli.py -q` passed, 47 tests.
+* F3 docs/source sanity: `rg -n "F3|roe_5y_avg|official financial statement|derived_blocked" backend/docs/ai_tasks/F3_official_financial_statement_source_mapping.md backend/docs/current_rules.md backend/docs/ai_tasks/loop_state.md` passed.
+* F4 official report API tests: `/Library/Frameworks/Python.framework/Versions/3.11/bin/python3 -m pytest backend/tests/test_official_fundamentals_api.py -q` passed, 5 tests.
+* F5 frontend structure tests: `node --test frontend/tests/*.test.mjs` passed, 8 tests.
+* F5 frontend build: `npm run build` from `frontend/` passed, with existing Vite chunk-size warning.
 * Fundamentals wording regression tests: `/Library/Frameworks/Python.framework/Versions/3.11/bin/python3 -m pytest backend/tests/test_fundamentals_cli.py -q` passed, 14 tests.
 * R9 focused fundamentals service tests: `/Library/Frameworks/Python.framework/Versions/3.11/bin/python3 -m pytest backend/tests/test_fundamental_service.py -q` passed, 20 tests.
 * R9 focused fundamentals CLI tests: `/Library/Frameworks/Python.framework/Versions/3.11/bin/python3 -m pytest backend/tests/test_fundamentals_cli.py::test_prepare_fundamentals_priority_import_help_exits_0 backend/tests/test_fundamentals_cli.py::test_prepare_fundamentals_priority_import_prints_preview -q` passed, 2 tests.
@@ -108,4 +126,4 @@ None selected. A new phase requires an explicit request or roadmap selection.
 
 ## Last Stop Reason
 
-D1.0 completed; Daily Check and Today Scan now provide clearer backend explainability fields. The next meaningful blocker is still real external fundamentals data; do not fabricate values.
+F5 completed Dashboard official fundamentals report status display. Remaining blocker: stable official financial statement source for derived fields; direct MOPS curl probes are security-blocked, so do not fabricate values or scrape blocked pages.

@@ -4,11 +4,13 @@ import type { DailyCheckReport } from '../types'
 interface DailyCheckBoxProps {
   report: DailyCheckReport | null
   expectedDataAsOf?: string | null
+  onFocusFundamentals?: () => void
 }
 
 export default function DailyCheckBox({
   report,
   expectedDataAsOf,
+  onFocusFundamentals,
 }: DailyCheckBoxProps) {
   const [copiedActionKey, setCopiedActionKey] = useState<string | null>(null)
   const statusText: Record<string, string> = {
@@ -21,6 +23,11 @@ export default function DailyCheckBox({
     warn: '待補',
     block: '阻塞',
     info: '提醒',
+  }
+  const workflowStepText: Record<string, string> = {
+    done: '完成',
+    todo: '待處理',
+    blocked: '卡住',
   }
 
   const copyDailyCheckAction = async (key: string, text: string) => {
@@ -72,6 +79,60 @@ export default function DailyCheckBox({
       )
     }
     return null
+  }
+
+  const fundamentalsWorkflow = (action: DailyCheckReport['top_actions'][number]) => {
+    if (action.key !== 'fundamentals') return null
+    const details = action.details
+    const checklist = details?.workflow_checklist ?? []
+    const primaryAction = details?.workflow_primary_action
+    if (!details?.workflow_stage && !details?.workflow_headline && checklist.length === 0 && !primaryAction) {
+      return null
+    }
+
+    const copyValue = primaryAction?.command || action.action_payload?.file_path || action.action_payload?.copy_text || ''
+
+    return (
+      <div className="daily-check-fundamentals-workflow">
+        <div className="daily-check-fundamentals-head">
+          <span>{details?.workflow_stage || 'fundamentals workflow'}</span>
+          <strong>{details?.workflow_headline || '基本面避雷補資料流程'}</strong>
+        </div>
+        {primaryAction && (
+          <div className="daily-check-fundamentals-primary">
+            <span>下一步</span>
+            <strong>{primaryAction.label || '處理基本面補資料'}</strong>
+            {primaryAction.command && <code>{primaryAction.command}</code>}
+            <div className="daily-check-fundamentals-actions">
+              {copyValue && (
+                <button
+                  className="btn btn-ghost btn-xs"
+                  onClick={() => copyDailyCheckAction(`${action.key}_workflow`, copyValue)}
+                >
+                  {copiedActionKey === `${action.key}_workflow` ? '已複製' : '複製路徑'}
+                </button>
+              )}
+              {onFocusFundamentals && (
+                <button className="btn btn-secondary btn-xs" onClick={onFocusFundamentals}>
+                  看基本面補資料區
+                </button>
+              )}
+            </div>
+          </div>
+        )}
+        {checklist.length > 0 && (
+          <div className="daily-check-fundamentals-steps">
+            {checklist.map(step => (
+              <div className={`daily-check-fundamentals-step ${step.status || 'todo'}`} key={step.key}>
+                <span>{workflowStepText[String(step.status || '')] ?? step.status ?? '待處理'}</span>
+                <strong>{step.label || step.key}</strong>
+                {step.detail && <p>{step.detail}</p>}
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+    )
   }
 
   if (!report) {
@@ -199,6 +260,7 @@ export default function DailyCheckBox({
                   {action.action_payload.preview_items.slice(0, 5).map(label => <span key={label}>{label}</span>)}
                 </div>
               )}
+              {fundamentalsWorkflow(action)}
               {dailyCheckActionButton(action)}
             </div>
           ))}

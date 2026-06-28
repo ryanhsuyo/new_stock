@@ -78,6 +78,37 @@ class FundamentalsPriorityMergeResult(BaseModel):
     next_action_label: str | None = None
 
 
+class OfficialFundamentalsReportStatus(BaseModel):
+    key: str
+    label: str
+    source: str
+    path: str
+    exists: bool
+    row_count: int
+    modified_at: str | None = None
+
+
+class OfficialFundamentalsStatus(BaseModel):
+    overall_status: str
+    reports: dict[str, OfficialFundamentalsReportStatus]
+    next_action_label: str | None = None
+
+
+class OfficialFundamentalsReportsRequest(BaseModel):
+    reports: list[str] = Field(default_factory=lambda: ["twse_bwibbu", "twse_monthly_revenue", "tpex_daily_pe"])
+    apply: bool = False
+    sleep: float = 1.0
+    tpex_daily_pe_date: str | None = None
+
+
+class OfficialFundamentalsReportsResult(BaseModel):
+    dry_run: bool
+    apply: bool
+    requested_reports: list[str]
+    reports: dict[str, dict]
+    warnings: list[str] = Field(default_factory=list)
+
+
 class PersonalBackupFile(BaseModel):
     key: str | None = None
     source: str | None = None

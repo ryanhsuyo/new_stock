@@ -1,4 +1,4 @@
-import type { BuyRequest, DailyBrief, DailyCheckReport, DataStatus, DecisionJournalBulkCreateResult, DecisionJournalCreate, DecisionJournalEntry, DecisionJournalSummary, FundamentalsPriorityMergeResult, FundamentalsStatus, HoldingAnalysis, IntradayMonitor, ManualWatchlistReview, MarketNoteInput, MarketNoteSaveResult, PmWorklist, PortfolioSummary, Position, RecommendationStrategy, SellRequest, SignalsSummary, SignalsStatus, Stats, StockAnalysis, StockRecommendation, StockTrackingResult, StockUniverseItem, TradeRecord, TradingSettings, UniverseReportItem, UniverseReportReviewWorkflow, UpdateWorkflowStatus, WatchlistGroup, WorkflowStatus } from '../types'
+import type { BuyRequest, DailyBrief, DailyCheckReport, DataStatus, DecisionJournalBulkCreateResult, DecisionJournalCreate, DecisionJournalEntry, DecisionJournalSummary, FundamentalsPriorityMergeResult, FundamentalsStatus, HoldingAnalysis, IntradayMonitor, ManualWatchlistReview, MarketNoteInput, MarketNoteSaveResult, OfficialFundamentalsStatus, PmWorklist, PortfolioSummary, Position, RecommendationStrategy, SellRequest, SignalsSummary, SignalsStatus, Stats, StockAnalysis, StockRecommendation, StockTrackingResult, StockUniverseItem, TradeRecord, TradingSettings, UniverseReportItem, UniverseReportReviewWorkflow, UpdateWorkflowStatus, WatchlistGroup, WorkflowStatus } from '../types'
 
 const BASE = '/api'
 
@@ -84,6 +84,9 @@ export const api = {
 
   getFundamentalsStatus: () =>
     request<FundamentalsStatus>('/system/fundamentals-status'),
+
+  getOfficialFundamentalsStatus: () =>
+    request<OfficialFundamentalsStatus>('/system/fundamentals-official/status'),
 
   mergeFundamentalsPriorityFill: (dryRun = true, confirm?: string | null) =>
     request<FundamentalsPriorityMergeResult>('/system/fundamentals-priority-fill/merge', {

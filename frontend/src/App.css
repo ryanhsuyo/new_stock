@@ -751,6 +751,7 @@ body {
 .strategy-guide-item,
 .strategy-guide-status,
 .fundamentals-workflow-card,
+.official-fundamentals-card,
 .fundamentals-gap-panel {
   background: #fff;
   border: 1px solid #e5e7eb;
@@ -807,6 +808,98 @@ body {
 .fundamentals-workflow-card.stage-fix_priority_csv {
   border-left-color: #dc2626;
   background: #fff1f2;
+}
+.official-fundamentals-card {
+  grid-column: 1 / -1;
+  border-left: 4px solid #0ea5e9;
+  background: #f8fafc;
+}
+.official-fundamentals-card.ready {
+  border-left-color: #16a34a;
+  background: #f0fdf4;
+}
+.official-fundamentals-card.partial {
+  border-left-color: #f59e0b;
+  background: #fffaf0;
+}
+.official-fundamentals-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+}
+.official-fundamentals-head span {
+  display: block;
+  color: #0369a1;
+  font-size: 11px;
+  font-weight: 800;
+}
+.official-fundamentals-head strong {
+  display: block;
+  margin-top: 4px;
+  color: #111827;
+  font-size: 15px;
+}
+.official-fundamentals-head p,
+.official-fundamentals-guardrail {
+  margin: 6px 0 0;
+  color: #4b5563;
+  font-size: 12px;
+  line-height: 1.45;
+}
+.official-fundamentals-head em {
+  max-width: 300px;
+  color: #0369a1;
+  font-size: 12px;
+  font-style: normal;
+  font-weight: 800;
+  text-align: right;
+}
+.official-fundamentals-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+  margin-top: 10px;
+}
+.official-fundamentals-report {
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+  background: rgba(255,255,255,0.72);
+  padding: 9px;
+}
+.official-fundamentals-report.ready {
+  border-color: #bbf7d0;
+}
+.official-fundamentals-report.missing {
+  opacity: 0.74;
+}
+.official-fundamentals-report span {
+  display: inline-flex;
+  border-radius: 999px;
+  background: #e0f2fe;
+  color: #0369a1;
+  padding: 2px 7px;
+  font-size: 11px;
+  font-weight: 800;
+}
+.official-fundamentals-report.ready span {
+  background: #dcfce7;
+  color: #166534;
+}
+.official-fundamentals-report strong {
+  display: block;
+  margin-top: 6px;
+  color: #111827;
+  font-size: 12px;
+}
+.official-fundamentals-report small,
+.official-fundamentals-report p {
+  display: block;
+  margin: 4px 0 0;
+  color: #4b5563;
+  font-size: 11px;
+  line-height: 1.35;
+  word-break: break-word;
 }
 .fundamentals-workflow-head {
   display: flex;
@@ -2688,6 +2781,68 @@ body {
 }
 .daily-check-outputs li {
   word-break: break-word;
+}
+.daily-check-fundamentals-workflow {
+  display: grid;
+  gap: 8px;
+  margin-top: 8px;
+  border: 1px solid #fcd34d;
+  border-radius: 8px;
+  background: rgba(255,255,255,0.72);
+  padding: 8px;
+}
+.daily-check-fundamentals-head span,
+.daily-check-fundamentals-primary span,
+.daily-check-fundamentals-step span {
+  color: #92400e;
+  font-size: 11px;
+  font-weight: 800;
+}
+.daily-check-fundamentals-head strong,
+.daily-check-fundamentals-primary strong {
+  margin-top: 2px;
+  font-size: 12px;
+}
+.daily-check-fundamentals-primary code {
+  display: block;
+  margin-top: 5px;
+  border-radius: 6px;
+  background: #fff7ed;
+  color: #78350f;
+  padding: 5px 6px;
+  font-size: 11px;
+  white-space: normal;
+  word-break: break-word;
+}
+.daily-check-fundamentals-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 7px;
+}
+.daily-check-fundamentals-steps {
+  display: grid;
+  gap: 6px;
+}
+.daily-check-fundamentals-step {
+  border-radius: 7px;
+  background: #fff;
+  padding: 7px;
+}
+.daily-check-fundamentals-step.done {
+  background: #f0fdf4;
+}
+.daily-check-fundamentals-step.blocked {
+  background: #f3f4f6;
+}
+.daily-check-fundamentals-step strong {
+  display: block;
+  margin-top: 2px;
+  font-size: 12px;
+}
+.daily-check-fundamentals-step p {
+  margin: 3px 0 0;
+  font-size: 11px;
 }
 .daily-check-missing code {
   display: inline-block;

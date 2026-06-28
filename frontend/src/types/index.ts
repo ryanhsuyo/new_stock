@@ -324,6 +324,22 @@ export interface DailyCheckAction {
   title: string
   message: string
   next_action: string
+  details?: {
+    workflow_stage?: string | null
+    workflow_headline?: string | null
+    workflow_primary_action?: {
+      label?: string | null
+      command?: string | null
+      kind?: 'download' | 'file' | 'api' | string
+    } | null
+    workflow_checklist?: Array<{
+      key: string
+      label?: string | null
+      detail?: string | null
+      status?: 'done' | 'todo' | 'blocked' | string
+    }>
+    [key: string]: unknown
+  }
   action_payload?: {
     kind?: string
     command?: string
@@ -882,6 +898,22 @@ export interface FundamentalsStatus {
     example_values: Record<string, string>
   } | null
   workflow_summary?: FundamentalsWorkflowSummary | null
+}
+
+export interface OfficialFundamentalsReportStatus {
+  key: string
+  label: string
+  source: string
+  path: string
+  exists: boolean
+  row_count: number
+  modified_at?: string | null
+}
+
+export interface OfficialFundamentalsStatus {
+  overall_status: 'missing' | 'partial' | 'ready' | string
+  reports: Record<string, OfficialFundamentalsReportStatus>
+  next_action_label?: string | null
 }
 
 export interface FundamentalsWorkflowSummary {

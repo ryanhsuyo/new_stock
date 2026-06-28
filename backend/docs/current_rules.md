@@ -63,6 +63,8 @@
 - 基本面避雷資料流程保留為 `steady_momentum` 的避雷輔助與 PM 補資料流程，不作為獨立候選股策略；`fundamental_*` 為目前正式基本面輔助欄位。
 - 基本面避雷補資料流程必須由後端 `fundamentals-status.workflow_summary` 提供 PM 階段、主要下一步、checklist 與焦點股票；前端只呈現此摘要，不自行重建流程規則。
 - 外部整理好的基本面數字應先用 `python3 scripts/prepare_fundamentals_priority_import.py /path/to/source.csv` dry-run 匯入預覽，再用 `--apply` 寫入 `backend/out/fundamentals_priority_fill.csv`；正式合併仍需走 `merge_priority_fundamentals.py --apply --confirm MERGE_PRIORITY_FUNDAMENTALS`，不得直接偽造或跳過驗證寫入 `fundamentals.json`。
+- 官方基本面暫存報告可用 `GET /api/system/fundamentals-official/status` 查狀態，並可用 `POST /api/system/fundamentals-official/reports` 產生 report-only CSV；此 API 僅寫 `backend/out/official_fundamentals_*.csv`，不得直接 apply 至 priority CSV 或策略輸入。
+- 官方 API 目前只穩定接入可直接取得的參考欄位：TWSE BWIBBU 的 PE / PB / 殖利率、TWSE 月營收 YoY / 累計營收 YoY、TPEx PE / PB / 殖利率。ROE、EPS、FCF、interest coverage 等財報推導欄位仍需穩定官方財報來源與公式確認，未確認前不得偽造。
 
 推薦策略固定維持 `old_wang` 與 `steady_momentum`；若需要混合判斷，應在單檔說明裡呈現「共振」，不要另開 `combined` 推薦桶。
 
@@ -283,6 +285,10 @@
 - 格式可參考 `backend/data/fundamentals.example.json`
 - leaders 股票清單變動後，`python3 scripts/daily_update.py` 會自動補齊 CSV row；也可手動跑 `python3 scripts/sync_fundamentals_template.py`
 - 外部資料優先使用 `python3 scripts/prepare_fundamentals_priority_import.py --write-template` 產生模板，再用 `/path/to/source.csv` dry-run，確認後以 `--apply` 寫出 `backend/out/fundamentals_priority_fill.csv`
+- 官方資料第一版使用 `python3 scripts/update_fundamentals_official.py` 從 TWSE OpenAPI 補 priority CSV；目前只將 `BWIBBU_ALL.PEratio` 直接映射到 `pe`，也可加 `--write-report` 寫出 `backend/out/official_fundamentals_twse_bwibbu.csv` 保存 `DividendYield` / `PBratio` 官方暫存參考欄位。這些暫存欄位不硬塞進既有評分欄位。上櫃 TPEx 官方來源另列待補，不得用 TWSE 缺資料假裝補齊。
+- 官方月營收第一版可用 `python3 scripts/update_fundamentals_official.py --write-monthly-revenue-report` 寫出 `backend/out/official_fundamentals_twse_monthly_revenue.csv`，保存 TWSE 上市公司月營收 YoY / 累計營收 YoY 官方暫存參考欄位；目前不寫入 `fundamentals.csv` 評分欄位，也不補上櫃資料。
+- TPEx 上櫃 PE/PB/股利第一版可用 `python3 scripts/update_fundamentals_official.py --write-tpex-daily-pe-report` 寫出 `backend/out/official_fundamentals_tpex_daily_pe.csv`，保存上櫃公司本益比、每股股利、殖利率、股價淨值比與財報年季官方暫存參考欄位；目前不寫入 `fundamentals.csv` 評分欄位。
+- 11 個必要基本面欄位的完整自動補齊需依 `backend/docs/ai_tasks/F3_official_financial_statement_source_mapping.md` 的來源與公式盤點執行；目前除 `pe` 外，多數欄位仍需官方財報來源與公式確認，不得用暫存報告推測或偽造。
 - 正式合併使用 `python3 scripts/merge_priority_fundamentals.py` 預覽，再用 `--apply --confirm MERGE_PRIORITY_FUNDAMENTALS` 寫回 `fundamentals.csv` 並匯入 `fundamentals.json`
 - `python3 scripts/daily_update.py` 會在重算 signals 前自動同步並匯入 `fundamentals.csv`
 - 覆蓋率檢查使用 `python3 scripts/check_fundamentals.py`
@@ -294,6 +300,7 @@ Dashboard 補資料流程：
 - 重新產生 / 下載 priority CSV 時，必須保留既有已填的必要欄位，只刷新輔助說明欄位，避免覆蓋使用者已填資料。
 - 若既有 priority CSV 有格式錯誤值，也應保留原始輸入並由預覽 / validation 指出錯誤，不可因刷新 CSV 直接崩潰或靜默清空。
 - Dashboard 應顯示 priority CSV validation 的前幾筆錯誤 / 警告，包含列號、股票代碼、欄位與錯誤值，讓使用者能直接回 CSV 修正。
+- Dashboard 可顯示官方基本面暫存報告狀態（檔案是否存在、row count、mtime 與 report-only 下一步）；此區只做可觀測性，不代表 11 個必要基本面欄位已補齊，也不得在前端推導分數。
 - Dashboard 應提供「複製補資料清單」，列出優先 10 檔、每檔缺少欄位與欄位範例值，讓使用者可直接照清單補 `fundamentals_priority_fill.csv`。
 - `python3 scripts/check_fundamentals.py` 應輸出 priority CSV 狀態、下一步、錯誤 / 警告數與第一筆問題，保持 CLI、Dashboard 與 Workflow 的語氣一致。
 - 填完 `backend/out/fundamentals_priority_fill.csv` 後，CLI 應使用 `python3 scripts/merge_priority_fundamentals.py` 先預覽；確認可合併後才使用 `python3 scripts/merge_priority_fundamentals.py --apply --confirm MERGE_PRIORITY_FUNDAMENTALS` 正式合併。

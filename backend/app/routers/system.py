@@ -6,6 +6,9 @@ from app.models.system import (
     FundamentalsPriorityMergeRequest,
     FundamentalsPriorityMergeResult,
     FundamentalsStatus,
+    OfficialFundamentalsReportsRequest,
+    OfficialFundamentalsReportsResult,
+    OfficialFundamentalsStatus,
     PersonalBackupInfo,
     PersonalBackupResult,
     PersonalRestorePreview,
@@ -18,6 +21,10 @@ from app.models.system import (
 )
 from app.services.daily_check_service import get_daily_check_report
 from app.services.fundamental_service import get_fundamentals_status, get_priority_fill_csv_path, merge_priority_fill_csv
+from app.services.official_fundamentals_api_service import (
+    get_official_fundamentals_status,
+    run_official_fundamentals_reports,
+)
 from app.services.personal_backup_service import (
     create_personal_backup,
     list_personal_backups,
@@ -67,6 +74,22 @@ def daily_check() -> dict:
 def fundamentals_status() -> FundamentalsStatus:
     """查詢基本面避雷資料對 leaders 清單的覆蓋率。"""
     return FundamentalsStatus(**get_fundamentals_status())
+
+
+@router.get("/system/fundamentals-official/status", response_model=OfficialFundamentalsStatus)
+def official_fundamentals_status() -> OfficialFundamentalsStatus:
+    """查詢官方基本面暫存報告檔狀態；不觸發外部資料抓取。"""
+    return OfficialFundamentalsStatus(**get_official_fundamentals_status())
+
+
+@router.post("/system/fundamentals-official/reports", response_model=OfficialFundamentalsReportsResult)
+def official_fundamentals_reports(payload: OfficialFundamentalsReportsRequest) -> OfficialFundamentalsReportsResult:
+    """觸發官方基本面暫存報告產生；僅 report-only，不寫入策略輸入。"""
+    payload_dict = payload.model_dump() if hasattr(payload, "model_dump") else payload.dict()
+    try:
+        return OfficialFundamentalsReportsResult(**run_official_fundamentals_reports(payload_dict))
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
 
 
 @router.get("/system/fundamentals-priority-fill")
