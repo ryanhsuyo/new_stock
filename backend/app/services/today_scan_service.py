@@ -130,6 +130,15 @@ def _notes(summary: dict[str, Any], market_context: dict[str, Any], universe_row
     return notes
 
 
+def _bucket_notes() -> dict[str, str]:
+    return {
+        "formal_entries": "可小試候選仍需照價格計畫分批，確認進場區、停損與風險報酬後才行動。",
+        "old_wang_candidates": "老王短波段觀察名單，重點是資金發動與支撐是否延續；大盤或個股過熱時不追高。",
+        "steady_momentum_candidates": "穩健動能中期趨勢候選，仍需檢查 R/R、過熱控制、進場位置與基本面避雷資料。",
+        "risk_items": "風險項目先處理風險，再考慮新增部位；優先檢查停損、減碼或訊號失效原因。",
+    }
+
+
 def _sort(items: list[dict[str, Any]], *keys: str) -> list[dict[str, Any]]:
     return sorted(items, key=lambda item: tuple(-_as_int(item.get(key)) for key in keys) + (item.get("code") or "",))
 
@@ -180,6 +189,7 @@ def build_today_scan_report(out_dir: Path | None = None, *, limit: int = DEFAULT
         "old_wang_candidates": old_wang_candidates,
         "steady_momentum_candidates": steady_momentum_candidates,
         "risk_items": risk_items,
+        "bucket_notes": _bucket_notes(),
         "notes": _notes(summary, market_context, universe_rows),
     }
 

@@ -12,18 +12,17 @@ Rules:
 
 ## Current State
 
-Active phase: D1.0
+Active phase: none
 
-Loop mode: active backend-only explainability phase
+Loop mode: stopped after completed backend-only explainability phase
 
 Last completed phase:
 
-* `R9.2_fundamentals_import_template.md` — Fundamentals external import template
+* `D1.0_daily_check_today_scan_explainability.md` — Daily Check / Today Scan explainability
 
 Current phase status:
 
-* `D1.0_daily_check_today_scan_explainability.md` is active.
-* Scope is backend/docs/tests only; do not use external data or modify frontend.
+* No active phase.
 
 ## Completed Phase History
 
@@ -73,10 +72,11 @@ Current phase status:
 * R9.0 — Added safe fundamentals priority CSV import preparation, dry-run/apply CLI, alias mapping, skipped-code reporting, validation reuse, and focused tests.
 * R9.1 — Surfaced fundamentals priority import commands in PM Worklist and Daily Check action payloads, with shared expected outputs and regression tests.
 * R9.2 — Added fundamentals external import template generation, CLI support, workflow payload hints, and focused tests.
+* D1.0 — Added Daily Check `status_reason` / `trade_outputs_note` / `blocked_by` and Today Scan `bucket_notes`.
 
 ## Next Phase Candidates
 
-* D1.0 — Improve Daily Check / Today Scan explainability without external data.
+None selected. A new phase requires an explicit request or roadmap selection.
 
 ## Last Verification
 
@@ -87,6 +87,8 @@ Current phase status:
 * R9.1 workflow tests: `/Library/Frameworks/Python.framework/Versions/3.11/bin/python3 -m pytest backend/tests/test_pm_worklist.py backend/tests/test_daily_check.py backend/tests/test_doctor.py backend/tests/test_workflow_status.py -q` passed, 59 tests.
 * R9.2 focused template tests: `/Library/Frameworks/Python.framework/Versions/3.11/bin/python3 -m pytest backend/tests/test_fundamental_service.py::test_build_priority_import_template_rows_uses_focus_targets backend/tests/test_fundamental_service.py::test_write_priority_import_template_csv_writes_readable_header backend/tests/test_fundamentals_cli.py::test_prepare_fundamentals_priority_import_help_exits_0 backend/tests/test_fundamentals_cli.py::test_prepare_fundamentals_priority_import_writes_template backend/tests/test_pm_worklist.py::test_pm_worklist_prioritizes_data_repair_before_followup_work backend/tests/test_daily_check.py::test_daily_check_prints_action_payload_details -q` passed, 6 tests.
 * R9.2 workflow tests: `/Library/Frameworks/Python.framework/Versions/3.11/bin/python3 -m pytest backend/tests/test_fundamental_service.py backend/tests/test_fundamentals_cli.py backend/tests/test_pm_worklist.py backend/tests/test_daily_check.py backend/tests/test_doctor.py backend/tests/test_workflow_status.py -q` passed, 95 tests.
+* D1.0 focused tests: `/Library/Frameworks/Python.framework/Versions/3.11/bin/python3 -m pytest backend/tests/test_daily_check.py backend/tests/test_today_scan_service.py -q` passed, 21 tests.
+* Backend tests: `/Library/Frameworks/Python.framework/Versions/3.11/bin/python3 -m pytest backend/tests -q` passed, 715 tests, during D1.0.
 * Backend tests: `/Library/Frameworks/Python.framework/Versions/3.11/bin/python3 -m pytest backend/tests -q` passed, 712 tests, during R9.2.
 * Backend tests: `/Library/Frameworks/Python.framework/Versions/3.11/bin/python3 -m pytest backend/tests -q` passed, 709 tests, during R9.1.
 * Backend tests: `/Library/Frameworks/Python.framework/Versions/3.11/bin/python3 -m pytest backend/tests -q` passed, 709 tests, during R9.0.
@@ -106,4 +108,4 @@ Current phase status:
 
 ## Last Stop Reason
 
-D1.0 is active so heartbeats can continue safe backend-only development. The external fundamentals data blocker remains; do not fabricate values.
+D1.0 completed; Daily Check and Today Scan now provide clearer backend explainability fields. The next meaningful blocker is still real external fundamentals data; do not fabricate values.

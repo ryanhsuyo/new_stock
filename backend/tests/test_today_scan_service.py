@@ -158,6 +158,26 @@ def test_build_today_scan_report_groups_current_candidates(tmp_path):
     assert "老王大盤濾網目前封鎖" in report["notes"][0]
 
 
+def test_today_scan_report_includes_bucket_notes(tmp_path):
+    from app.services.today_scan_service import build_today_scan_report
+
+    out = tmp_path / "out"
+    _write_json(out / "summary.json", {"as_of": "2026-06-25"})
+    _write_json(out / "daily_brief.json", {"as_of": "2026-06-25"})
+    _write_universe(out / "universe_report.csv", [])
+
+    report = build_today_scan_report(out)
+
+    assert "可小試" in report["bucket_notes"]["formal_entries"]
+    assert "價格計畫" in report["bucket_notes"]["formal_entries"]
+    assert "短波段觀察" in report["bucket_notes"]["old_wang_candidates"]
+    assert "不追高" in report["bucket_notes"]["old_wang_candidates"]
+    assert "中期趨勢候選" in report["bucket_notes"]["steady_momentum_candidates"]
+    assert "R/R" in report["bucket_notes"]["steady_momentum_candidates"]
+    assert "過熱" in report["bucket_notes"]["steady_momentum_candidates"]
+    assert "先處理風險" in report["bucket_notes"]["risk_items"]
+
+
 def test_write_and_load_today_scan_round_trip(tmp_path):
     from app.services.today_scan_service import load_today_scan_report, write_today_scan_report
 

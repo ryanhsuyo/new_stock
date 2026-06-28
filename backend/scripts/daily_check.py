@@ -287,6 +287,53 @@ def _top_actions(
     return candidates[: max(1, limit)]
 
 
+def _blocked_by(report: dict[str, Any], extra_actions: list[dict[str, Any]] | None = None) -> list[dict[str, str]]:
+    blockers: list[dict[str, str]] = []
+    for item in list(report.get("checks") or []) + list(extra_actions or []):
+        if item.get("status") != "block":
+            continue
+        blockers.append({
+            "key": str(item.get("key") or ""),
+            "title": str(item.get("title") or ""),
+            "message": str(item.get("message") or ""),
+        })
+    return blockers
+
+
+def _status_reason(
+    report: dict[str, Any],
+    top_actions: list[dict[str, Any]],
+    blockers: list[dict[str, str]],
+) -> str:
+    if blockers:
+        first = blockers[0]
+        title = first.get("title") or first.get("key") or "阻塞項目"
+        message = first.get("message") or "需先處理阻塞項目。"
+        return f"{title} 阻塞交易輸出：{message}"
+
+    status = str(report.get("overall_status") or "unknown")
+    if status == "ok":
+        return "Daily Check 未發現阻塞或警示，交易輸出可回顧。"
+
+    for action in top_actions:
+        if action.get("key") == "fundamentals":
+            return "基本面避雷資料不足，因此 Daily Check 維持 WARN；這不會阻塞交易輸出，但基本面輔助分數需保守看待。"
+    if top_actions:
+        first = top_actions[0]
+        title = first.get("title") or first.get("key") or "待辦"
+        message = first.get("message") or "有待處理項目。"
+        return f"{title} 需要處理：{message}"
+    return "Daily Check 狀態不是 OK，但目前沒有可排序的待辦，請查看 doctor report。"
+
+
+def _trade_outputs_note(can_use_trade_outputs: bool, top_actions: list[dict[str, Any]]) -> str:
+    if not can_use_trade_outputs:
+        return "交易輸出目前不可作為今天判斷依據；請先處理 blocked 項目並重新產生輸出。"
+    if any(action.get("key") == "fundamentals" for action in top_actions):
+        return "交易輸出仍可回顧；但基本面避雷資料不足，穩健動能的基本面輔助分數需保守看待。"
+    return "交易輸出可回顧；仍請依 top actions 檢查警示與盤後待辦。"
+
+
 def build_daily_summary(
     report: dict[str, Any],
     limit: int = 3,
@@ -307,6 +354,8 @@ def build_daily_summary(
         ]
         if action
     ]
+    top_actions = _top_actions(report, limit=limit, extra_actions=extra_actions)
+    blockers = _blocked_by(report, extra_actions)
     return {
         "overall_status": report.get("overall_status"),
         "exit_code": int(report.get("exit_code") or 0),
@@ -314,6 +363,9 @@ def build_daily_summary(
         "source_report_generated_at": generated_at,
         "data_as_of": _data_as_of_from_report(report),
         "can_use_trade_outputs": can_use_trade_outputs,
+        "status_reason": _status_reason(report, top_actions, blockers),
+        "trade_outputs_note": _trade_outputs_note(can_use_trade_outputs, top_actions),
+        "blocked_by": blockers,
         "data_repair": data_repair,
         "today_scan": today_scan_summary,
         "signal_alerts": signal_alerts or {
@@ -322,7 +374,7 @@ def build_daily_summary(
             "alerts": [],
             "message": "尚未產生 signal_alerts.json，請先執行 run_signals.py。",
         },
-        "top_actions": _top_actions(report, limit=limit, extra_actions=extra_actions),
+        "top_actions": top_actions,
     }
 
 

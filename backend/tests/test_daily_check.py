@@ -65,6 +65,45 @@ def test_daily_check_builds_summary_from_doctor_report():
     assert summary["top_actions"][1]["details"]["missing_codes"] == ["2330", "2454"]
 
 
+def test_daily_check_explains_warn_with_usable_trade_outputs():
+    import daily_check
+
+    report = {
+        "overall_status": "warn",
+        "exit_code": 1,
+        "generated_at": "2026-06-27",
+        "checks": [
+            {
+                "key": "outputs",
+                "status": "ok",
+                "title": "交易輸出同步",
+                "message": "summary、daily_brief、universe_report 的資料日一致。",
+                "details": {"last_data_as_of": "2026-06-26"},
+                "next_action": "",
+            },
+            {
+                "key": "fundamentals",
+                "status": "warn",
+                "title": "基本面避雷覆蓋",
+                "message": "0/76 檔可進行基本面避雷評分。",
+                "details": {},
+                "next_action": "先填 ROE、現金流、負債、成長與估值欄位。",
+            },
+        ],
+    }
+
+    summary = daily_check.build_daily_summary(report, limit=3)
+
+    assert summary["overall_status"] == "warn"
+    assert summary["can_use_trade_outputs"] is True
+    assert summary["blocked_by"] == []
+    assert "基本面" in summary["status_reason"]
+    assert "不足" in summary["status_reason"]
+    assert "交易輸出仍可回顧" in summary["trade_outputs_note"]
+    assert "基本面避雷" in summary["trade_outputs_note"]
+    assert "保守" in summary["trade_outputs_note"]
+
+
 def test_daily_check_prioritizes_blockers_before_warnings():
     import daily_check
 

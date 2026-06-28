@@ -8,14 +8,14 @@
 | 項目 | 目前狀態 |
 |------|----------|
 | Active phase | 無。`backend/docs/ai_execution_plan.md` 與 `backend/docs/ai_tasks/loop_state.md` 皆為 `none` |
-| 最近完成 | R9.2 — 基本面外部資料模板、dry-run / apply 流程、PM / Daily Check workflow 提示與回歸測試 |
+| 最近完成 | D1.0 — Daily Check / Today Scan 可解釋性欄位與回歸測試 |
 | 目前策略 | 只保留兩個推薦策略：`old_wang` 與 `steady_momentum` |
 | 內部訊號 | `core_technical_v2` 僅作為技術訊號引擎，不是推薦桶 |
 | 基本面定位 | 基本面避雷 / 補資料只輔助 `steady_momentum`，不產生獨立候選股 |
 | 最新 Daily Check | `generated_at=2026-06-27`、`data_as_of=2026-06-26`、`overall_status=warn`、`can_use_trade_outputs=true` |
 | 最新 Today Scan | `as_of=2026-06-26`、可小試 7、老王觀察 5、穩健動能 17、風險處理 21 |
 | 目前主要阻塞 | 真實外部基本面資料尚未匯入；不可偽造基本面數字 |
-| 自動心跳下一步 | 若無新資料或新需求，應安靜巡檢；有真實基本面 CSV 後才進入 dry-run / apply / merge / run_signals |
+| 自動心跳下一步 | 若無新資料或新需求，應安靜巡檢；有真實基本面 CSV 或明確下一個 phase 後才繼續開發 |
 
 ---
 

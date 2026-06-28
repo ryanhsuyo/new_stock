@@ -86,13 +86,13 @@ Hard-stop examples:
 
 ## 6. Active Phase
 
-Phase ID: D1.0
+Phase ID: none
 
-Phase name: Daily Check / Today Scan Explainability
+Phase name: No active phase
 
 Active phase file:
 
-`backend/docs/ai_tasks/D1.0_daily_check_today_scan_explainability.md`
+None. D1.0 is complete; Daily Check / Today Scan now expose clearer explainability fields. The next meaningful blocker is still real external fundamentals data.
 
 ## 7. Required Reading
 
