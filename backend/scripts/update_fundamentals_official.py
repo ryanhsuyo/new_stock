@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 """用官方 OpenAPI 安全補 fundamentals priority CSV。
 
-第一版只使用 TWSE BWIBBU_ALL，並只映射可直接對應的 `pe`。
-其餘官方欄位會列在報告裡，不硬塞進基本面評分欄位。
+正式 apply 目前只允許 TWSE BWIBBU_ALL 直接對應的 `pe`。
+其他官方來源一律先寫 neutral report-only CSV，不硬塞進基本面評分欄位。
 """
 
 from __future__ import annotations
@@ -23,19 +23,40 @@ if str(_BACKEND) not in sys.path:
     sys.path.insert(0, str(_BACKEND))
 
 from app.services.official_fundamentals_service import (  # noqa: E402
+    TPEX_BALANCE_SHEET_CI_URL,
     TPEX_DAILY_PE_URL,
+    TPEX_DIVIDEND_URL,
+    TPEX_INCOME_STATEMENT_CI_URL,
+    TPEX_PROFITABILITY_URL,
+    TWSE_BALANCE_SHEET_CI_URL,
     TWSE_BWIBBU_URL,
+    TWSE_DIVIDEND_URL,
+    TWSE_INCOME_STATEMENT_CI_URL,
     TWSE_MONTHLY_REVENUE_URL,
+    TWSE_PROFITABILITY_URL,
     apply_twse_official_values_to_priority_csv,
+    build_official_balance_sheet_report_rows,
+    build_official_dividend_report_rows,
+    build_official_income_statement_report_rows,
+    build_official_profitability_report_rows,
     build_tpex_daily_pe_report_rows,
     build_twse_bwibbu_report_rows,
     build_twse_monthly_revenue_report_rows,
+)
+from app.services.official_fundamentals_api_service import (  # noqa: E402
+    OFFICIAL_REPORTS,
+    build_official_fundamentals_coverage_audit,
 )
 from app.services.fundamental_service import get_priority_fill_csv_path  # noqa: E402
 
 DEFAULT_OFFICIAL_REPORT_PATH = _BACKEND / "out" / "official_fundamentals_twse_bwibbu.csv"
 DEFAULT_MONTHLY_REVENUE_REPORT_PATH = _BACKEND / "out" / "official_fundamentals_twse_monthly_revenue.csv"
 DEFAULT_TPEX_DAILY_PE_REPORT_PATH = _BACKEND / "out" / "official_fundamentals_tpex_daily_pe.csv"
+DEFAULT_PROFITABILITY_REPORT_PATH = _BACKEND / "out" / "official_fundamentals_profitability.csv"
+DEFAULT_BALANCE_SHEET_REPORT_PATH = _BACKEND / "out" / "official_fundamentals_balance_sheet.csv"
+DEFAULT_INCOME_STATEMENT_REPORT_PATH = _BACKEND / "out" / "official_fundamentals_income_statement.csv"
+DEFAULT_DIVIDEND_REPORT_PATH = _BACKEND / "out" / "official_fundamentals_dividend.csv"
+DEFAULT_COVERAGE_AUDIT_PATH = _BACKEND / "out" / "official_fundamentals_coverage_audit.json"
 
 
 def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
@@ -104,6 +125,100 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         default=None,
         help="寫出 TPEx 官方 PE/PB/殖利率暫存報告 CSV；未指定路徑時寫到 backend/out/official_fundamentals_tpex_daily_pe.csv",
     )
+    parser.add_argument(
+        "--twse-profitability-fixture",
+        type=Path,
+        default=None,
+        help="測試用 TWSE 營益分析 JSON 檔；提供時不打 TWSE 營益分析網路",
+    )
+    parser.add_argument(
+        "--tpex-profitability-fixture",
+        type=Path,
+        default=None,
+        help="測試用 TPEx 營益分析 JSON 檔；提供時不打 TPEx 營益分析網路",
+    )
+    parser.add_argument(
+        "--write-profitability-report",
+        nargs="?",
+        const=DEFAULT_PROFITABILITY_REPORT_PATH,
+        type=Path,
+        default=None,
+        help="寫出 TWSE/TPEx 官方營益分析暫存報告 CSV；未指定路徑時寫到 backend/out/official_fundamentals_profitability.csv",
+    )
+    parser.add_argument(
+        "--twse-balance-sheet-fixture",
+        type=Path,
+        default=None,
+        help="測試用 TWSE 一般業資產負債表 JSON 檔；提供時不打 TWSE 資產負債表網路",
+    )
+    parser.add_argument(
+        "--tpex-balance-sheet-fixture",
+        type=Path,
+        default=None,
+        help="測試用 TPEx 一般業資產負債表 JSON 檔；提供時不打 TPEx 資產負債表網路",
+    )
+    parser.add_argument(
+        "--write-balance-sheet-report",
+        nargs="?",
+        const=DEFAULT_BALANCE_SHEET_REPORT_PATH,
+        type=Path,
+        default=None,
+        help="寫出 TWSE/TPEx 官方一般業資產負債表暫存報告 CSV；未指定路徑時寫到 backend/out/official_fundamentals_balance_sheet.csv",
+    )
+    parser.add_argument(
+        "--twse-income-statement-fixture",
+        type=Path,
+        default=None,
+        help="測試用 TWSE 一般業損益表 JSON 檔；提供時不打 TWSE 損益表網路",
+    )
+    parser.add_argument(
+        "--tpex-income-statement-fixture",
+        type=Path,
+        default=None,
+        help="測試用 TPEx 一般業損益表 JSON 檔；提供時不打 TPEx 損益表網路",
+    )
+    parser.add_argument(
+        "--write-income-statement-report",
+        nargs="?",
+        const=DEFAULT_INCOME_STATEMENT_REPORT_PATH,
+        type=Path,
+        default=None,
+        help="寫出 TWSE/TPEx 官方一般業損益表暫存報告 CSV；未指定路徑時寫到 backend/out/official_fundamentals_income_statement.csv",
+    )
+    parser.add_argument(
+        "--twse-dividend-fixture",
+        type=Path,
+        default=None,
+        help="測試用 TWSE 股利分派 JSON 檔；提供時不打 TWSE 股利網路",
+    )
+    parser.add_argument(
+        "--tpex-dividend-fixture",
+        type=Path,
+        default=None,
+        help="測試用 TPEx 股利分派 JSON 檔；提供時不打 TPEx 股利網路",
+    )
+    parser.add_argument(
+        "--write-dividend-report",
+        nargs="?",
+        const=DEFAULT_DIVIDEND_REPORT_PATH,
+        type=Path,
+        default=None,
+        help="寫出 TWSE/TPEx 官方股利分派暫存報告 CSV；未指定路徑時寫到 backend/out/official_fundamentals_dividend.csv",
+    )
+    parser.add_argument(
+        "--official-report-dir",
+        type=Path,
+        default=None,
+        help="官方 report-only CSV 目錄；覆蓋率稽核測試用，預設 backend/out",
+    )
+    parser.add_argument(
+        "--write-coverage-audit",
+        nargs="?",
+        const=DEFAULT_COVERAGE_AUDIT_PATH,
+        type=Path,
+        default=None,
+        help="寫出官方 report-only 覆蓋率稽核 JSON；不打網路、不寫 priority CSV",
+    )
     return parser.parse_args(argv)
 
 
@@ -133,6 +248,94 @@ def _fetch_twse_monthly_revenue(sleep_seconds: float) -> list[dict[str, Any]]:
     raw = response.json()
     if not isinstance(raw, list):
         raise ValueError("TWSE 月營收回應不是 JSON array")
+    return [item for item in raw if isinstance(item, dict)]
+
+
+def _fetch_twse_profitability(sleep_seconds: float) -> list[dict[str, Any]]:
+    if sleep_seconds > 0:
+        time.sleep(sleep_seconds)
+    response = requests.get(TWSE_PROFITABILITY_URL, timeout=20)
+    response.raise_for_status()
+    raw = response.json()
+    if not isinstance(raw, list):
+        raise ValueError("TWSE 營益分析回應不是 JSON array")
+    return [item for item in raw if isinstance(item, dict)]
+
+
+def _fetch_tpex_profitability(sleep_seconds: float) -> list[dict[str, Any]]:
+    if sleep_seconds > 0:
+        time.sleep(sleep_seconds)
+    response = requests.get(TPEX_PROFITABILITY_URL, timeout=20)
+    response.raise_for_status()
+    raw = response.json()
+    if not isinstance(raw, list):
+        raise ValueError("TPEx 營益分析回應不是 JSON array")
+    return [item for item in raw if isinstance(item, dict)]
+
+
+def _fetch_twse_balance_sheet(sleep_seconds: float) -> list[dict[str, Any]]:
+    if sleep_seconds > 0:
+        time.sleep(sleep_seconds)
+    response = requests.get(TWSE_BALANCE_SHEET_CI_URL, timeout=20)
+    response.raise_for_status()
+    raw = response.json()
+    if not isinstance(raw, list):
+        raise ValueError("TWSE 資產負債表回應不是 JSON array")
+    return [item for item in raw if isinstance(item, dict)]
+
+
+def _fetch_tpex_balance_sheet(sleep_seconds: float) -> list[dict[str, Any]]:
+    if sleep_seconds > 0:
+        time.sleep(sleep_seconds)
+    response = requests.get(TPEX_BALANCE_SHEET_CI_URL, timeout=20)
+    response.raise_for_status()
+    raw = response.json()
+    if not isinstance(raw, list):
+        raise ValueError("TPEx 資產負債表回應不是 JSON array")
+    return [item for item in raw if isinstance(item, dict)]
+
+
+def _fetch_twse_income_statement(sleep_seconds: float) -> list[dict[str, Any]]:
+    if sleep_seconds > 0:
+        time.sleep(sleep_seconds)
+    response = requests.get(TWSE_INCOME_STATEMENT_CI_URL, timeout=20)
+    response.raise_for_status()
+    raw = response.json()
+    if not isinstance(raw, list):
+        raise ValueError("TWSE 損益表回應不是 JSON array")
+    return [item for item in raw if isinstance(item, dict)]
+
+
+def _fetch_tpex_income_statement(sleep_seconds: float) -> list[dict[str, Any]]:
+    if sleep_seconds > 0:
+        time.sleep(sleep_seconds)
+    response = requests.get(TPEX_INCOME_STATEMENT_CI_URL, timeout=20)
+    response.raise_for_status()
+    raw = response.json()
+    if not isinstance(raw, list):
+        raise ValueError("TPEx 損益表回應不是 JSON array")
+    return [item for item in raw if isinstance(item, dict)]
+
+
+def _fetch_twse_dividend(sleep_seconds: float) -> list[dict[str, Any]]:
+    if sleep_seconds > 0:
+        time.sleep(sleep_seconds)
+    response = requests.get(TWSE_DIVIDEND_URL, timeout=20)
+    response.raise_for_status()
+    raw = response.json()
+    if not isinstance(raw, list):
+        raise ValueError("TWSE 股利分派回應不是 JSON array")
+    return [item for item in raw if isinstance(item, dict)]
+
+
+def _fetch_tpex_dividend(sleep_seconds: float) -> list[dict[str, Any]]:
+    if sleep_seconds > 0:
+        time.sleep(sleep_seconds)
+    response = requests.get(TPEX_DIVIDEND_URL, timeout=20)
+    response.raise_for_status()
+    raw = response.json()
+    if not isinstance(raw, list):
+        raise ValueError("TPEx 股利分派回應不是 JSON array")
     return [item for item in raw if isinstance(item, dict)]
 
 
@@ -203,6 +406,93 @@ def _write_tpex_daily_pe_report(path: Path, rows: list[dict[str, str]]) -> None:
         writer.writerows(rows)
 
 
+def _write_profitability_report(path: Path, rows: list[dict[str, str]]) -> None:
+    fieldnames = [
+        "code",
+        "name",
+        "year",
+        "quarter",
+        "operating_margin",
+        "pre_tax_margin",
+        "after_tax_margin",
+        "source",
+        "skip_reason",
+    ]
+    path.parent.mkdir(parents=True, exist_ok=True)
+    with path.open("w", encoding="utf-8", newline="") as f:
+        writer = csv.DictWriter(f, fieldnames=fieldnames)
+        writer.writeheader()
+        writer.writerows(rows)
+
+
+def _write_balance_sheet_report(path: Path, rows: list[dict[str, str]]) -> None:
+    fieldnames = [
+        "code",
+        "name",
+        "year",
+        "quarter",
+        "total_assets",
+        "liabilities",
+        "equity",
+        "source",
+        "skip_reason",
+    ]
+    path.parent.mkdir(parents=True, exist_ok=True)
+    with path.open("w", encoding="utf-8", newline="") as f:
+        writer = csv.DictWriter(f, fieldnames=fieldnames)
+        writer.writeheader()
+        writer.writerows(rows)
+
+
+def _write_income_statement_report(path: Path, rows: list[dict[str, str]]) -> None:
+    fieldnames = [
+        "code",
+        "name",
+        "year",
+        "quarter",
+        "revenue",
+        "operating_profit",
+        "net_income",
+        "eps",
+        "source",
+        "skip_reason",
+    ]
+    path.parent.mkdir(parents=True, exist_ok=True)
+    with path.open("w", encoding="utf-8", newline="") as f:
+        writer = csv.DictWriter(f, fieldnames=fieldnames)
+        writer.writeheader()
+        writer.writerows(rows)
+
+
+def _write_dividend_report(path: Path, rows: list[dict[str, str]]) -> None:
+    fieldnames = [
+        "code",
+        "name",
+        "dividend_year",
+        "period",
+        "cash_dividend",
+        "stock_dividend",
+        "source",
+        "skip_reason",
+    ]
+    path.parent.mkdir(parents=True, exist_ok=True)
+    with path.open("w", encoding="utf-8", newline="") as f:
+        writer = csv.DictWriter(f, fieldnames=fieldnames)
+        writer.writeheader()
+        writer.writerows(rows)
+
+
+def _reports_for_dir(report_dir: Path) -> dict[str, dict[str, Any]]:
+    reports: dict[str, dict[str, Any]] = {}
+    for key, meta in OFFICIAL_REPORTS.items():
+        default_name = Path(meta["path"]).name
+        reports[key] = {
+            **meta,
+            "path": report_dir / default_name,
+        }
+    return reports
+
+
 def _print_result(result: dict[str, Any]) -> None:
     mode = "apply" if not result.get("dry_run") else "dry-run"
     print(f"官方基本面 priority 更新 {mode}")
@@ -231,6 +521,24 @@ def _print_result(result: dict[str, Any]) -> None:
 def run_update(args: argparse.Namespace) -> int:
     priority_csv = args.priority_csv or get_priority_fill_csv_path()
     try:
+        if args.write_coverage_audit:
+            report_dir = args.official_report_dir or (_BACKEND / "out")
+            audit = build_official_fundamentals_coverage_audit(
+                priority_csv,
+                reports=_reports_for_dir(report_dir),
+            )
+            args.write_coverage_audit.parent.mkdir(parents=True, exist_ok=True)
+            args.write_coverage_audit.write_text(
+                json.dumps(audit, ensure_ascii=False, indent=2),
+                encoding="utf-8",
+            )
+            print(
+                "官方覆蓋率稽核: "
+                f"{args.write_coverage_audit} "
+                f"targets={audit.get('target_count', 0)} "
+                f"coverage={audit.get('coverage_pct', 0)}%"
+            )
+            return 0
         rows = _load_fixture(args.fixture) if args.fixture else _fetch_twse_bwibbu(args.sleep)
         result = apply_twse_official_values_to_priority_csv(
             priority_csv,
@@ -263,6 +571,78 @@ def run_update(args: argparse.Namespace) -> int:
             _write_tpex_daily_pe_report(args.write_tpex_daily_pe_report, tpex_report_rows)
             result["tpex_daily_pe_report_path"] = str(args.write_tpex_daily_pe_report)
             result["tpex_daily_pe_report_row_count"] = len(tpex_report_rows)
+        if args.write_profitability_report:
+            twse_profitability_rows = (
+                _load_fixture(args.twse_profitability_fixture)
+                if args.twse_profitability_fixture
+                else _fetch_twse_profitability(args.sleep)
+            )
+            tpex_profitability_rows = (
+                _load_fixture(args.tpex_profitability_fixture)
+                if args.tpex_profitability_fixture
+                else _fetch_tpex_profitability(args.sleep)
+            )
+            profitability_report_rows = build_official_profitability_report_rows(
+                twse_rows=twse_profitability_rows,
+                tpex_rows=tpex_profitability_rows,
+            )
+            _write_profitability_report(args.write_profitability_report, profitability_report_rows)
+            result["profitability_report_path"] = str(args.write_profitability_report)
+            result["profitability_report_row_count"] = len(profitability_report_rows)
+        if args.write_balance_sheet_report:
+            twse_balance_sheet_rows = (
+                _load_fixture(args.twse_balance_sheet_fixture)
+                if args.twse_balance_sheet_fixture
+                else _fetch_twse_balance_sheet(args.sleep)
+            )
+            tpex_balance_sheet_rows = (
+                _load_fixture(args.tpex_balance_sheet_fixture)
+                if args.tpex_balance_sheet_fixture
+                else _fetch_tpex_balance_sheet(args.sleep)
+            )
+            balance_sheet_report_rows = build_official_balance_sheet_report_rows(
+                twse_rows=twse_balance_sheet_rows,
+                tpex_rows=tpex_balance_sheet_rows,
+            )
+            _write_balance_sheet_report(args.write_balance_sheet_report, balance_sheet_report_rows)
+            result["balance_sheet_report_path"] = str(args.write_balance_sheet_report)
+            result["balance_sheet_report_row_count"] = len(balance_sheet_report_rows)
+        if args.write_income_statement_report:
+            twse_income_statement_rows = (
+                _load_fixture(args.twse_income_statement_fixture)
+                if args.twse_income_statement_fixture
+                else _fetch_twse_income_statement(args.sleep)
+            )
+            tpex_income_statement_rows = (
+                _load_fixture(args.tpex_income_statement_fixture)
+                if args.tpex_income_statement_fixture
+                else _fetch_tpex_income_statement(args.sleep)
+            )
+            income_statement_report_rows = build_official_income_statement_report_rows(
+                twse_rows=twse_income_statement_rows,
+                tpex_rows=tpex_income_statement_rows,
+            )
+            _write_income_statement_report(args.write_income_statement_report, income_statement_report_rows)
+            result["income_statement_report_path"] = str(args.write_income_statement_report)
+            result["income_statement_report_row_count"] = len(income_statement_report_rows)
+        if args.write_dividend_report:
+            twse_dividend_rows = (
+                _load_fixture(args.twse_dividend_fixture)
+                if args.twse_dividend_fixture
+                else _fetch_twse_dividend(args.sleep)
+            )
+            tpex_dividend_rows = (
+                _load_fixture(args.tpex_dividend_fixture)
+                if args.tpex_dividend_fixture
+                else _fetch_tpex_dividend(args.sleep)
+            )
+            dividend_report_rows = build_official_dividend_report_rows(
+                twse_rows=twse_dividend_rows,
+                tpex_rows=tpex_dividend_rows,
+            )
+            _write_dividend_report(args.write_dividend_report, dividend_report_rows)
+            result["dividend_report_path"] = str(args.write_dividend_report)
+            result["dividend_report_row_count"] = len(dividend_report_rows)
     except (OSError, ValueError, requests.RequestException) as exc:
         print(f"官方基本面更新失敗：{exc}", file=sys.stderr)
         return 1
@@ -281,6 +661,30 @@ def run_update(args: argparse.Namespace) -> int:
             "  TPEx PE暫存報告: "
             f"{result.get('tpex_daily_pe_report_path')} "
             f"rows={result.get('tpex_daily_pe_report_row_count', 0)}"
+        )
+    if result.get("profitability_report_path"):
+        print(
+            "  營益分析暫存報告: "
+            f"{result.get('profitability_report_path')} "
+            f"rows={result.get('profitability_report_row_count', 0)}"
+        )
+    if result.get("balance_sheet_report_path"):
+        print(
+            "  資產負債表暫存報告: "
+            f"{result.get('balance_sheet_report_path')} "
+            f"rows={result.get('balance_sheet_report_row_count', 0)}"
+        )
+    if result.get("income_statement_report_path"):
+        print(
+            "  損益表暫存報告: "
+            f"{result.get('income_statement_report_path')} "
+            f"rows={result.get('income_statement_report_row_count', 0)}"
+        )
+    if result.get("dividend_report_path"):
+        print(
+            "  股利分派暫存報告: "
+            f"{result.get('dividend_report_path')} "
+            f"rows={result.get('dividend_report_row_count', 0)}"
         )
     validation = result.get("validation") or {}
     return 0 if validation.get("valid") else 1

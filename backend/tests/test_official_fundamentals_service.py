@@ -234,3 +234,303 @@ def test_build_tpex_daily_pe_report_rows_maps_official_pe_fields():
             "skip_reason": "tpex_pe_missing_or_na",
         },
     ]
+
+
+def test_build_official_profitability_report_rows_normalizes_twse_and_tpex_rows():
+    rows = svc.build_official_profitability_report_rows(
+        twse_rows=[
+            {
+                "公司代號": "2330",
+                "公司名稱": "台積電",
+                "年度": "114",
+                "季別": "1",
+                "營業利益率(%)": "49.20",
+                "稅前純益率(%)": "52.10",
+                "稅後純益率(%)": "41.30",
+            },
+            {
+                "公司代號": "1101",
+                "公司名稱": "台泥",
+                "年度": "114",
+                "季別": "1",
+                "營業利益率(%)": "",
+                "稅前純益率(%)": "8.10",
+                "稅後純益率(%)": "6.30",
+            },
+        ],
+        tpex_rows=[
+            {
+                "公司代號": "6488",
+                "公司名稱": "環球晶",
+                "年度": "114",
+                "季別": "1",
+                "營業利益率(%)": "24.50",
+                "稅前純益率(%)": "28.60",
+                "稅後純益率(%)": "21.40",
+            },
+        ],
+    )
+
+    assert rows == [
+        {
+            "code": "2330",
+            "name": "台積電",
+            "year": "114",
+            "quarter": "1",
+            "operating_margin": "49.20",
+            "pre_tax_margin": "52.10",
+            "after_tax_margin": "41.30",
+            "source": "twse_openapi_profitability_t187ap17_l",
+            "skip_reason": "",
+        },
+        {
+            "code": "1101",
+            "name": "台泥",
+            "year": "114",
+            "quarter": "1",
+            "operating_margin": "",
+            "pre_tax_margin": "8.10",
+            "after_tax_margin": "6.30",
+            "source": "twse_openapi_profitability_t187ap17_l",
+            "skip_reason": "operating_margin_missing",
+        },
+        {
+            "code": "6488",
+            "name": "環球晶",
+            "year": "114",
+            "quarter": "1",
+            "operating_margin": "24.50",
+            "pre_tax_margin": "28.60",
+            "after_tax_margin": "21.40",
+            "source": "tpex_openapi_profitability_187ap17_o",
+            "skip_reason": "",
+        },
+    ]
+
+
+def test_build_official_balance_sheet_report_rows_normalizes_general_industry_rows():
+    rows = svc.build_official_balance_sheet_report_rows(
+        twse_rows=[
+            {
+                "公司代號": "2330",
+                "公司名稱": "台積電",
+                "年度": "115",
+                "季別": "1",
+                "資產總額": "6930430052.00",
+                "負債總額": "2713508871.00",
+                "權益總額": "4216921181.00",
+            },
+            {
+                "公司代號": "1101",
+                "公司名稱": "台泥",
+                "年度": "115",
+                "季別": "1",
+                "資產總額": "",
+                "負債總額": "292869670.00",
+                "權益總額": "304745616.00",
+            },
+        ],
+        tpex_rows=[
+            {
+                "SecuritiesCompanyCode": "6488",
+                "CompanyName": "環球晶",
+                "年度": "115",
+                "季別": "1",
+                "資產總計": "223698757.00",
+                "負債總計": "93870412.00",
+                "權益總計": "129828345.00",
+            },
+        ],
+    )
+
+    assert rows == [
+        {
+            "code": "2330",
+            "name": "台積電",
+            "year": "115",
+            "quarter": "1",
+            "total_assets": "6930430052.00",
+            "liabilities": "2713508871.00",
+            "equity": "4216921181.00",
+            "source": "twse_openapi_balance_sheet_t187ap07_l_ci",
+            "skip_reason": "",
+        },
+        {
+            "code": "1101",
+            "name": "台泥",
+            "year": "115",
+            "quarter": "1",
+            "total_assets": "",
+            "liabilities": "292869670.00",
+            "equity": "304745616.00",
+            "source": "twse_openapi_balance_sheet_t187ap07_l_ci",
+            "skip_reason": "total_assets_missing",
+        },
+        {
+            "code": "6488",
+            "name": "環球晶",
+            "year": "115",
+            "quarter": "1",
+            "total_assets": "223698757.00",
+            "liabilities": "93870412.00",
+            "equity": "129828345.00",
+            "source": "tpex_openapi_balance_sheet_t187ap07_o_ci",
+            "skip_reason": "",
+        },
+    ]
+
+
+def test_build_official_income_statement_report_rows_normalizes_general_industry_rows():
+    rows = svc.build_official_income_statement_report_rows(
+        twse_rows=[
+            {
+                "公司代號": "2330",
+                "公司名稱": "台積電",
+                "年度": "115",
+                "季別": "1",
+                "營業收入": "839254000.00",
+                "營業利益（損失）": "411716000.00",
+                "本期淨利（淨損）": "361560000.00",
+                "基本每股盈餘（元）": "13.94",
+            },
+            {
+                "公司代號": "1101",
+                "公司名稱": "台泥",
+                "年度": "115",
+                "季別": "1",
+                "營業收入": "",
+                "營業利益（損失）": "2792191.00",
+                "本期淨利（淨損）": "1204739.00",
+                "基本每股盈餘（元）": "0.10",
+            },
+        ],
+        tpex_rows=[
+            {
+                "SecuritiesCompanyCode": "6488",
+                "CompanyName": "環球晶",
+                "Year": "115",
+                "Season": "1",
+                "營業收入": "15421032.00",
+                "營業利益（損失）": "3370880.00",
+                "本期淨利（淨損）": "2586174.00",
+                "基本每股盈餘（元）": "5.93",
+            },
+        ],
+    )
+
+    assert rows == [
+        {
+            "code": "2330",
+            "name": "台積電",
+            "year": "115",
+            "quarter": "1",
+            "revenue": "839254000.00",
+            "operating_profit": "411716000.00",
+            "net_income": "361560000.00",
+            "eps": "13.94",
+            "source": "twse_openapi_income_statement_t187ap06_l_ci",
+            "skip_reason": "",
+        },
+        {
+            "code": "1101",
+            "name": "台泥",
+            "year": "115",
+            "quarter": "1",
+            "revenue": "",
+            "operating_profit": "2792191.00",
+            "net_income": "1204739.00",
+            "eps": "0.10",
+            "source": "twse_openapi_income_statement_t187ap06_l_ci",
+            "skip_reason": "revenue_missing",
+        },
+        {
+            "code": "6488",
+            "name": "環球晶",
+            "year": "115",
+            "quarter": "1",
+            "revenue": "15421032.00",
+            "operating_profit": "3370880.00",
+            "net_income": "2586174.00",
+            "eps": "5.93",
+            "source": "tpex_openapi_income_statement_t187ap06_o_ci",
+            "skip_reason": "",
+        },
+    ]
+
+
+def test_build_official_dividend_report_rows_normalizes_twse_and_tpex_rows():
+    rows = svc.build_official_dividend_report_rows(
+        twse_rows=[
+            {
+                "公司代號": "2330",
+                "公司名稱": "台積電",
+                "股利年度": "114",
+                "股利所屬年(季)度": "年度",
+                "期別": "1",
+                "股東配發-盈餘分配之現金股利(元/股)": "4.00000000",
+                "股東配發-法定盈餘公積發放之現金(元/股)": "0.0",
+                "股東配發-資本公積發放之現金(元/股)": "1.00000000",
+                "股東配發-盈餘轉增資配股(元/股)": "0.20000000",
+                "股東配發-法定盈餘公積轉增資配股(元/股)": "0.0",
+                "股東配發-資本公積轉增資配股(元/股)": "0.30000000",
+            },
+            {
+                "公司代號": "1101",
+                "公司名稱": "台泥",
+                "股利年度": "114",
+                "股利所屬年(季)度": "年度",
+                "期別": "1",
+                "股東配發-盈餘分配之現金股利(元/股)": "",
+                "股東配發-法定盈餘公積發放之現金(元/股)": "",
+                "股東配發-資本公積發放之現金(元/股)": "",
+                "股東配發-盈餘轉增資配股(元/股)": "0.0",
+                "股東配發-法定盈餘公積轉增資配股(元/股)": "0.0",
+                "股東配發-資本公積轉增資配股(元/股)": "0.0",
+            },
+        ],
+        tpex_rows=[
+            {
+                "公司代號": "6488",
+                "公司名稱": "環球晶",
+                "股利年度": "114",
+                "期別": "1",
+                "股東配發內容-盈餘分配之現金股利(元/股)": "1.50000000",
+                "股東配發內容-法定盈餘公積、資本公積發放之現金(元/股)": "0.20000000",
+                "股東配發內容-盈餘轉增資配股(元/股)": "0.30000000",
+                "股東配發內容-法定盈餘公積、資本公積轉增資配股(元/股)": "0.10000000",
+            },
+        ],
+    )
+
+    assert rows == [
+        {
+            "code": "2330",
+            "name": "台積電",
+            "dividend_year": "114",
+            "period": "年度",
+            "cash_dividend": "5.00000000",
+            "stock_dividend": "0.50000000",
+            "source": "twse_openapi_dividend_t187ap45_l",
+            "skip_reason": "",
+        },
+        {
+            "code": "1101",
+            "name": "台泥",
+            "dividend_year": "114",
+            "period": "年度",
+            "cash_dividend": "",
+            "stock_dividend": "0.0",
+            "source": "twse_openapi_dividend_t187ap45_l",
+            "skip_reason": "cash_dividend_missing",
+        },
+        {
+            "code": "6488",
+            "name": "環球晶",
+            "dividend_year": "114",
+            "period": "1",
+            "cash_dividend": "1.70000000",
+            "stock_dividend": "0.40000000",
+            "source": "tpex_openapi_dividend_t187ap39_o",
+            "skip_reason": "",
+        },
+    ]

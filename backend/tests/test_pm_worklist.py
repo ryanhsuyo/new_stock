@@ -133,7 +133,11 @@ def test_pm_worklist_returns_clear_state_when_no_work(monkeypatch):
         "primary_action": {"label": "查看紀錄", "command": "GET /api/decision-journal", "kind": "link"},
         "top_items": [],
     })
-    monkeypatch.setattr(svc, "get_daily_check_report", lambda: {"overall_status": "ok", "top_actions": []})
+    monkeypatch.setattr(
+        svc,
+        "get_daily_check_report",
+        lambda: {"overall_status": "ok", "top_actions": []},
+    )
 
     worklist = svc.get_pm_worklist()
 
@@ -141,6 +145,83 @@ def test_pm_worklist_returns_clear_state_when_no_work(monkeypatch):
     assert worklist["headline"] == "今日 PM 工作佇列已清空"
     assert worklist["primary_action"] is None
     assert worklist["items"] == []
+
+
+def test_pm_worklist_surfaces_official_coverage_when_daily_check_has_not_refreshed(monkeypatch):
+    import app.services.pm_worklist_service as svc
+
+    monkeypatch.setattr(svc, "get_update_workflow_status", lambda: {
+        "overall_status": "ready",
+        "headline": "每日更新流程完成，可以使用最新交易輸出。",
+        "can_use_trade_outputs": True,
+        "current_step": "ready",
+        "next_action": None,
+        "checks": {},
+    })
+    monkeypatch.setattr(svc, "get_universe", lambda: [])
+    monkeypatch.setattr(svc, "get_fundamentals_status", lambda: {"workflow_summary": {"stage": "complete"}})
+    monkeypatch.setattr(svc, "build_universe_report_review_workflow_summary", lambda limit=10: {"stage": "complete"})
+    monkeypatch.setattr(
+        svc,
+        "get_daily_check_report",
+        lambda: {"overall_status": "ok", "top_actions": [], "snapshot_is_stale": True},
+    )
+    monkeypatch.setattr(svc, "get_official_fundamentals_coverage_audit", lambda: {
+        "target_count": 2,
+        "coverage_pct": 37.5,
+        "available_cell_count": 6,
+        "missing_report_files": ["backend/out/official_fundamentals_dividend.csv"],
+        "blocked_formal_fields": ["roe_5y_avg"],
+        "next_action_label": "先產生缺少的官方 report-only CSV。",
+    })
+
+    worklist = svc.get_pm_worklist()
+
+    item = next(item for item in worklist["items"] if item["key"] == "official_fundamentals_coverage")
+    assert item["severity"] == "warning"
+    assert item["action_type"] == "fundamentals"
+    assert item["metric"] == "37.5% 覆蓋"
+    assert "official_fundamentals_dividend.csv" in item["detail"]
+    assert item["action_payload"] == {
+        "kind": "api",
+        "method": "GET",
+        "endpoint": "/api/system/fundamentals-official/coverage-audit",
+        "confirm_message": "只讀取官方基本面覆蓋率稽核，不會產生報告或寫入正式基本面資料。",
+    }
+
+
+def test_pm_worklist_guides_when_official_coverage_priority_csv_is_missing(monkeypatch):
+    import app.services.pm_worklist_service as svc
+
+    monkeypatch.setattr(svc, "get_update_workflow_status", lambda: {
+        "overall_status": "ready",
+        "headline": "每日更新流程完成，可以使用最新交易輸出。",
+        "can_use_trade_outputs": True,
+        "current_step": "ready",
+        "next_action": None,
+        "checks": {},
+    })
+    monkeypatch.setattr(svc, "get_universe", lambda: [])
+    monkeypatch.setattr(svc, "get_fundamentals_status", lambda: {"workflow_summary": {"stage": "complete"}})
+    monkeypatch.setattr(svc, "build_universe_report_review_workflow_summary", lambda limit=10: {"stage": "complete"})
+    monkeypatch.setattr(
+        svc,
+        "get_daily_check_report",
+        lambda: {"overall_status": "ok", "top_actions": [], "snapshot_is_stale": True},
+    )
+    monkeypatch.setattr(
+        svc,
+        "get_official_fundamentals_coverage_audit",
+        lambda: (_ for _ in ()).throw(FileNotFoundError("尚無 fundamentals_priority_fill.csv")),
+    )
+
+    worklist = svc.get_pm_worklist()
+
+    item = next(item for item in worklist["items"] if item["key"] == "official_fundamentals_coverage")
+    assert item["severity"] == "warning"
+    assert "fundamentals_priority_fill.csv" in item["detail"]
+    assert item["action_payload"]["method"] == "GET"
+    assert item["action_payload"]["endpoint"] == "/api/system/fundamentals-official/coverage-audit"
 
 
 def test_pm_worklist_puts_update_workflow_blocker_first(monkeypatch):

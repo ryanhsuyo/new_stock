@@ -1,6 +1,6 @@
 # F6 Official Fundamentals Report Action
 
-Status: in_progress
+Status: completed
 
 ## Goal
 
@@ -17,24 +17,29 @@ Hard rules:
 ## Tasks
 
 1. Frontend action contract
-   - Status: todo
+   - Status: done
    - Add client method for `POST /api/system/fundamentals-official/reports`.
 
 2. Dashboard action
-   - Status: todo
+   - Status: done
    - Add a clear button in the official fundamentals status card to generate report-only CSVs.
 
 3. Result feedback
-   - Status: todo
+   - Status: done
    - Refresh official report status after success and show a short result message.
 
 4. Guardrails
-   - Status: todo
+   - Status: done
    - Copy must say this does not apply to priority CSV or fill 11 required fields.
 
 5. Verification
-   - Status: todo
+   - Status: done
    - Run frontend structure tests and build.
+
+## Verification
+
+* `node --test frontend/tests/*.test.mjs` — 9 passed.
+* `npm run build` from `frontend/` — passed with existing Vite chunk-size warning.
 
 ## Acceptance
 

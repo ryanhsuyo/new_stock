@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import csv
 import tempfile
+from decimal import Decimal, InvalidOperation
 from pathlib import Path
 from typing import Any
 
@@ -17,7 +18,15 @@ from app.storage.fundamental_store import REQUIRED_FIELDS, validate_priority_csv
 
 TWSE_BWIBBU_URL = "https://openapi.twse.com.tw/v1/exchangeReport/BWIBBU_ALL"
 TWSE_MONTHLY_REVENUE_URL = "https://openapi.twse.com.tw/v1/opendata/t187ap05_L"
+TWSE_PROFITABILITY_URL = "https://openapi.twse.com.tw/v1/opendata/t187ap17_L"
+TWSE_BALANCE_SHEET_CI_URL = "https://openapi.twse.com.tw/v1/opendata/t187ap07_L_ci"
+TWSE_INCOME_STATEMENT_CI_URL = "https://openapi.twse.com.tw/v1/opendata/t187ap06_L_ci"
 TPEX_DAILY_PE_URL = "https://www.tpex.org.tw/www/zh-tw/afterTrading/peQryDate"
+TPEX_PROFITABILITY_URL = "https://www.tpex.org.tw/openapi/v1/mopsfin_187ap17_O"
+TPEX_BALANCE_SHEET_CI_URL = "https://www.tpex.org.tw/openapi/v1/mopsfin_t187ap07_O_ci"
+TPEX_INCOME_STATEMENT_CI_URL = "https://www.tpex.org.tw/openapi/v1/mopsfin_t187ap06_O_ci"
+TWSE_DIVIDEND_URL = "https://openapi.twse.com.tw/v1/opendata/t187ap45_L"
+TPEX_DIVIDEND_URL = "https://www.tpex.org.tw/openapi/v1/mopsfin_t187ap39_O"
 UNMAPPED_OFFICIAL_FIELDS = ["DividendYield", "PBratio"]
 
 
@@ -43,6 +52,36 @@ def _row_dividend_yield(row: dict[str, Any]) -> str:
 
 def _row_pb_ratio(row: dict[str, Any]) -> str:
     return _clean(row.get("PBratio") or row.get("pb_ratio") or row.get("股價淨值比"))
+
+
+def _first_clean(row: dict[str, Any], *keys: str) -> str:
+    for key in keys:
+        value = _clean(row.get(key))
+        if value:
+            return value
+    return ""
+
+
+def _sum_decimal_strings(row: dict[str, Any], *keys: str) -> str:
+    total = Decimal("0")
+    found = False
+    scale = 0
+    for key in keys:
+        raw = _clean(row.get(key))
+        if not raw:
+            continue
+        try:
+            value = Decimal(raw.replace(",", ""))
+        except InvalidOperation:
+            continue
+        found = True
+        total += value
+        exponent = value.as_tuple().exponent
+        if exponent < 0:
+            scale = max(scale, -exponent)
+    if not found:
+        return ""
+    return f"{total:.{scale}f}" if scale else str(total)
 
 
 def build_twse_bwibbu_report_rows(bwibbu_rows: list[dict[str, Any]]) -> list[dict[str, str]]:
@@ -143,6 +182,218 @@ def build_tpex_daily_pe_report_rows(payload: dict[str, Any]) -> list[dict[str, s
                 "skip_reason": "" if pe else "tpex_pe_missing_or_na",
             }
         )
+    return report_rows
+
+
+def build_official_profitability_report_rows(
+    *,
+    twse_rows: list[dict[str, Any]] | None = None,
+    tpex_rows: list[dict[str, Any]] | None = None,
+) -> list[dict[str, str]]:
+    """Build a neutral listed + OTC profitability summary report.
+
+    These rows are report-only references. They intentionally do not fill
+    `operating_margin_5y_avg` or other required fundamentals fields.
+    """
+
+    def normalize(row: dict[str, Any], source: str) -> dict[str, str] | None:
+        code = _row_code(row)
+        if not code:
+            return None
+        operating_margin = _first_clean(row, "營業利益率(%)", "operating_margin")
+        pre_tax_margin = _first_clean(row, "稅前純益率(%)", "pre_tax_margin")
+        after_tax_margin = _first_clean(row, "稅後純益率(%)", "after_tax_margin")
+        skip_reasons = []
+        if not operating_margin:
+            skip_reasons.append("operating_margin_missing")
+        if not pre_tax_margin:
+            skip_reasons.append("pre_tax_margin_missing")
+        if not after_tax_margin:
+            skip_reasons.append("after_tax_margin_missing")
+        return {
+            "code": code,
+            "name": _row_name(row),
+            "year": _first_clean(row, "年度", "year"),
+            "quarter": _first_clean(row, "季別", "quarter"),
+            "operating_margin": operating_margin,
+            "pre_tax_margin": pre_tax_margin,
+            "after_tax_margin": after_tax_margin,
+            "source": source,
+            "skip_reason": ";".join(skip_reasons),
+        }
+
+    report_rows: list[dict[str, str]] = []
+    for row in twse_rows or []:
+        normalized = normalize(row, "twse_openapi_profitability_t187ap17_l")
+        if normalized is not None:
+            report_rows.append(normalized)
+    for row in tpex_rows or []:
+        normalized = normalize(row, "tpex_openapi_profitability_187ap17_o")
+        if normalized is not None:
+            report_rows.append(normalized)
+    return report_rows
+
+
+def build_official_balance_sheet_report_rows(
+    *,
+    twse_rows: list[dict[str, Any]] | None = None,
+    tpex_rows: list[dict[str, Any]] | None = None,
+) -> list[dict[str, str]]:
+    """Build a neutral general-industry balance sheet reference report."""
+
+    def normalize(row: dict[str, Any], source: str) -> dict[str, str] | None:
+        code = _first_clean(row, "公司代號", "SecuritiesCompanyCode", "Code", "code")
+        if not code:
+            return None
+        total_assets = _first_clean(row, "資產總額", "資產總計", "total_assets")
+        liabilities = _first_clean(row, "負債總額", "負債總計", "liabilities")
+        equity = _first_clean(row, "權益總額", "權益總計", "equity")
+        skip_reasons = []
+        if not total_assets:
+            skip_reasons.append("total_assets_missing")
+        if not liabilities:
+            skip_reasons.append("liabilities_missing")
+        if not equity:
+            skip_reasons.append("equity_missing")
+        return {
+            "code": code,
+            "name": _first_clean(row, "公司名稱", "CompanyName", "Name", "name"),
+            "year": _first_clean(row, "年度", "year"),
+            "quarter": _first_clean(row, "季別", "quarter"),
+            "total_assets": total_assets,
+            "liabilities": liabilities,
+            "equity": equity,
+            "source": source,
+            "skip_reason": ";".join(skip_reasons),
+        }
+
+    report_rows: list[dict[str, str]] = []
+    for row in twse_rows or []:
+        normalized = normalize(row, "twse_openapi_balance_sheet_t187ap07_l_ci")
+        if normalized is not None:
+            report_rows.append(normalized)
+    for row in tpex_rows or []:
+        normalized = normalize(row, "tpex_openapi_balance_sheet_t187ap07_o_ci")
+        if normalized is not None:
+            report_rows.append(normalized)
+    return report_rows
+
+
+def build_official_income_statement_report_rows(
+    *,
+    twse_rows: list[dict[str, Any]] | None = None,
+    tpex_rows: list[dict[str, Any]] | None = None,
+) -> list[dict[str, str]]:
+    """Build a neutral general-industry income statement reference report."""
+
+    def normalize(row: dict[str, Any], source: str) -> dict[str, str] | None:
+        code = _first_clean(row, "公司代號", "SecuritiesCompanyCode", "Code", "code")
+        if not code:
+            return None
+        revenue = _first_clean(row, "營業收入", "revenue")
+        operating_profit = _first_clean(row, "營業利益（損失）", "營業利益", "operating_profit")
+        net_income = _first_clean(row, "本期淨利（淨損）", "本期淨利", "net_income")
+        eps = _first_clean(row, "基本每股盈餘（元）", "eps")
+        skip_reasons = []
+        if not revenue:
+            skip_reasons.append("revenue_missing")
+        if not operating_profit:
+            skip_reasons.append("operating_profit_missing")
+        if not net_income:
+            skip_reasons.append("net_income_missing")
+        if not eps:
+            skip_reasons.append("eps_missing")
+        return {
+            "code": code,
+            "name": _first_clean(row, "公司名稱", "CompanyName", "Name", "name"),
+            "year": _first_clean(row, "年度", "Year", "year"),
+            "quarter": _first_clean(row, "季別", "Season", "quarter"),
+            "revenue": revenue,
+            "operating_profit": operating_profit,
+            "net_income": net_income,
+            "eps": eps,
+            "source": source,
+            "skip_reason": ";".join(skip_reasons),
+        }
+
+    report_rows: list[dict[str, str]] = []
+    for row in twse_rows or []:
+        normalized = normalize(row, "twse_openapi_income_statement_t187ap06_l_ci")
+        if normalized is not None:
+            report_rows.append(normalized)
+    for row in tpex_rows or []:
+        normalized = normalize(row, "tpex_openapi_income_statement_t187ap06_o_ci")
+        if normalized is not None:
+            report_rows.append(normalized)
+    return report_rows
+
+
+def build_official_dividend_report_rows(
+    *,
+    twse_rows: list[dict[str, Any]] | None = None,
+    tpex_rows: list[dict[str, Any]] | None = None,
+) -> list[dict[str, str]]:
+    """Build a neutral listed + OTC dividend distribution reference report.
+
+    Cash and stock dividend values are per-share sums of official component
+    fields. The output remains report-only and must not fill `dividend_years`.
+    """
+
+    def normalize(row: dict[str, Any], source: str) -> dict[str, str] | None:
+        code = _first_clean(row, "公司代號", "SecuritiesCompanyCode", "Code", "code")
+        if not code:
+            return None
+        if source.startswith("twse"):
+            cash_dividend = _sum_decimal_strings(
+                row,
+                "股東配發-盈餘分配之現金股利(元/股)",
+                "股東配發-法定盈餘公積發放之現金(元/股)",
+                "股東配發-資本公積發放之現金(元/股)",
+            )
+            stock_dividend = _sum_decimal_strings(
+                row,
+                "股東配發-盈餘轉增資配股(元/股)",
+                "股東配發-法定盈餘公積轉增資配股(元/股)",
+                "股東配發-資本公積轉增資配股(元/股)",
+            )
+            period = _first_clean(row, "股利所屬年(季)度", "期別", "period")
+        else:
+            cash_dividend = _sum_decimal_strings(
+                row,
+                "股東配發內容-盈餘分配之現金股利(元/股)",
+                "股東配發內容-法定盈餘公積、資本公積發放之現金(元/股)",
+            )
+            stock_dividend = _sum_decimal_strings(
+                row,
+                "股東配發內容-盈餘轉增資配股(元/股)",
+                "股東配發內容-法定盈餘公積、資本公積轉增資配股(元/股)",
+            )
+            period = _first_clean(row, "股利所屬年(季)度", "期別", "period")
+        skip_reasons = []
+        if not cash_dividend:
+            skip_reasons.append("cash_dividend_missing")
+        if not stock_dividend:
+            skip_reasons.append("stock_dividend_missing")
+        return {
+            "code": code,
+            "name": _first_clean(row, "公司名稱", "CompanyName", "Name", "name"),
+            "dividend_year": _first_clean(row, "股利年度", "dividend_year"),
+            "period": period,
+            "cash_dividend": cash_dividend,
+            "stock_dividend": stock_dividend,
+            "source": source,
+            "skip_reason": ";".join(skip_reasons),
+        }
+
+    report_rows: list[dict[str, str]] = []
+    for row in twse_rows or []:
+        normalized = normalize(row, "twse_openapi_dividend_t187ap45_l")
+        if normalized is not None:
+            report_rows.append(normalized)
+    for row in tpex_rows or []:
+        normalized = normalize(row, "tpex_openapi_dividend_t187ap39_o")
+        if normalized is not None:
+            report_rows.append(normalized)
     return report_rows
 
 

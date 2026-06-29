@@ -901,6 +901,52 @@ body {
   line-height: 1.35;
   word-break: break-word;
 }
+.official-fundamentals-coverage {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  margin-top: 10px;
+  border: 1px solid #bae6fd;
+  border-radius: 10px;
+  background: rgba(255,255,255,0.78);
+  padding: 10px;
+}
+.official-fundamentals-coverage.missing {
+  border-color: #fde68a;
+  background: rgba(255,251,235,0.84);
+}
+.official-fundamentals-coverage span {
+  display: block;
+  color: #0369a1;
+  font-size: 11px;
+  font-weight: 800;
+}
+.official-fundamentals-coverage strong {
+  display: block;
+  margin-top: 4px;
+  color: #111827;
+  font-size: 14px;
+}
+.official-fundamentals-coverage p,
+.official-fundamentals-coverage em,
+.official-fundamentals-coverage small {
+  display: block;
+  margin: 5px 0 0;
+  color: #4b5563;
+  font-size: 12px;
+  font-style: normal;
+  line-height: 1.4;
+}
+.official-fundamentals-coverage em {
+  max-width: 320px;
+  color: #0369a1;
+  font-weight: 800;
+  text-align: right;
+}
+.official-fundamentals-coverage small {
+  text-align: right;
+}
 .fundamentals-workflow-head {
   display: flex;
   align-items: flex-start;

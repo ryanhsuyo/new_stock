@@ -65,6 +65,64 @@ def test_daily_check_builds_summary_from_doctor_report():
     assert summary["top_actions"][1]["details"]["missing_codes"] == ["2330", "2454"]
 
 
+def test_daily_check_surfaces_official_coverage_audit_without_generating_reports(monkeypatch):
+    import daily_check
+
+    monkeypatch.setattr(daily_check, "get_official_fundamentals_coverage_audit", lambda: {
+        "target_count": 2,
+        "coverage_pct": 37.5,
+        "available_cell_count": 6,
+        "missing_report_files": ["backend/out/official_fundamentals_dividend.csv"],
+        "blocked_formal_fields": ["roe_5y_avg", "eps_growth_5y_cagr"],
+        "next_action_label": "先產生缺少的官方 report-only CSV。",
+    })
+    report = {
+        "overall_status": "warn",
+        "exit_code": 1,
+        "generated_at": "2026-06-29",
+        "checks": [],
+    }
+
+    summary = daily_check.build_daily_summary(report, limit=3, include_official_coverage=True)
+
+    action = next(item for item in summary["top_actions"] if item["key"] == "official_fundamentals_coverage")
+    assert action["status"] == "warn"
+    assert "37.5%" in action["message"]
+    assert action["details"]["target_count"] == 2
+    assert action["details"]["missing_report_files"] == ["backend/out/official_fundamentals_dividend.csv"]
+    assert action["action_payload"] == {
+        "kind": "api",
+        "method": "GET",
+        "endpoint": "/api/system/fundamentals-official/coverage-audit",
+        "confirm_message": "只讀取官方基本面覆蓋率稽核，不會產生報告或寫入正式基本面資料。",
+    }
+
+
+def test_daily_check_guides_when_official_coverage_priority_csv_is_missing(monkeypatch):
+    import daily_check
+
+    monkeypatch.setattr(
+        daily_check,
+        "get_official_fundamentals_coverage_audit",
+        lambda: (_ for _ in ()).throw(FileNotFoundError("尚無 fundamentals_priority_fill.csv")),
+    )
+    report = {
+        "overall_status": "warn",
+        "exit_code": 1,
+        "generated_at": "2026-06-29",
+        "checks": [],
+    }
+
+    summary = daily_check.build_daily_summary(report, limit=3, include_official_coverage=True)
+
+    action = next(item for item in summary["top_actions"] if item["key"] == "official_fundamentals_coverage")
+    assert action["status"] == "warn"
+    assert "fundamentals_priority_fill.csv" in action["message"]
+    assert action["action_payload"]["kind"] == "api"
+    assert action["action_payload"]["method"] == "GET"
+    assert action["action_payload"]["endpoint"] == "/api/system/fundamentals-official/coverage-audit"
+
+
 def test_daily_check_explains_warn_with_usable_trade_outputs():
     import daily_check
 

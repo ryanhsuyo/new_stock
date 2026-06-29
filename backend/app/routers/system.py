@@ -6,6 +6,7 @@ from app.models.system import (
     FundamentalsPriorityMergeRequest,
     FundamentalsPriorityMergeResult,
     FundamentalsStatus,
+    OfficialFundamentalsCoverageAudit,
     OfficialFundamentalsReportsRequest,
     OfficialFundamentalsReportsResult,
     OfficialFundamentalsStatus,
@@ -22,6 +23,7 @@ from app.models.system import (
 from app.services.daily_check_service import get_daily_check_report
 from app.services.fundamental_service import get_fundamentals_status, get_priority_fill_csv_path, merge_priority_fill_csv
 from app.services.official_fundamentals_api_service import (
+    get_official_fundamentals_coverage_audit,
     get_official_fundamentals_status,
     run_official_fundamentals_reports,
 )
@@ -90,6 +92,15 @@ def official_fundamentals_reports(payload: OfficialFundamentalsReportsRequest) -
         return OfficialFundamentalsReportsResult(**run_official_fundamentals_reports(payload_dict))
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+
+@router.get("/system/fundamentals-official/coverage-audit", response_model=OfficialFundamentalsCoverageAudit)
+def official_fundamentals_coverage_audit() -> OfficialFundamentalsCoverageAudit:
+    """讀取官方 report-only 覆蓋率稽核；不產生報告、不寫入策略輸入。"""
+    try:
+        return OfficialFundamentalsCoverageAudit(**get_official_fundamentals_coverage_audit())
+    except FileNotFoundError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
 
 
 @router.get("/system/fundamentals-priority-fill")

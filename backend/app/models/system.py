@@ -95,7 +95,15 @@ class OfficialFundamentalsStatus(BaseModel):
 
 
 class OfficialFundamentalsReportsRequest(BaseModel):
-    reports: list[str] = Field(default_factory=lambda: ["twse_bwibbu", "twse_monthly_revenue", "tpex_daily_pe"])
+    reports: list[str] = Field(default_factory=lambda: [
+        "twse_bwibbu",
+        "twse_monthly_revenue",
+        "tpex_daily_pe",
+        "profitability",
+        "balance_sheet",
+        "income_statement",
+        "dividend",
+    ])
     apply: bool = False
     sleep: float = 1.0
     tpex_daily_pe_date: str | None = None
@@ -107,6 +115,20 @@ class OfficialFundamentalsReportsResult(BaseModel):
     requested_reports: list[str]
     reports: dict[str, dict]
     warnings: list[str] = Field(default_factory=list)
+
+
+class OfficialFundamentalsCoverageAudit(BaseModel):
+    priority_csv_path: str
+    target_count: int
+    report_count: int
+    available_cell_count: int
+    coverage_pct: float
+    missing_report_files: list[str] = Field(default_factory=list)
+    formally_fillable_official_fields: list[str] = Field(default_factory=list)
+    blocked_formal_fields: list[str] = Field(default_factory=list)
+    reports: dict[str, dict] = Field(default_factory=dict)
+    codes: list[dict] = Field(default_factory=list)
+    next_action_label: str | None = None
 
 
 class PersonalBackupFile(BaseModel):

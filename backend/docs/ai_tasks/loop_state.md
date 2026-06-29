@@ -12,17 +12,17 @@ Rules:
 
 ## Current State
 
-Active phase: F6
+Active phase: none
 
 Loop mode: active
 
 Last completed phase:
 
-* `F5_official_fundamentals_frontend_status.md` — official report status display in Dashboard
+* `F15_official_coverage_workflow_awareness.md` — official coverage Daily Check / PM Worklist awareness
 
 Current phase status:
 
-* `F6_official_fundamentals_report_action.md` is in progress.
+* No active phase. F1-F15 official fundamentals workflow slices are implemented; choose the next safe phase deliberately before continuing.
 
 ## Completed Phase History
 
@@ -80,10 +80,21 @@ Current phase status:
 * F3 — Mapped all 11 required fundamentals fields to direct / derived / blocked source decisions and formulas.
 * F4 — Added official fundamentals report status and report-only HTTP API wrapper.
 * F5 — Added Dashboard official fundamentals report status display and frontend API contract.
+* F6 — Added Dashboard action for official fundamentals report-only generation.
+* F7 — Mapped TWSE/TPEx official financial statement OpenAPI source decisions and blocked cash-flow-dependent fields.
+* F8 — Added TWSE/TPEx official profitability report-only probe across service, CLI, and HTTP API.
+* F9 — Added TWSE/TPEx general-industry balance sheet report-only probe across service, CLI, and HTTP API.
+* F10 — Added TWSE/TPEx general-industry income statement report-only probe across service, CLI, and HTTP API.
+* F11 — Added TWSE/TPEx dividend distribution report-only probe across service, CLI, and HTTP API.
+* F12 — Added read-only official fundamentals report coverage audit service and CLI JSON output.
+* F13 — Added read-only official fundamentals coverage audit API wrapper.
+* F14 — Added Dashboard / PM-facing official coverage audit status display without frontend recomputation.
+* F15 — Added Daily Check / PM Worklist official coverage awareness without triggering report generation or formal fundamentals writes.
 
 ## Next Phase Candidates
 
-* Complete `F6_official_fundamentals_report_action.md`.
+* Prepare a commit-ready change summary for F1-F15 official fundamentals workflow.
+* Add a small official fundamentals smoke-verification phase only after deciding whether generated `backend/out/*` refreshes should be part of the heartbeat.
 
 ## Last Verification
 
@@ -98,6 +109,18 @@ Current phase status:
 * F4 official report API tests: `/Library/Frameworks/Python.framework/Versions/3.11/bin/python3 -m pytest backend/tests/test_official_fundamentals_api.py -q` passed, 5 tests.
 * F5 frontend structure tests: `node --test frontend/tests/*.test.mjs` passed, 8 tests.
 * F5 frontend build: `npm run build` from `frontend/` passed, with existing Vite chunk-size warning.
+* F6 frontend structure tests: `node --test frontend/tests/*.test.mjs` passed, 9 tests.
+* F6 frontend build: `npm run build` from `frontend/` passed, with existing Vite chunk-size warning.
+* F7 docs/source sanity: `rg -n "F7|t187ap06|t187ap07|cash flow|report-only candidate|blocked" backend/docs/ai_tasks/F7_official_financial_statement_source_decision.md backend/docs/current_rules.md backend/docs/ai_tasks/loop_state.md` passed.
+* F8 focused tests: `/Library/Frameworks/Python.framework/Versions/3.11/bin/python3 -m pytest backend/tests/test_official_fundamentals_service.py::test_build_official_profitability_report_rows_normalizes_twse_and_tpex_rows backend/tests/test_official_fundamentals_cli.py::test_update_fundamentals_official_writes_profitability_report_from_fixtures backend/tests/test_official_fundamentals_api.py::test_run_official_fundamentals_reports_endpoint_defaults_to_report_only backend/tests/test_official_fundamentals_api.py::test_run_official_fundamentals_reports_writes_profitability_csv -q` passed.
+* F9 focused tests: `/Library/Frameworks/Python.framework/Versions/3.11/bin/python3 -m pytest backend/tests/test_official_fundamentals_service.py::test_build_official_balance_sheet_report_rows_normalizes_general_industry_rows backend/tests/test_official_fundamentals_cli.py::test_update_fundamentals_official_writes_balance_sheet_report_from_fixtures backend/tests/test_official_fundamentals_api.py::test_run_official_fundamentals_reports_endpoint_defaults_to_report_only backend/tests/test_official_fundamentals_api.py::test_run_official_fundamentals_reports_writes_balance_sheet_csv -q` passed.
+* F10 official fundamentals tests: `/Library/Frameworks/Python.framework/Versions/3.11/bin/python3 -m pytest backend/tests/test_official_fundamentals_service.py backend/tests/test_official_fundamentals_cli.py backend/tests/test_official_fundamentals_api.py -q` passed.
+* F11 official fundamentals tests: `/Library/Frameworks/Python.framework/Versions/3.11/bin/python3 -m pytest backend/tests/test_official_fundamentals_service.py backend/tests/test_official_fundamentals_cli.py backend/tests/test_official_fundamentals_api.py -q` passed.
+* F12 official fundamentals tests: `/Library/Frameworks/Python.framework/Versions/3.11/bin/python3 -m pytest backend/tests/test_official_fundamentals_api.py backend/tests/test_official_fundamentals_cli.py backend/tests/test_official_fundamentals_service.py -q` passed.
+* F13 official fundamentals tests: `/Library/Frameworks/Python.framework/Versions/3.11/bin/python3 -m pytest backend/tests/test_official_fundamentals_api.py backend/tests/test_official_fundamentals_cli.py backend/tests/test_official_fundamentals_service.py -q` passed.
+* F14 frontend tests: `node --test frontend/tests/*.test.mjs` passed.
+* F14 frontend build: `npm run build` from `frontend/` passed, with existing Vite chunk-size warning.
+* F15 workflow tests: `/Library/Frameworks/Python.framework/Versions/3.11/bin/python3 -m pytest backend/tests/test_daily_check.py backend/tests/test_pm_worklist.py -q` passed, 31 tests.
 * Fundamentals wording regression tests: `/Library/Frameworks/Python.framework/Versions/3.11/bin/python3 -m pytest backend/tests/test_fundamentals_cli.py -q` passed, 14 tests.
 * R9 focused fundamentals service tests: `/Library/Frameworks/Python.framework/Versions/3.11/bin/python3 -m pytest backend/tests/test_fundamental_service.py -q` passed, 20 tests.
 * R9 focused fundamentals CLI tests: `/Library/Frameworks/Python.framework/Versions/3.11/bin/python3 -m pytest backend/tests/test_fundamentals_cli.py::test_prepare_fundamentals_priority_import_help_exits_0 backend/tests/test_fundamentals_cli.py::test_prepare_fundamentals_priority_import_prints_preview -q` passed, 2 tests.
@@ -126,4 +149,4 @@ Current phase status:
 
 ## Last Stop Reason
 
-F5 completed Dashboard official fundamentals report status display. Remaining blocker: stable official financial statement source for derived fields; direct MOPS curl probes are security-blocked, so do not fabricate values or scrape blocked pages.
+F15 completed official coverage awareness in Daily Check / PM Worklist. No active phase is selected; next heartbeat should not keep re-running F15.

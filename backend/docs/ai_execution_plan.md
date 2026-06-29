@@ -86,13 +86,13 @@ Hard-stop examples:
 
 ## 6. Active Phase
 
-Phase ID: F6
+Phase ID: none
 
-Phase name: Official fundamentals report action
+Phase name: No active phase
 
 Active phase file:
 
-`backend/docs/ai_tasks/F6_official_fundamentals_report_action.md`
+None. Choose the next safe phase before continuing automatic implementation.
 
 ## 7. Required Reading
 

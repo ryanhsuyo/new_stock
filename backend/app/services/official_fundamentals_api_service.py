@@ -14,17 +14,39 @@ from typing import Any
 import requests
 
 from app.services.official_fundamentals_service import (
+    TPEX_BALANCE_SHEET_CI_URL,
     TPEX_DAILY_PE_URL,
+    TPEX_DIVIDEND_URL,
+    TPEX_INCOME_STATEMENT_CI_URL,
+    TPEX_PROFITABILITY_URL,
+    TWSE_BALANCE_SHEET_CI_URL,
     TWSE_BWIBBU_URL,
+    TWSE_DIVIDEND_URL,
+    TWSE_INCOME_STATEMENT_CI_URL,
     TWSE_MONTHLY_REVENUE_URL,
+    TWSE_PROFITABILITY_URL,
+    build_official_balance_sheet_report_rows,
+    build_official_dividend_report_rows,
+    build_official_income_statement_report_rows,
+    build_official_profitability_report_rows,
     build_tpex_daily_pe_report_rows,
     build_twse_bwibbu_report_rows,
     build_twse_monthly_revenue_report_rows,
 )
+from app.storage.fundamental_store import REQUIRED_FIELDS
 
 _OUT = Path(__file__).resolve().parent.parent.parent / "out"
+DEFAULT_PRIORITY_CSV_PATH = _OUT / "fundamentals_priority_fill.csv"
 
-DEFAULT_REPORT_KEYS = ["twse_bwibbu", "twse_monthly_revenue", "tpex_daily_pe"]
+DEFAULT_REPORT_KEYS = [
+    "twse_bwibbu",
+    "twse_monthly_revenue",
+    "tpex_daily_pe",
+    "profitability",
+    "balance_sheet",
+    "income_statement",
+    "dividend",
+]
 
 OFFICIAL_REPORTS: dict[str, dict[str, Any]] = {
     "twse_bwibbu": {
@@ -41,6 +63,26 @@ OFFICIAL_REPORTS: dict[str, dict[str, Any]] = {
         "label": "TPEx PE/PB/dividend reference",
         "path": _OUT / "official_fundamentals_tpex_daily_pe.csv",
         "source": "tpex_after_trading_pe_qry_date",
+    },
+    "profitability": {
+        "label": "Official TWSE/TPEx profitability summary reference",
+        "path": _OUT / "official_fundamentals_profitability.csv",
+        "source": "twse_tpex_openapi_profitability",
+    },
+    "balance_sheet": {
+        "label": "Official TWSE/TPEx balance sheet reference",
+        "path": _OUT / "official_fundamentals_balance_sheet.csv",
+        "source": "twse_tpex_openapi_balance_sheet_ci",
+    },
+    "income_statement": {
+        "label": "Official TWSE/TPEx income statement reference",
+        "path": _OUT / "official_fundamentals_income_statement.csv",
+        "source": "twse_tpex_openapi_income_statement_ci",
+    },
+    "dividend": {
+        "label": "Official TWSE/TPEx dividend distribution reference",
+        "path": _OUT / "official_fundamentals_dividend.csv",
+        "source": "twse_tpex_openapi_dividend",
     },
 }
 
@@ -71,7 +113,64 @@ _REPORT_FIELDNAMES: dict[str, list[str]] = {
         "source_date",
         "skip_reason",
     ],
+    "profitability": [
+        "code",
+        "name",
+        "year",
+        "quarter",
+        "operating_margin",
+        "pre_tax_margin",
+        "after_tax_margin",
+        "source",
+        "skip_reason",
+    ],
+    "balance_sheet": [
+        "code",
+        "name",
+        "year",
+        "quarter",
+        "total_assets",
+        "liabilities",
+        "equity",
+        "source",
+        "skip_reason",
+    ],
+    "income_statement": [
+        "code",
+        "name",
+        "year",
+        "quarter",
+        "revenue",
+        "operating_profit",
+        "net_income",
+        "eps",
+        "source",
+        "skip_reason",
+    ],
+    "dividend": [
+        "code",
+        "name",
+        "dividend_year",
+        "period",
+        "cash_dividend",
+        "stock_dividend",
+        "source",
+        "skip_reason",
+    ],
 }
+
+_AUDIT_REPORT_KEY_FIELDS: dict[str, list[str]] = {
+    "twse_bwibbu": ["pe"],
+    "twse_monthly_revenue": ["monthly_revenue_yoy_pct", "cumulative_revenue_yoy_pct"],
+    "tpex_daily_pe": ["pe", "dividend_yield", "pb_ratio"],
+    "profitability": ["operating_margin", "pre_tax_margin", "after_tax_margin"],
+    "balance_sheet": ["total_assets", "liabilities", "equity"],
+    "income_statement": ["revenue", "operating_profit", "net_income", "eps"],
+    "dividend": ["cash_dividend", "stock_dividend"],
+}
+
+FORMALLY_FILLABLE_OFFICIAL_FIELDS = ["pe"]
+BLOCKED_FORMAL_FIELDS = [field for field in REQUIRED_FIELDS if field not in FORMALLY_FILLABLE_OFFICIAL_FIELDS]
 
 
 def _count_csv_rows(path: Path) -> int:
@@ -93,6 +192,32 @@ def _write_report(path: Path, fieldnames: list[str], rows: list[dict[str, str]])
         writer = csv.DictWriter(f, fieldnames=fieldnames)
         writer.writeheader()
         writer.writerows(rows)
+
+
+def _clean_cell(value: Any) -> str:
+    return str(value or "").strip()
+
+
+def _read_csv_rows(path: Path) -> list[dict[str, str]]:
+    with path.open(encoding="utf-8-sig", newline="") as f:
+        return [dict(row) for row in csv.DictReader(f)]
+
+
+def _read_priority_targets(path: Path) -> list[dict[str, str]]:
+    rows = _read_csv_rows(path)
+    targets: list[dict[str, str]] = []
+    for row in rows:
+        code = _clean_cell(row.get("code"))
+        if not code:
+            continue
+        targets.append(
+            {
+                "code": code,
+                "name": _clean_cell(row.get("name")),
+                "priority_reason": _clean_cell(row.get("priority_reason")),
+            }
+        )
+    return targets
 
 
 def _sleep(seconds: float) -> None:
@@ -122,6 +247,112 @@ def _fetch_tpex_daily_pe(date: str | None, *, timeout: int = 20) -> dict[str, An
     if raw.get("stat") != "ok":
         raise ValueError("TPEx 官方 API 回應失敗: " + str(raw.get("stat")))
     return raw
+
+
+def build_official_fundamentals_coverage_audit(
+    priority_csv_path: str | Path,
+    *,
+    reports: dict[str, dict[str, Any]] | None = None,
+) -> dict[str, Any]:
+    """Read official report-only CSVs and summarize coverage for priority stocks.
+
+    This audit intentionally does not derive or write any formal fundamentals
+    fields. It only explains whether reference rows exist in generated reports.
+    """
+    report_meta = reports or OFFICIAL_REPORTS
+    targets = _read_priority_targets(Path(priority_csv_path))
+    code_rows = [
+        {
+            "code": target["code"],
+            "name": target["name"],
+            "priority_reason": target["priority_reason"],
+            "available_report_count": 0,
+            "reports": {},
+        }
+        for target in targets
+    ]
+    by_code = {row["code"]: row for row in code_rows}
+    report_summaries: dict[str, dict[str, Any]] = {}
+    available_cell_count = 0
+    missing_report_files: list[str] = []
+
+    for key, meta in report_meta.items():
+        path = Path(meta["path"])
+        key_fields = _AUDIT_REPORT_KEY_FIELDS.get(key, [])
+        report_summary = {
+            "key": key,
+            "label": meta.get("label") or key,
+            "source": meta.get("source") or "",
+            "path": str(path),
+            "status": "ready",
+            "exists": path.exists(),
+            "row_count": 0,
+            "available_count": 0,
+            "missing_row_count": 0,
+            "key_fields": key_fields,
+        }
+        rows_by_code: dict[str, dict[str, str]] = {}
+        if not path.exists():
+            report_summary["status"] = "missing_file"
+            missing_report_files.append(key)
+        else:
+            rows = _read_csv_rows(path)
+            report_summary["row_count"] = len(rows)
+            rows_by_code = {_clean_cell(row.get("code")): row for row in rows if _clean_cell(row.get("code"))}
+
+        for code, code_summary in by_code.items():
+            if report_summary["status"] == "missing_file":
+                status = "missing_file"
+                present_fields: list[str] = []
+                skip_reason = "report_file_missing"
+            else:
+                row = rows_by_code.get(code)
+                if row is None:
+                    status = "missing_row"
+                    present_fields = []
+                    skip_reason = "report_row_missing"
+                    report_summary["missing_row_count"] += 1
+                else:
+                    present_fields = [field for field in key_fields if _clean_cell(row.get(field))]
+                    skip_reason = _clean_cell(row.get("skip_reason"))
+                    if present_fields:
+                        status = "available"
+                        code_summary["available_report_count"] += 1
+                        report_summary["available_count"] += 1
+                        available_cell_count += 1
+                    else:
+                        status = "empty_values"
+                        if not skip_reason:
+                            skip_reason = "key_fields_empty"
+            code_summary["reports"][key] = {
+                "status": status,
+                "present_fields": present_fields,
+                "skip_reason": skip_reason,
+            }
+        report_summaries[key] = report_summary
+
+    denominator = len(targets) * len(report_meta)
+    coverage_pct = round(available_cell_count / denominator * 100, 1) if denominator else 0.0
+    return {
+        "priority_csv_path": str(priority_csv_path),
+        "target_count": len(targets),
+        "report_count": len(report_meta),
+        "available_cell_count": available_cell_count,
+        "coverage_pct": coverage_pct,
+        "missing_report_files": missing_report_files,
+        "formally_fillable_official_fields": list(FORMALLY_FILLABLE_OFFICIAL_FIELDS),
+        "blocked_formal_fields": list(BLOCKED_FORMAL_FIELDS),
+        "reports": report_summaries,
+        "codes": code_rows,
+        "next_action_label": "先補齊缺失的 official report-only CSV；正式基本面欄位仍需人工確認公式與資料完整性",
+    }
+
+
+def get_official_fundamentals_coverage_audit() -> dict[str, Any]:
+    """Return the read-only official coverage audit using generated out files."""
+    if not DEFAULT_PRIORITY_CSV_PATH.exists():
+        raise FileNotFoundError(f"尚無 {DEFAULT_PRIORITY_CSV_PATH.name}，請先產生或下載優先補資料 CSV")
+    return build_official_fundamentals_coverage_audit(DEFAULT_PRIORITY_CSV_PATH)
 
 
 def get_official_fundamentals_status() -> dict[str, Any]:
@@ -189,6 +420,22 @@ def run_official_fundamentals_reports(payload: dict[str, Any]) -> dict[str, Any]
         elif key == "tpex_daily_pe":
             source_payload = _fetch_tpex_daily_pe(tpex_daily_pe_date)
             rows = build_tpex_daily_pe_report_rows(source_payload)
+        elif key == "profitability":
+            twse_rows = _fetch_twse_rows(TWSE_PROFITABILITY_URL)
+            tpex_rows = _fetch_twse_rows(TPEX_PROFITABILITY_URL)
+            rows = build_official_profitability_report_rows(twse_rows=twse_rows, tpex_rows=tpex_rows)
+        elif key == "balance_sheet":
+            twse_rows = _fetch_twse_rows(TWSE_BALANCE_SHEET_CI_URL)
+            tpex_rows = _fetch_twse_rows(TPEX_BALANCE_SHEET_CI_URL)
+            rows = build_official_balance_sheet_report_rows(twse_rows=twse_rows, tpex_rows=tpex_rows)
+        elif key == "income_statement":
+            twse_rows = _fetch_twse_rows(TWSE_INCOME_STATEMENT_CI_URL)
+            tpex_rows = _fetch_twse_rows(TPEX_INCOME_STATEMENT_CI_URL)
+            rows = build_official_income_statement_report_rows(twse_rows=twse_rows, tpex_rows=tpex_rows)
+        elif key == "dividend":
+            twse_rows = _fetch_twse_rows(TWSE_DIVIDEND_URL)
+            tpex_rows = _fetch_twse_rows(TPEX_DIVIDEND_URL)
+            rows = build_official_dividend_report_rows(twse_rows=twse_rows, tpex_rows=tpex_rows)
         else:  # pragma: no cover - guarded by unknown_reports above
             continue
 

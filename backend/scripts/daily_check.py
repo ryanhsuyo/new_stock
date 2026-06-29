@@ -18,6 +18,7 @@ if str(_BACKEND) not in sys.path:
 
 from app.storage.atomic_write import atomic_write_text  # noqa: E402
 from app.services.signal_alert_service import load_signal_alerts  # noqa: E402
+from app.services.official_fundamentals_api_service import get_official_fundamentals_coverage_audit  # noqa: E402
 from app.services.signals_service import get_universe  # noqa: E402
 from app.services.today_scan_service import load_today_scan_report  # noqa: E402
 from app.services.workflow_outputs import expected_outputs_for_command  # noqa: E402
@@ -29,9 +30,10 @@ _ACTION_KEY_RANK = {
     "outputs": 0,
     "signal_alerts": 1,
     "fundamentals": 2,
-    "data_repair": 3,
-    "today_scan": 4,
-    "decision_journal": 5,
+    "official_fundamentals_coverage": 3,
+    "data_repair": 4,
+    "today_scan": 5,
+    "decision_journal": 6,
 }
 _DATA_REPAIR_COMMAND = "python3 scripts/daily_update.py --months 12"
 _DATA_REPAIR_REQUIRED_ROWS = 60
@@ -118,6 +120,62 @@ def _data_repair_action(repair: dict[str, Any]) -> dict[str, Any] | None:
             "copy_command": _copy_command(str(repair.get("command") or _DATA_REPAIR_COMMAND)),
             "expected_outputs": _expected_outputs_for_command(str(repair.get("command") or _DATA_REPAIR_COMMAND)),
         },
+    }
+
+
+def _official_coverage_action() -> dict[str, Any] | None:
+    payload = {
+        "kind": "api",
+        "method": "GET",
+        "endpoint": "/api/system/fundamentals-official/coverage-audit",
+        "confirm_message": "只讀取官方基本面覆蓋率稽核，不會產生報告或寫入正式基本面資料。",
+    }
+    try:
+        audit = get_official_fundamentals_coverage_audit()
+    except FileNotFoundError as exc:
+        return {
+            "key": "official_fundamentals_coverage",
+            "status": "warn",
+            "title": "官方基本面覆蓋率稽核尚未可讀",
+            "message": f"{exc}。先產生或補齊 backend/out/fundamentals_priority_fill.csv，再重新檢查。",
+            "next_action": "GET /api/system/fundamentals-official/coverage-audit",
+            "details": {
+                "missing_priority_csv": True,
+                "blocked_reason": str(exc),
+            },
+            "action_payload": payload,
+        }
+
+    missing_reports = list(audit.get("missing_report_files") or [])
+    try:
+        coverage_pct = float(audit.get("coverage_pct") or 0)
+    except (TypeError, ValueError):
+        coverage_pct = 0.0
+    if not missing_reports and coverage_pct >= 80:
+        return None
+
+    next_action = str(audit.get("next_action_label") or "查看官方基本面覆蓋率稽核，確認缺少的 report-only CSV 或缺列。")
+    blocked_fields = list(audit.get("blocked_formal_fields") or [])
+    missing_label = "、".join(str(item) for item in missing_reports[:3])
+    if len(missing_reports) > 3:
+        missing_label = f"{missing_label} 等 {len(missing_reports)} 份"
+    message = f"官方 report-only 覆蓋率 {coverage_pct:.1f}%"
+    if missing_label:
+        message = f"{message}，缺少 {missing_label}"
+    return {
+        "key": "official_fundamentals_coverage",
+        "status": "warn",
+        "title": "官方基本面覆蓋率待確認",
+        "message": f"{message}。",
+        "next_action": next_action,
+        "details": {
+            "target_count": int(audit.get("target_count") or 0),
+            "coverage_pct": coverage_pct,
+            "available_cell_count": int(audit.get("available_cell_count") or 0),
+            "missing_report_files": missing_reports,
+            "blocked_formal_fields": blocked_fields,
+        },
+        "action_payload": payload,
     }
 
 
@@ -340,6 +398,7 @@ def build_daily_summary(
     universe: list[dict[str, Any]] | None = None,
     signal_alerts: dict[str, Any] | None = None,
     today_scan: dict[str, Any] | None = None,
+    include_official_coverage: bool = False,
 ) -> dict[str, Any]:
     generated_at = report.get("generated_at")
     data_repair = _data_repair_summary(universe)
@@ -351,6 +410,7 @@ def build_daily_summary(
             _signal_alert_action(signal_alerts),
             _today_scan_action(today_scan_summary, can_use_trade_outputs),
             _data_repair_action(data_repair),
+            _official_coverage_action() if include_official_coverage else None,
         ]
         if action
     ]
@@ -454,6 +514,7 @@ def run_daily_check(args: argparse.Namespace) -> int:
         universe=load_universe_for_daily_check(),
         signal_alerts=load_signal_alerts(args.backend / "out"),
         today_scan=load_today_scan_report(args.backend / "out"),
+        include_official_coverage=args.backend.resolve() == _BACKEND.resolve(),
     )
     if args.json:
         print(json.dumps(summary, ensure_ascii=False, indent=2))

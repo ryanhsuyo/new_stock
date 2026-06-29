@@ -1,4 +1,4 @@
-import type { BuyRequest, DailyBrief, DailyCheckReport, DataStatus, DecisionJournalBulkCreateResult, DecisionJournalCreate, DecisionJournalEntry, DecisionJournalSummary, FundamentalsPriorityMergeResult, FundamentalsStatus, HoldingAnalysis, IntradayMonitor, ManualWatchlistReview, MarketNoteInput, MarketNoteSaveResult, OfficialFundamentalsStatus, PmWorklist, PortfolioSummary, Position, RecommendationStrategy, SellRequest, SignalsSummary, SignalsStatus, Stats, StockAnalysis, StockRecommendation, StockTrackingResult, StockUniverseItem, TradeRecord, TradingSettings, UniverseReportItem, UniverseReportReviewWorkflow, UpdateWorkflowStatus, WatchlistGroup, WorkflowStatus } from '../types'
+import type { BuyRequest, DailyBrief, DailyCheckReport, DataStatus, DecisionJournalBulkCreateResult, DecisionJournalCreate, DecisionJournalEntry, DecisionJournalSummary, FundamentalsPriorityMergeResult, FundamentalsStatus, HoldingAnalysis, IntradayMonitor, ManualWatchlistReview, MarketNoteInput, MarketNoteSaveResult, OfficialFundamentalsCoverageAudit, OfficialFundamentalsReportsResult, OfficialFundamentalsStatus, PmWorklist, PortfolioSummary, Position, RecommendationStrategy, SellRequest, SignalsSummary, SignalsStatus, Stats, StockAnalysis, StockRecommendation, StockTrackingResult, StockUniverseItem, TradeRecord, TradingSettings, UniverseReportItem, UniverseReportReviewWorkflow, UpdateWorkflowStatus, WatchlistGroup, WorkflowStatus } from '../types'
 
 const BASE = '/api'
 
@@ -87,6 +87,16 @@ export const api = {
 
   getOfficialFundamentalsStatus: () =>
     request<OfficialFundamentalsStatus>('/system/fundamentals-official/status'),
+
+  getOfficialFundamentalsCoverageAuditOrNull: () =>
+    request<OfficialFundamentalsCoverageAudit>('/system/fundamentals-official/coverage-audit')
+      .catch(() => null as OfficialFundamentalsCoverageAudit | null),
+
+  runOfficialFundamentalsReports: (payload: { apply?: boolean } = { apply: false }) =>
+    request<OfficialFundamentalsReportsResult>('/system/fundamentals-official/reports', {
+      method: 'POST',
+      ...json({ apply: payload.apply ?? false }),
+    }),
 
   mergeFundamentalsPriorityFill: (dryRun = true, confirm?: string | null) =>
     request<FundamentalsPriorityMergeResult>('/system/fundamentals-priority-fill/merge', {

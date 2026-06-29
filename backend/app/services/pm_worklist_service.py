@@ -9,6 +9,7 @@ from typing import Any
 from app.services.daily_check_service import get_daily_check_report
 from app.services.decision_journal_service import build_universe_report_review_workflow_summary
 from app.services.fundamental_service import get_fundamentals_status
+from app.services.official_fundamentals_api_service import get_official_fundamentals_coverage_audit
 from app.services.signals_service import get_universe, get_universe_report_json
 from app.services.update_workflow_service import get_update_workflow_status
 from app.services.workflow_outputs import DAILY_UPDATE_OUTPUTS
@@ -208,6 +209,63 @@ def _fundamentals_item() -> dict[str, Any] | None:
         source="fundamentals",
         metric=str(workflow.get("coverage_label") or ""),
         focus_codes=[str(item.get("code") or "") for item in focus_targets[:5] if item.get("code")],
+        action_payload=action_payload,
+    )
+
+
+def _official_coverage_item(daily_check: dict[str, Any]) -> dict[str, Any] | None:
+    if daily_check and not daily_check.get("snapshot_is_stale"):
+        return None
+
+    action_payload = {
+        "kind": "api",
+        "method": "GET",
+        "endpoint": "/api/system/fundamentals-official/coverage-audit",
+        "confirm_message": "只讀取官方基本面覆蓋率稽核，不會產生報告或寫入正式基本面資料。",
+    }
+    try:
+        audit = get_official_fundamentals_coverage_audit()
+    except FileNotFoundError as exc:
+        return _item(
+            key="official_fundamentals_coverage",
+            title="官方基本面覆蓋率稽核尚未可讀",
+            detail=f"{exc}。先產生或補齊 backend/out/fundamentals_priority_fill.csv，再重新檢查。",
+            priority=55,
+            severity="warning",
+            action_type="fundamentals",
+            action_label="查看覆蓋率狀態",
+            command="GET /api/system/fundamentals-official/coverage-audit",
+            source="official_fundamentals",
+            metric="等待 priority CSV",
+            action_payload=action_payload,
+        )
+
+    missing_reports = list(audit.get("missing_report_files") or [])
+    try:
+        coverage_pct = float(audit.get("coverage_pct") or 0)
+    except (TypeError, ValueError):
+        coverage_pct = 0.0
+    if not missing_reports and coverage_pct >= 80:
+        return None
+
+    missing_label = "、".join(str(item) for item in missing_reports[:3])
+    if len(missing_reports) > 3:
+        missing_label = f"{missing_label} 等 {len(missing_reports)} 份"
+    detail = f"官方 report-only 覆蓋率 {coverage_pct:.1f}%。"
+    if missing_label:
+        detail = f"{detail} 缺少 {missing_label}。"
+    next_action = str(audit.get("next_action_label") or "查看缺少的 official report-only CSV 或缺列。")
+    return _item(
+        key="official_fundamentals_coverage",
+        title="官方基本面覆蓋率待確認",
+        detail=f"{detail} {next_action}",
+        priority=55,
+        severity="warning",
+        action_type="fundamentals",
+        action_label="查看覆蓋率狀態",
+        command="GET /api/system/fundamentals-official/coverage-audit",
+        source="official_fundamentals",
+        metric=f"{coverage_pct:.1f}% 覆蓋",
         action_payload=action_payload,
     )
 
@@ -501,6 +559,7 @@ def get_pm_worklist() -> dict[str, Any]:
             _update_workflow_item(),
             _data_repair_item(),
             _fundamentals_item(),
+            _official_coverage_item(daily_check),
             _universe_review_item(),
         ] if item
     ]

@@ -23,3 +23,32 @@ test('dashboard consumes official fundamentals status without creating a new str
   assert.doesNotMatch(strategyOptionsBlock, /official/)
   assert.doesNotMatch(strategyOptionsBlock, /fundamentals/)
 })
+
+test('dashboard can trigger official fundamentals report-only generation safely', () => {
+  assert.match(client, /runOfficialFundamentalsReports/)
+  assert.match(client, /method:\s*'POST'/)
+  assert.match(client, /\/system\/fundamentals-official\/reports/)
+
+  assert.match(dashboard, /handleRunOfficialFundamentalsReports/)
+  assert.match(dashboard, /runOfficialFundamentalsReports\(\{ apply: false \}\)/)
+  assert.match(dashboard, /產生官方 report-only CSV/)
+  assert.match(dashboard, /不會 apply 到策略輸入/)
+  assert.match(dashboard, /setOfficialFundamentalsStatus/)
+})
+
+test('dashboard displays official coverage audit as backend-owned status', () => {
+  assert.match(types, /export interface OfficialFundamentalsCoverageAudit/)
+  assert.match(client, /getOfficialFundamentalsCoverageAuditOrNull/)
+  assert.match(client, /\/system\/fundamentals-official\/coverage-audit/)
+
+  assert.match(dashboard, /officialCoverageAudit/)
+  assert.match(dashboard, /getOfficialFundamentalsCoverageAuditOrNull/)
+  assert.match(dashboard, /官方覆蓋率稽核/)
+  assert.match(dashboard, /missing_report_files/)
+  assert.doesNotMatch(dashboard, /calculateOfficialCoverage/)
+  assert.doesNotMatch(dashboard, /computeOfficialCoverage/)
+
+  const strategyOptionsBlock = dashboard.match(/const STRATEGY_OPTIONS:[\s\S]*?\n\]/)?.[0] ?? ''
+  assert.doesNotMatch(strategyOptionsBlock, /official/)
+  assert.doesNotMatch(strategyOptionsBlock, /coverage/)
+})

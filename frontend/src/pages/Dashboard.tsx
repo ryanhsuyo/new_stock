@@ -14,7 +14,7 @@ import ParseErrorAlert from '../components/ParseErrorAlert'
 import PrimaryActionCard from '../components/PrimaryActionCard'
 import TodayFocusCards from '../components/TodayFocusCards'
 import UpdateWorkflowBox from '../components/UpdateWorkflowBox'
-import type { DailyBrief, DailyCheckReport, DataStatus, DecisionJournalCreate, DecisionJournalDecision, DecisionJournalEntry, DecisionJournalSummary, FundamentalsPriorityMergeResult, FundamentalsStatus, ManualWatchlistReview, MarketNoteInput, OfficialFundamentalsStatus, PmWorklist, RecommendationStrategy, SignalsSummary, SignalsStatus, StockRecommendation, StockUniverseItem, UniverseReportReviewWorkflow, UpdateWorkflowStatus, WorkflowPortfolioTask, WorkflowStatus } from '../types'
+import type { DailyBrief, DailyCheckReport, DataStatus, DecisionJournalCreate, DecisionJournalDecision, DecisionJournalEntry, DecisionJournalSummary, FundamentalsPriorityMergeResult, FundamentalsStatus, ManualWatchlistReview, MarketNoteInput, OfficialFundamentalsCoverageAudit, OfficialFundamentalsStatus, PmWorklist, RecommendationStrategy, SignalsSummary, SignalsStatus, StockRecommendation, StockUniverseItem, UniverseReportReviewWorkflow, UpdateWorkflowStatus, WorkflowPortfolioTask, WorkflowStatus } from '../types'
 
 interface WorkflowUniversePendingItem {
   code: string
@@ -169,22 +169,28 @@ function StrategyGuideBox({
   status,
   fundamentalsStatus,
   officialFundamentalsStatus,
+  officialCoverageAudit,
   mergeResult,
   merging,
   signalsBusy,
+  officialReportsBusy,
   onPreviewMerge,
   onApplyMerge,
   onRunSignals,
+  onRunOfficialReports,
 }: {
   status: SignalsStatus | null
   fundamentalsStatus: FundamentalsStatus | null
   officialFundamentalsStatus: OfficialFundamentalsStatus | null
+  officialCoverageAudit: OfficialFundamentalsCoverageAudit | null
   mergeResult: FundamentalsPriorityMergeResult | null
   merging: boolean
   signalsBusy: boolean
+  officialReportsBusy: boolean
   onPreviewMerge: () => Promise<void>
   onApplyMerge: () => Promise<void>
   onRunSignals: () => void
+  onRunOfficialReports: () => Promise<void>
 }) {
   const [copiedFillTargets, setCopiedFillTargets] = useState(false)
   const fundamentals = status?.data_files.fundamentals_json
@@ -200,6 +206,7 @@ function StrategyGuideBox({
   const workflowSummary = fundamentalsStatus?.workflow_summary
   const officialReports = Object.values(officialFundamentalsStatus?.reports ?? {})
   const officialReadyCount = officialReports.filter(report => report.exists).length
+  const officialCoverageMissingReports = officialCoverageAudit?.missing_report_files ?? []
   const exampleValues = fillGuide?.example_values ?? {}
   const priorityValidation = fundamentalsStatus?.priority_csv_validation
   const priorityValidationIssues = [
@@ -344,7 +351,16 @@ function StrategyGuideBox({
               不會直接 apply 到策略輸入。
             </p>
           </div>
-          <em>{officialFundamentalsStatus?.next_action_label ?? '可用後端 API 產生官方暫存報告'}</em>
+          <div className="official-fundamentals-actions">
+            <em>{officialFundamentalsStatus?.next_action_label ?? '可用後端 API 產生官方暫存報告'}</em>
+            <button
+              className="btn btn-secondary btn-sm"
+              onClick={onRunOfficialReports}
+              disabled={officialReportsBusy}
+            >
+              {officialReportsBusy ? '產生中…' : '產生官方 report-only CSV'}
+            </button>
+          </div>
         </div>
         {officialReports.length > 0 && (
           <div className="official-fundamentals-grid">
@@ -358,7 +374,29 @@ function StrategyGuideBox({
             ))}
           </div>
         )}
+        <div className={`official-fundamentals-coverage ${officialCoverageAudit ? 'ready' : 'missing'}`}>
+          <div>
+            <span>官方覆蓋率稽核</span>
+            <strong>
+              {officialCoverageAudit
+                ? `${officialCoverageAudit.target_count} 檔 · ${officialCoverageAudit.coverage_pct.toFixed(1)}%`
+                : '尚未取得覆蓋率稽核'}
+            </strong>
+            <p>
+              {officialCoverageAudit
+                ? `官方暫存報告覆蓋 ${officialCoverageAudit.available_cell_count} 格；仍 blocked 欄位 ${officialCoverageAudit.blocked_formal_fields.length} 個。`
+                : '若 priority CSV 尚未產生，後端會回傳 404；前端只顯示狀態，不會自動產生或改寫檔案。'}
+            </p>
+          </div>
+          <div>
+            <em>{officialCoverageAudit?.next_action_label ?? '先產生 priority CSV 與官方 report-only CSV，再查看覆蓋率'}</em>
+            {officialCoverageMissingReports.length > 0 && (
+              <small>缺少報告：{officialCoverageMissingReports.join('、')}</small>
+            )}
+          </div>
+        </div>
         <p className="official-fundamentals-guardrail">
+          這個操作不會 apply 到策略輸入，也不會補齊 11 個必要欄位。
           ROE、EPS、FCF、interest coverage 等財報推導欄位仍等待穩定官方財報來源；未確認前不自動補值。
         </p>
       </div>
@@ -1965,6 +2003,7 @@ export default function Dashboard({ onNavigateAnalysis, onNavigateUniverseReport
   const [dataStatus, setDataStatus] = useState<DataStatus | null>(null)
   const [fundamentalsStatus, setFundamentalsStatus] = useState<FundamentalsStatus | null>(null)
   const [officialFundamentalsStatus, setOfficialFundamentalsStatus] = useState<OfficialFundamentalsStatus | null>(null)
+  const [officialCoverageAudit, setOfficialCoverageAudit] = useState<OfficialFundamentalsCoverageAudit | null>(null)
   const [workflowStatus, setWorkflowStatus] = useState<WorkflowStatus | null>(null)
   const [updateWorkflow, setUpdateWorkflow] = useState<UpdateWorkflowStatus | null>(null)
   const [pmWorklist, setPmWorklist] = useState<PmWorklist | null>(null)
@@ -1990,6 +2029,7 @@ export default function Dashboard({ onNavigateAnalysis, onNavigateUniverseReport
   const [runMsg, setRunMsg]         = useState('')
   const [savingNote, setSavingNote] = useState(false)
   const [mergingFundamentals, setMergingFundamentals] = useState(false)
+  const [generatingOfficialFundamentals, setGeneratingOfficialFundamentals] = useState(false)
   const [fundamentalsMergeResult, setFundamentalsMergeResult] = useState<FundamentalsPriorityMergeResult | null>(null)
   const [noteForm, setNoteForm]     = useState<MarketNoteInput>(() => emptyMarketNoteForm())
   const [noteActionsText, setNoteActionsText] = useState('')
@@ -2034,12 +2074,13 @@ export default function Dashboard({ onNavigateAnalysis, onNavigateUniverseReport
   }
 
   const fetchAll = async (nextStrategy: RecommendationStrategy = strategy) => {
-    const [s, r, ds, fs, ofs, wf, uw, pm, dc, sm, brief, manual, universeItems] = await Promise.all([
+    const [s, r, ds, fs, ofs, oca, wf, uw, pm, dc, sm, brief, manual, universeItems] = await Promise.all([
       api.getSignalsStatus(),
       api.getRecommendations(nextStrategy),
       api.getDataStatus(),
       api.getFundamentalsStatus(),
       api.getOfficialFundamentalsStatus(),
+      api.getOfficialFundamentalsCoverageAuditOrNull(),
       api.getWorkflowStatus(),
       api.getUpdateWorkflow(),
       api.getPmWorklist(),
@@ -2054,6 +2095,7 @@ export default function Dashboard({ onNavigateAnalysis, onNavigateUniverseReport
     setDataStatus(ds)
     setFundamentalsStatus(fs)
     setOfficialFundamentalsStatus(ofs)
+    setOfficialCoverageAudit(oca)
     setWorkflowStatus(wf)
     setUpdateWorkflow(uw)
     setPmWorklist(pm)
@@ -2407,14 +2449,37 @@ export default function Dashboard({ onNavigateAnalysis, onNavigateUniverseReport
   }
 
   const refreshFundamentalsWorkflow = async () => {
-    const [fs, ofs, wf] = await Promise.all([
+    const [fs, ofs, oca, wf] = await Promise.all([
       api.getFundamentalsStatus(),
       api.getOfficialFundamentalsStatus(),
+      api.getOfficialFundamentalsCoverageAuditOrNull(),
       api.getWorkflowStatus(),
     ])
     setFundamentalsStatus(fs)
     setOfficialFundamentalsStatus(ofs)
+    setOfficialCoverageAudit(oca)
     setWorkflowStatus(wf)
+  }
+
+  const handleRunOfficialFundamentalsReports = async () => {
+    setError('')
+    setRunMsg('')
+    setGeneratingOfficialFundamentals(true)
+    try {
+      const result = await api.runOfficialFundamentalsReports({ apply: false })
+      const [nextStatus, nextCoverage] = await Promise.all([
+        api.getOfficialFundamentalsStatus(),
+        api.getOfficialFundamentalsCoverageAuditOrNull(),
+      ])
+      setOfficialFundamentalsStatus(nextStatus)
+      setOfficialCoverageAudit(nextCoverage)
+      const reportCount = Object.keys(result.reports ?? {}).length
+      setRunMsg(`已產生 ${reportCount} 份官方 report-only CSV；不會 apply 到策略輸入，也不會補齊 11 個必要欄位`)
+    } catch (e: unknown) {
+      setError(e instanceof Error ? e.message : '產生官方基本面暫存報告失敗')
+    } finally {
+      setGeneratingOfficialFundamentals(false)
+    }
   }
 
   const handlePreviewFundamentalsMerge = async () => {
@@ -2457,7 +2522,7 @@ export default function Dashboard({ onNavigateAnalysis, onNavigateUniverseReport
   const isDataRunning = dataStatus?.last_run_status === 'running'
   const isSignalsRunning = status?.run_status === 'running'
   const isSignalBusy = running || isSignalsRunning
-  const isBusy = isSignalBusy || refreshing || updating || savingNote || mergingFundamentals
+  const isBusy = isSignalBusy || refreshing || updating || savingNote || mergingFundamentals || generatingOfficialFundamentals
   const showMarketNoteForm = Boolean(status?.manual_note_status?.update_required)
   const canSaveMarketNote = Boolean(noteForm.date && noteForm.title.trim() && noteForm.headline.trim())
   const hasMarketNoteDraft = Boolean(
@@ -2741,13 +2806,16 @@ export default function Dashboard({ onNavigateAnalysis, onNavigateUniverseReport
           <StrategyGuideBox
         status={status}
         fundamentalsStatus={fundamentalsStatus}
-        officialFundamentalsStatus={officialFundamentalsStatus}
-        mergeResult={fundamentalsMergeResult}
+          officialFundamentalsStatus={officialFundamentalsStatus}
+          officialCoverageAudit={officialCoverageAudit}
+          mergeResult={fundamentalsMergeResult}
           merging={mergingFundamentals}
           signalsBusy={isSignalBusy}
+          officialReportsBusy={generatingOfficialFundamentals}
           onPreviewMerge={handlePreviewFundamentalsMerge}
           onApplyMerge={handleApplyFundamentalsMerge}
           onRunSignals={handleRun}
+          onRunOfficialReports={handleRunOfficialFundamentalsReports}
             />
           </div>
 

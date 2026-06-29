@@ -916,6 +916,54 @@ export interface OfficialFundamentalsStatus {
   next_action_label?: string | null
 }
 
+export interface OfficialFundamentalsReportsResult {
+  dry_run: boolean
+  apply: boolean
+  requested_reports: string[]
+  reports: Record<string, {
+    path?: string
+    row_count?: number
+    source?: string
+    [key: string]: unknown
+  }>
+  warnings: string[]
+}
+
+export interface OfficialFundamentalsCoverageAudit {
+  priority_csv_path: string
+  target_count: number
+  report_count: number
+  available_cell_count: number
+  coverage_pct: number
+  missing_report_files: string[]
+  formally_fillable_official_fields: string[]
+  blocked_formal_fields: string[]
+  reports: Record<string, {
+    key: string
+    label: string
+    source: string
+    path: string
+    status: string
+    exists: boolean
+    row_count: number
+    available_count: number
+    missing_row_count: number
+    key_fields: string[]
+  }>
+  codes: Array<{
+    code: string
+    name: string
+    priority_reason: string
+    available_report_count: number
+    reports: Record<string, {
+      status: string
+      present_fields: string[]
+      skip_reason: string
+    }>
+  }>
+  next_action_label?: string | null
+}
+
 export interface FundamentalsWorkflowSummary {
   stage: 'generate_priority_csv' | 'fill_priority_csv' | 'fix_priority_csv' | 'ready_to_merge' | string
   headline: string
