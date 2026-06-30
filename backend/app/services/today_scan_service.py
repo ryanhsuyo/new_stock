@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import csv
 import json
+from collections import Counter
 from pathlib import Path
 from typing import Any
 
@@ -116,7 +117,38 @@ def _market_context(summary: dict[str, Any]) -> dict[str, Any]:
     }
 
 
-def _notes(summary: dict[str, Any], market_context: dict[str, Any], universe_rows: list[dict[str, str]]) -> list[str]:
+def _data_freshness(summary_as_of: str, universe_rows: list[dict[str, str]]) -> dict[str, Any]:
+    date_counts = Counter(str(row.get("data_as_of") or "").strip() or "missing" for row in universe_rows)
+    stale_items = [
+        {
+            "code": str(row.get("code") or ""),
+            "name": str(row.get("name") or row.get("code") or ""),
+            "data_as_of": str(row.get("data_as_of") or "").strip() or None,
+        }
+        for row in universe_rows
+        if summary_as_of and str(row.get("data_as_of") or "").strip() and str(row.get("data_as_of") or "").strip() < summary_as_of
+    ]
+    stale_items.sort(key=lambda item: (str(item.get("data_as_of") or ""), str(item.get("code") or "")))
+    fresh_count = int(date_counts.get(summary_as_of, 0)) if summary_as_of else 0
+    missing_count = int(date_counts.get("missing", 0))
+    stale_count = len(stale_items)
+    return {
+        "expected_as_of": summary_as_of or None,
+        "row_count": len(universe_rows),
+        "fresh_count": fresh_count,
+        "stale_count": stale_count,
+        "missing_date_count": missing_count,
+        "date_counts": dict(sorted(date_counts.items())),
+        "top_stale_items": stale_items[:8],
+    }
+
+
+def _notes(
+    summary: dict[str, Any],
+    market_context: dict[str, Any],
+    universe_rows: list[dict[str, str]],
+    data_freshness: dict[str, Any],
+) -> list[str]:
     notes: list[str] = []
     if str(market_context.get("old_wang_market_filter") or "").lower() == "block":
         reason = market_context.get("old_wang_market_reason") or "大盤短均線條件未通過"
@@ -124,7 +156,15 @@ def _notes(summary: dict[str, Any], market_context: dict[str, Any], universe_row
     summary_as_of = str(summary.get("as_of") or "")
     row_dates = {str(row.get("data_as_of") or "") for row in universe_rows if row.get("data_as_of")}
     if summary_as_of and row_dates and row_dates != {summary_as_of}:
-        notes.append(f"universe_report 資料日不完全一致：summary={summary_as_of}，rows={', '.join(sorted(row_dates))}。")
+        stale_count = int(data_freshness.get("stale_count") or 0)
+        stale_items = data_freshness.get("top_stale_items") or []
+        stale_label = ""
+        if stale_count:
+            names = ", ".join(f"{item.get('code')} {item.get('name')}({item.get('data_as_of') or '—'})" for item in stale_items[:4])
+            stale_label = f"，其中 {stale_count} 檔股票資料日落後"
+            if names:
+                stale_label = f"{stale_label}：{names}"
+        notes.append(f"universe_report 資料日不完全一致：summary={summary_as_of}，rows={', '.join(sorted(row_dates))}{stale_label}。")
     if not universe_rows:
         notes.append("尚未產生 universe_report.csv，請先執行 run_signals.py 或 daily_update.py。")
     return notes
@@ -149,6 +189,8 @@ def build_today_scan_report(out_dir: Path | None = None, *, limit: int = DEFAULT
     daily_brief = _read_json(out_dir / "daily_brief.json")
     universe_rows = _read_universe(out_dir / "universe_report.csv")
     market_context = _market_context(summary)
+    summary_as_of = str(summary.get("as_of") or daily_brief.get("as_of") or "")
+    data_freshness = _data_freshness(summary_as_of, universe_rows)
 
     formal_entries: list[dict[str, Any]] = []
     old_wang_candidates: list[dict[str, Any]] = []
@@ -190,7 +232,8 @@ def build_today_scan_report(out_dir: Path | None = None, *, limit: int = DEFAULT
         "steady_momentum_candidates": steady_momentum_candidates,
         "risk_items": risk_items,
         "bucket_notes": _bucket_notes(),
-        "notes": _notes(summary, market_context, universe_rows),
+        "data_freshness": data_freshness,
+        "notes": _notes(summary, market_context, universe_rows, data_freshness),
     }
 
 

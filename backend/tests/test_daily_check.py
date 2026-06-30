@@ -303,6 +303,14 @@ def test_daily_check_adds_today_scan_summary_and_action_when_outputs_are_usable(
         "old_wang_candidates": [{"code": "2303", "name": "聯電"}],
         "steady_momentum_candidates": [{"code": "2337", "name": "旺宏"}],
         "risk_items": [{"code": "2603", "name": "長榮"}],
+        "data_freshness": {
+            "expected_as_of": "2026-06-25",
+            "row_count": 4,
+            "fresh_count": 3,
+            "stale_count": 1,
+            "missing_date_count": 0,
+            "top_stale_items": [{"code": "5425", "name": "台半", "data_as_of": "2026-06-24"}],
+        },
         "notes": ["老王大盤濾網目前封鎖追價。"],
     }
 
@@ -317,8 +325,13 @@ def test_daily_check_adds_today_scan_summary_and_action_when_outputs_are_usable(
     action = summary["top_actions"][0]
     assert action["status"] == "warn"
     assert action["message"] == "可小試 2 檔、老王觀察 1 檔、穩健動能 1 檔、風險處理 1 檔。"
+    assert action["details"]["data_freshness"]["stale_count"] == 1
     assert action["action_payload"]["file_path"] == "backend/out/today_scan.json"
-    assert action["action_payload"]["preview_items"] == ["可小試：2337 旺宏, 6274 台燿", "風險：2603 長榮"]
+    assert action["action_payload"]["preview_items"] == [
+        "可小試：2337 旺宏, 6274 台燿",
+        "風險：2603 長榮",
+        "資料日落後：5425 台半 仍停在 2026-06-24",
+    ]
 
 
 def test_daily_check_suppresses_today_scan_action_when_outputs_are_blocked():

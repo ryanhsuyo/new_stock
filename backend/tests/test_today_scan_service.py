@@ -156,6 +156,67 @@ def test_build_today_scan_report_groups_current_candidates(tmp_path):
     assert [item["code"] for item in report["steady_momentum_candidates"]] == ["2337", "6239"]
     assert [item["code"] for item in report["risk_items"]] == ["2603"]
     assert "老王大盤濾網目前封鎖" in report["notes"][0]
+    assert report["data_freshness"]["expected_as_of"] == "2026-06-25"
+    assert report["data_freshness"]["stale_count"] == 0
+
+
+def test_build_today_scan_report_summarizes_partial_stale_rows(tmp_path):
+    from app.services.today_scan_service import build_today_scan_report
+
+    out = tmp_path / "out"
+    _write_json(out / "summary.json", {"as_of": "2026-06-25", "generated_at": "now"})
+    _write_json(out / "daily_brief.json", {"as_of": "2026-06-25"})
+    _write_universe(out / "universe_report.csv", [
+        {
+            "code": "2330",
+            "name": "台積電",
+            "internal_signal": "watchlist",
+            "daily_action": "wait",
+            "old_wang_flag": "False",
+            "steady_momentum_flag": "False",
+            "data_as_of": "2026-06-25",
+        },
+        {
+            "code": "5425",
+            "name": "台半",
+            "internal_signal": "watchlist",
+            "daily_action": "wait",
+            "old_wang_flag": "True",
+            "old_wang_score": "80",
+            "steady_momentum_flag": "False",
+            "data_as_of": "2026-06-24",
+        },
+        {
+            "code": "2492",
+            "name": "華新科",
+            "internal_signal": "watchlist",
+            "daily_action": "wait",
+            "old_wang_flag": "False",
+            "steady_momentum_flag": "True",
+            "steady_momentum_score": "78",
+            "data_as_of": "2026-06-21",
+        },
+    ])
+
+    report = build_today_scan_report(out)
+
+    assert report["data_freshness"] == {
+        "expected_as_of": "2026-06-25",
+        "row_count": 3,
+        "fresh_count": 1,
+        "stale_count": 2,
+        "missing_date_count": 0,
+        "date_counts": {
+            "2026-06-21": 1,
+            "2026-06-24": 1,
+            "2026-06-25": 1,
+        },
+        "top_stale_items": [
+            {"code": "2492", "name": "華新科", "data_as_of": "2026-06-21"},
+            {"code": "5425", "name": "台半", "data_as_of": "2026-06-24"},
+        ],
+    }
+    assert "2 檔股票資料日落後" in report["notes"][0]
 
 
 def test_today_scan_report_includes_bucket_notes(tmp_path):

@@ -396,6 +396,7 @@ Dashboard 補資料流程：
 - `today_scan.json` 是衍生報告，必須保留資料日、規則版本、大盤濾網與分桶原因；老王大盤濾網為 block 時，老王候選只能列觀察並顯示封鎖原因。
 - 每次刷新 `today_scan.json` 時，應同步保存 `backend/out/today_scans/today_scan_YYYY-MM-DD.json`，供隔日驗算與歷史復盤；此快照同樣不得新增交易判斷。
 - `summary.json`、`summary_previous.json`、`universe_report.csv`、`daily_brief.json`、`update_status.json` 與使用者資料 JSON 寫入時必須先寫同資料夾暫存檔，再 replace 正式檔，避免 API 讀到半寫入內容。
+- `today_scan.json` 必須提供 `data_freshness` 摘要，說明 `universe_report.csv` 中各資料日分布、局部落後檔數與前幾檔落後股票；Daily Check 的今日規則掃描 action 必須把局部資料日落後列入 details / preview_items，讓使用者不用打開 raw CSV 就知道哪些候選可能需要資料修復。
 - 真實交易紀錄整批匯入前應先呼叫 `POST /api/trades/import/validate` 看完整錯誤清單，再呼叫 `POST /api/trades/import/preview` 確認匯入後持倉；正式覆蓋只能走 `POST /api/trades/import` 的 `replace` 流程，必須先驗證整批資料並備份舊 `trades.json`，不可直接覆蓋檔案。
 - 交易匯入允許簡化格式；缺 `id` / `created_at` / `name` / 金額欄位時由 service 補齊，不要求使用者手動編 UUID 或建立時間。
 - 交易匯入的 `warnings` 必須揭露自動補齊欄位的筆數，讓使用者匯入前能知道哪些資料不是原始提供。

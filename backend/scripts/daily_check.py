@@ -227,6 +227,7 @@ def _today_scan_summary(today_scan: dict[str, Any] | None) -> dict[str, Any]:
         "old_wang_count": len(old_wang),
         "steady_momentum_count": len(steady),
         "risk_count": len(risks),
+        "data_freshness": today_scan.get("data_freshness") or {},
         "notes": today_scan.get("notes") or [],
         "top_formal_entries": formal_entries[:5],
         "top_risk_items": risks[:5],
@@ -251,6 +252,16 @@ def _today_scan_action(today_scan_summary: dict[str, Any], can_use_trade_outputs
         preview_items.append(f"可小試：{', '.join(formal_labels[:5])}")
     if risk_labels:
         preview_items.append(f"風險：{', '.join(risk_labels[:5])}")
+    freshness = today_scan_summary.get("data_freshness") or {}
+    stale_items = freshness.get("top_stale_items") or []
+    stale_count = int(freshness.get("stale_count") or 0)
+    if stale_count:
+        stale_labels = [
+            f"{_item_label(item)} 仍停在 {item.get('data_as_of') or '—'}"
+            for item in stale_items[:3]
+        ]
+        if stale_labels:
+            preview_items.append(f"資料日落後：{', '.join(stale_labels)}")
     return {
         "key": "today_scan",
         "status": "warn" if counts["formal"] or counts["risk"] else "ok",
@@ -266,6 +277,7 @@ def _today_scan_action(today_scan_summary: dict[str, Any], can_use_trade_outputs
             "old_wang_count": counts["old_wang"],
             "steady_momentum_count": counts["steady"],
             "risk_count": counts["risk"],
+            "data_freshness": freshness,
         },
         "action_payload": {
             "kind": "file",
