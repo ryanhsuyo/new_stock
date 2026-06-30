@@ -12,17 +12,17 @@ Rules:
 
 ## Current State
 
-Active phase: F18_quality_momentum_lite_execution_closure.md
+Active phase: none
 
-Loop mode: active
+Loop mode: waiting_for_next_phase
 
 Last completed phase:
 
-* `F17_quality_momentum_lite_strategy.md` — second strategy constrained to Quality Momentum Lite
+* `F18_quality_momentum_lite_execution_closure.md` — two-strategy execution closure completed with PE-only apply decision
 
 Current phase status:
 
-* F18 active. Tasks 1-5 are done; heartbeat should continue from task 6 in `F18_quality_momentum_lite_execution_closure.md`.
+* No active phase. F18 tasks 1-7 are done; start a new phase only when there is a concrete next product or data task.
 
 ## Completed Phase History
 
@@ -92,6 +92,7 @@ Current phase status:
 * F15 — Added Daily Check / PM Worklist official coverage awareness without triggering report generation or formal fundamentals writes.
 * F16 — Added official TWSE/TPEx PE priority CSV dry-run/apply path while keeping other fundamentals fields blocked.
 * F17 — Constrained `steady_momentum` to Quality Momentum Lite so the second strategy uses low-cost fundamentals guardrails instead of requiring all 11 advanced fields.
+* F18 — Closed end-to-end two-strategy execution verification, read-only Quality Momentum Lite guard coverage, API visibility, and PE-only apply-path decision.
 
 ## Next Phase Candidates
 
@@ -130,7 +131,7 @@ Current phase status:
 * F17 fundamentals workflow tests: `/Library/Frameworks/Python.framework/Versions/3.11/bin/python3 -m pytest backend/tests/test_fundamental_service.py backend/tests/test_fundamentals_cli.py backend/tests/test_fundamental_guard.py -q` passed, 42 tests.
 * F17 official / PM workflow regression: `/Library/Frameworks/Python.framework/Versions/3.11/bin/python3 -m pytest backend/tests/test_official_fundamentals_service.py backend/tests/test_official_fundamentals_cli.py backend/tests/test_official_fundamentals_api.py backend/tests/test_daily_check.py backend/tests/test_pm_worklist.py backend/tests/test_workflow_status.py backend/tests/test_rules_metadata_service.py -q` passed, 81 tests.
 * F17 fundamentals check: `/Library/Frameworks/Python.framework/Versions/3.11/bin/python3 backend/scripts/check_fundamentals.py` passed with priority CSV `ready_to_preview` and next action describing lite guard usage.
-* F18 run signals: `/Library/Frameworks/Python.framework/Versions/3.11/bin/python3 backend/scripts/run_signals.py` passed, generated `old_wang=5`, `steady_momentum=17`, and refreshed summary / universe_report / today_scan / daily_check.
+* F18 final run signals: `/Library/Frameworks/Python.framework/Versions/3.11/bin/python3 backend/scripts/run_signals.py` passed, generated 6 ready-to-enter stocks and refreshed summary / universe_report / today_scan / daily_check.
 * F18 focused strategy tests: `/Library/Frameworks/Python.framework/Versions/3.11/bin/python3 -m pytest backend/tests/test_signals_api.py::TestSignalsOutput backend/tests/test_today_scan_service.py backend/tests/test_today_scan_cli.py backend/tests/test_rules_metadata_service.py backend/tests/test_fundamental_guard.py backend/tests/test_fundamental_service.py backend/tests/test_fundamentals_cli.py -q` passed, 75 tests.
 * F18 lite guard coverage/API tests: `/Library/Frameworks/Python.framework/Versions/3.11/bin/python3 -m pytest backend/tests/test_official_fundamentals_api.py backend/tests/test_official_fundamentals_service.py -q` passed, 26 tests.
 * Fundamentals wording regression tests: `/Library/Frameworks/Python.framework/Versions/3.11/bin/python3 -m pytest backend/tests/test_fundamentals_cli.py -q` passed, 14 tests.
@@ -161,4 +162,4 @@ Current phase status:
 
 ## Last Stop Reason
 
-F18 selected to finish end-to-end execution closure for both strategies. Continue by deciding the first safe apply path for lite guard fields before any new formal fundamentals writes.
+F18 completed. No safe autonomous next phase is currently selected; wait for the next explicit product/data priority before implementing more changes.

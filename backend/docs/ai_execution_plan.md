@@ -86,13 +86,13 @@ Hard-stop examples:
 
 ## 6. Active Phase
 
-Phase ID: F18
+Phase ID: none
 
-Phase name: Quality Momentum Lite execution closure
+Phase name: none
 
 Active phase file:
 
-`backend/docs/ai_tasks/F18_quality_momentum_lite_execution_closure.md`
+None. F18 is complete; create a new phase file only for a concrete next product or data task.
 
 ## 7. Required Reading
 

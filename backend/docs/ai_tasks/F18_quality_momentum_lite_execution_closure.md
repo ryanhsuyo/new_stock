@@ -1,6 +1,6 @@
 # F18 Quality Momentum Lite Execution Closure
 
-Status: in_progress
+Status: done
 
 ## Goal
 
@@ -29,6 +29,24 @@ Make both recommendation strategies operational end-to-end while keeping the sec
 * Focused strategy/output tests passed: 75 tests.
 * Read-only Quality Momentum Lite guard coverage summary exists in service code; it counts PE as the only direct apply field and keeps operating margin, debt inputs, revenue growth reference, and EPS reference as report-only / derived-input references.
 * `GET /api/system/fundamentals-official/quality-momentum-lite-guard` exposes the read-only guard coverage summary without generating reports or writing formal fundamentals.
+* Task 6 decision: PE remains the only safe direct apply path. No additional formal lite guard field should be applied from report-only CSVs yet, because operating margin, debt inputs, revenue growth reference, and EPS reference would otherwise imply 5-year averages, CAGR, or derived ratios that are not validated from a full historical series.
+
+## Apply Path Decision
+
+Decision: keep the first safe apply path as PE-only.
+
+Rationale:
+
+* TWSE BWIBBU and TPEx daily PE provide a direct official PE value that maps cleanly to the existing `pe` field.
+* Profitability reports provide current-period margins, not a validated `operating_margin_5y_avg`.
+* Balance sheet reports provide raw liabilities / equity inputs, not a validated formal `debt_to_equity` series.
+* Monthly revenue reports provide YoY / cumulative YoY references, not a 5-year `revenue_growth_5y_cagr`.
+* Income statement reports provide current-period EPS, not a 5-year `eps_growth_5y_cagr`.
+
+Allowed next improvement:
+
+* Add new explicitly named report-derived reference fields only if the codebase first defines separate fields such as `official_latest_operating_margin_reference` or `official_monthly_revenue_yoy_reference`.
+* Do not map report-only values into existing `*_5y_avg`, `*_5y_cagr`, or derived ratio fields.
 
 ## Tasks
 
@@ -37,8 +55,8 @@ Make both recommendation strategies operational end-to-end while keeping the sec
 3. Status: done — Update public strategy wording to Quality Momentum Lite while preserving `steady_momentum_v1`.
 4. Status: done — Build a read-only service that summarizes lite guard coverage from official report-only CSVs for priority / recommended stocks.
 5. Status: done — Add CLI/API visibility for lite guard coverage without writing formal fundamentals.
-6. Status: todo — Decide the first safe apply path for a lite guard field that is not misleading, likely PE only or a new report-derived guard field, not `*_5y_avg` unless a true 5-year series exists.
-7. Status: todo — Run focused tests and `run_signals.py` after each completed slice.
+6. Status: done — Decide the first safe apply path for a lite guard field that is not misleading, likely PE only or a new report-derived guard field, not `*_5y_avg` unless a true 5-year series exists.
+7. Status: done — Run focused tests and `run_signals.py` after each completed slice.
 
 ## Verification
 
@@ -57,4 +75,4 @@ Stop and report instead of implementing if:
 
 ## Suggested Next Heartbeat
 
-Start with task 6. Do not auto-fill formal fundamentals. Decide whether the only safe apply path remains PE, or whether a new explicitly report-derived guard field is needed.
+F18 is closed. Start a new phase only if there is a concrete next product or data task.
