@@ -5,6 +5,8 @@ import test from 'node:test'
 const types = readFileSync(new URL('../src/types/index.ts', import.meta.url), 'utf8')
 const dashboard = readFileSync(new URL('../src/pages/Dashboard.tsx', import.meta.url), 'utf8')
 const universeReport = readFileSync(new URL('../src/pages/UniverseReportPage.tsx', import.meta.url), 'utf8')
+const stockCard = readFileSync(new URL('../src/components/StockCard.tsx', import.meta.url), 'utf8')
+const css = readFileSync(new URL('../src/App.css', import.meta.url), 'utf8')
 
 test('recommendation strategy type exposes only the two product strategies', () => {
   const legacyStrategy = 'buf' + 'fett'
@@ -26,4 +28,16 @@ test('dashboard strategy selector shows only steady momentum and old wang', () =
 test('universe report recommendation plan does not promote internal core signals', () => {
   assert.doesNotMatch(universeReport, /hasCoreEntry/)
   assert.doesNotMatch(universeReport, /coreBuy/)
+})
+
+test('strategy scores are visually split by first and second strategy', () => {
+  for (const source of [dashboard, universeReport, stockCard]) {
+    assert.match(source, /第一 老王/)
+    assert.match(source, /第二 穩健/)
+    assert.match(source, /strategy-score-old-wang/)
+    assert.match(source, /strategy-score-steady/)
+  }
+
+  assert.match(css, /\.strategy-score-old-wang\.strategy-score-high/)
+  assert.match(css, /\.strategy-score-steady\.strategy-score-high/)
 })

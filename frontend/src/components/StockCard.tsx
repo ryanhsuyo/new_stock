@@ -14,6 +14,36 @@ function scoreColor(score: number): string {
   return 'score-low'
 }
 
+function strategyScoreColor(score: number | null | undefined): string {
+  if (score == null) return 'strategy-score-low'
+  if (score >= 85) return 'strategy-score-high'
+  if (score >= 70) return 'strategy-score-mid'
+  return 'strategy-score-low'
+}
+
+function StrategyScoreBadges({ stock }: { stock: StockRecommendation }) {
+  const hasOldWangScore = stock.old_wang_score != null
+  const hasSteadyScore = stock.steady_momentum_score != null
+  if (!hasOldWangScore && !hasSteadyScore) return null
+
+  return (
+    <div className="strategy-score-row" aria-label="策略分數">
+      {hasOldWangScore && (
+        <span className={`strategy-score-badge strategy-score-old-wang ${strategyScoreColor(stock.old_wang_score)}`}>
+          <em>第一 老王</em>
+          {stock.old_wang_score}
+        </span>
+      )}
+      {hasSteadyScore && (
+        <span className={`strategy-score-badge strategy-score-steady ${strategyScoreColor(stock.steady_momentum_score)}`}>
+          <em>第二 穩健</em>
+          {stock.steady_momentum_score}
+        </span>
+      )}
+    </div>
+  )
+}
+
 function fmtChipLots(value: number | null): string {
   if (value === null || value === undefined) return '待匯入'
   const sign = value > 0 ? '+' : ''
@@ -76,11 +106,12 @@ export default function StockCard({ stock, onBuy, onAnalysis }: Props) {
         </div>
       )}
 
+      <StrategyScoreBadges stock={stock} />
+
       {stock.old_wang_badges?.length > 0 && (
         <div className="strategy-badges" aria-label="老王策略條件">
           <span className="strategy-badge strategy-badge-source">
-            老王
-            {stock.old_wang_score != null ? ` ${stock.old_wang_score}` : ''}
+            第一策略 老王
           </span>
           {stock.old_wang_badges.map(badge => (
             <span className="strategy-badge" key={badge}>{badge}</span>
@@ -91,7 +122,7 @@ export default function StockCard({ stock, onBuy, onAnalysis }: Props) {
       {stock.recommendation_source === 'steady_momentum' && (
         <div className="strategy-badges" aria-label="穩健動能條件">
           <span className="strategy-badge strategy-badge-source">
-            穩健動能{stock.steady_momentum_score != null ? ` ${stock.steady_momentum_score}` : ''}
+            第二策略 穩健動能
           </span>
           {stock.steady_momentum_signal && <span className="strategy-badge">{stock.steady_momentum_signal}</span>}
           {stock.fundamental_quality_score != null && <span className="strategy-badge">基本面品質 {stock.fundamental_quality_score}</span>}

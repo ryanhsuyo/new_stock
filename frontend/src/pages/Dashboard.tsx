@@ -56,6 +56,36 @@ function fmtVolume(value: number | null): string {
   return value.toLocaleString()
 }
 
+function strategyScoreColor(score: number | null | undefined): string {
+  if (score == null) return 'strategy-score-low'
+  if (score >= 85) return 'strategy-score-high'
+  if (score >= 70) return 'strategy-score-mid'
+  return 'strategy-score-low'
+}
+
+function StrategyScoreBadges({ item }: { item: Pick<StockRecommendation, 'old_wang_score' | 'steady_momentum_score'> }) {
+  const hasOldWangScore = item.old_wang_score != null
+  const hasSteadyScore = item.steady_momentum_score != null
+  if (!hasOldWangScore && !hasSteadyScore) return null
+
+  return (
+    <div className="strategy-score-row" aria-label="策略分數">
+      {hasOldWangScore && (
+        <span className={`strategy-score-badge strategy-score-old-wang ${strategyScoreColor(item.old_wang_score)}`}>
+          <em>第一 老王</em>
+          {item.old_wang_score}
+        </span>
+      )}
+      {hasSteadyScore && (
+        <span className={`strategy-score-badge strategy-score-steady ${strategyScoreColor(item.steady_momentum_score)}`}>
+          <em>第二 穩健</em>
+          {item.steady_momentum_score}
+        </span>
+      )}
+    </div>
+  )
+}
+
 const STRATEGY_OPTIONS: Array<{ key: RecommendationStrategy; label: string; desc: string }> = [
   { key: 'steady_momentum', label: '穩健動能', desc: '中期趨勢、相對強度、風險報酬與基本面避雷' },
   { key: 'old_wang', label: '老王短波段', desc: '短線資金、族群輪動、跳空與短均線訊號' },
@@ -1950,11 +1980,12 @@ function RecCard({
         </div>
       )}
 
+      <StrategyScoreBadges item={rec} />
+
       {rec.old_wang_badges?.length > 0 && (
         <div className="strategy-badges" aria-label="老王策略條件">
           <span className="strategy-badge strategy-badge-source">
-            老王
-            {rec.old_wang_score != null ? ` ${rec.old_wang_score}` : ''}
+            第一策略 老王
           </span>
           {rec.old_wang_badges.map(badge => (
             <span className="strategy-badge" key={badge}>{badge}</span>
@@ -1965,7 +1996,7 @@ function RecCard({
       {rec.recommendation_source === 'steady_momentum' && (
         <div className="strategy-badges" aria-label="穩健動能條件">
           <span className="strategy-badge strategy-badge-source">
-            穩健動能{rec.steady_momentum_score != null ? ` ${rec.steady_momentum_score}` : ''}
+            第二策略 穩健動能
           </span>
           {rec.steady_momentum_signal && <span className="strategy-badge">{rec.steady_momentum_signal}</span>}
           {rec.fundamental_quality_score != null && <span className="strategy-badge">基本面品質 {rec.fundamental_quality_score}</span>}

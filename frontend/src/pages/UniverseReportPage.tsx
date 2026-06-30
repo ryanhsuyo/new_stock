@@ -75,6 +75,37 @@ const fmtPct = (value?: number | null) => {
   return `${sign}${value.toFixed(1)}%`
 }
 
+const strategyScoreClass = (score?: number | null) => {
+  if (score == null) return 'strategy-score-low'
+  if (score >= 85) return 'strategy-score-high'
+  if (score >= 70) return 'strategy-score-mid'
+  return 'strategy-score-low'
+}
+
+function StrategyScoreTags({ item }: { item: UniverseReportItem }) {
+  const hasOldWangScore = hasOldWangTag(item) && item.old_wang_score != null
+  const hasSteadyScore = Boolean(item.steady_momentum_flag && item.steady_momentum_score != null)
+  if (!hasOldWangScore && !hasSteadyScore) return null
+
+  return (
+    <div className="strategy-score-row" aria-label="策略分數">
+      {hasOldWangScore && (
+        <span className={`strategy-score-badge strategy-score-old-wang ${strategyScoreClass(item.old_wang_score)}`}>
+          <em>第一 老王</em>
+          {item.old_wang_score}
+          {item.old_wang_raw_score != null && <small>原始 {item.old_wang_raw_score}</small>}
+        </span>
+      )}
+      {hasSteadyScore && (
+        <span className={`strategy-score-badge strategy-score-steady ${strategyScoreClass(item.steady_momentum_score)}`}>
+          <em>第二 穩健</em>
+          {item.steady_momentum_score}
+        </span>
+      )}
+    </div>
+  )
+}
+
 const pctFromClose = (close?: number | null, target?: number | null) => {
   if (close == null || target == null || Number.isNaN(close) || Number.isNaN(target) || close === 0) return null
   return (target - close) / close * 100
@@ -2053,13 +2084,8 @@ export default function UniverseReportPage({ onNavigateAnalysis, initialJournalF
                     <td className="report-plan-cell">
                       <span className={plan.cls}>{plan.title}</span>
                       <strong>{plan.advice}</strong>
+                      <StrategyScoreTags item={item} />
                       <div className="report-plan-tags">
-                        {hasOldWangTag(item) && item.old_wang_score != null && (
-                          <em>老王 {item.old_wang_score}{item.old_wang_raw_score != null ? ` / 原始 ${item.old_wang_raw_score}` : ''}</em>
-                        )}
-                        {item.steady_momentum_flag && item.steady_momentum_score != null && (
-                          <em>穩健動能 {item.steady_momentum_score}</em>
-                        )}
                         {item.fundamental_data_ok && item.fundamental_quality_score != null && (
                           <em>基本面避雷 品質 {item.fundamental_quality_score}</em>
                         )}

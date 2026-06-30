@@ -194,6 +194,70 @@ body {
   color: #2e7d32;
 }
 
+.strategy-score-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 8px;
+}
+
+.strategy-score-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  min-height: 25px;
+  border-radius: 999px;
+  border: 1px solid transparent;
+  padding: 3px 9px;
+  font-size: 12px;
+  font-weight: 800;
+  line-height: 1.25;
+  white-space: nowrap;
+}
+
+.strategy-score-badge em {
+  font-style: normal;
+  opacity: .78;
+}
+
+.strategy-score-badge small {
+  font-size: 11px;
+  font-weight: 700;
+  opacity: .72;
+}
+
+.strategy-score-old-wang.strategy-score-high {
+  background: #ffedd5;
+  border-color: #fdba74;
+  color: #9a3412;
+}
+.strategy-score-old-wang.strategy-score-mid {
+  background: #fff7ed;
+  border-color: #fed7aa;
+  color: #c2410c;
+}
+.strategy-score-old-wang.strategy-score-low {
+  background: #f3f4f6;
+  border-color: #e5e7eb;
+  color: #6b7280;
+}
+
+.strategy-score-steady.strategy-score-high {
+  background: #dbeafe;
+  border-color: #93c5fd;
+  color: #1d4ed8;
+}
+.strategy-score-steady.strategy-score-mid {
+  background: #ecfeff;
+  border-color: #a5f3fc;
+  color: #0e7490;
+}
+.strategy-score-steady.strategy-score-low {
+  background: #f3f4f6;
+  border-color: #e5e7eb;
+  color: #6b7280;
+}
+
 .stock-reason { font-size: 13px; color: #444; line-height: 1.55; }
 
 .stock-card .daily-checklist.compact {
