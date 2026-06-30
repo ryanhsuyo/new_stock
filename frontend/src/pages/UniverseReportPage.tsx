@@ -733,6 +733,10 @@ export default function UniverseReportPage({ onNavigateAnalysis, initialJournalF
     setDecisionFilter(prev => (prev === action ? 'all' : action))
   }
 
+  const reportHealthActionClass = (action: Exclude<DecisionAction, 'all'>, extra = '') => (
+    `report-health-card report-health-action${decisionFilter === action ? ' active' : ''}${extra ? ` ${extra}` : ''}`
+  )
+
   const renderTrustNote = () => dataStatus ? (
     <div
       className={`report-trust-note ${
@@ -1349,16 +1353,16 @@ export default function UniverseReportPage({ onNavigateAnalysis, initialJournalF
           </div>
           <button
             type="button"
-            className="report-health-card report-health-action"
+            className={reportHealthActionClass('enter')}
             onClick={() => showDecisionFilter('enter')}
           >
-            <span>可小試</span>
+            <span>只看可小試</span>
             <strong>{reportSummary.byDecision.enter}</strong>
-            <em>{reportSummary.entryRangeCount} 檔有進場區間</em>
+            <em>今日動作：可小試</em>
           </button>
           <button
             type="button"
-            className="report-health-card report-health-action"
+            className={reportHealthActionClass('wait_pullback')}
             onClick={() => showDecisionFilter('wait_pullback')}
           >
             <span>等回測</span>
@@ -1367,7 +1371,7 @@ export default function UniverseReportPage({ onNavigateAnalysis, initialJournalF
           </button>
           <button
             type="button"
-            className="report-health-card report-health-action report-health-risk"
+            className={reportHealthActionClass(reportSummary.byDecision.exit > 0 ? 'exit' : 'reduce', 'report-health-risk')}
             onClick={() => showDecisionFilter(reportSummary.byDecision.exit > 0 ? 'exit' : 'reduce')}
           >
             <span>需處理風險</span>
@@ -1402,6 +1406,15 @@ export default function UniverseReportPage({ onNavigateAnalysis, initialJournalF
         </div>
       )}
 
+      <details className="report-advanced-section">
+        <summary>
+          <div>
+            <strong>進階篩選與復盤</strong>
+            <span>復盤進度、價格位置與完整每日動作統計，需要細看時再展開。</span>
+          </div>
+          <em>展開</em>
+        </summary>
+        <div className="report-advanced-section-body">
       <div className="journal-progress-board">
         <div className="journal-progress-head">
           <div>
@@ -1567,6 +1580,8 @@ export default function UniverseReportPage({ onNavigateAnalysis, initialJournalF
           })}
         </div>
       </div>
+        </div>
+      </details>
 
       {topPriorityRows.length > 0 && (
         <div className="priority-list-board">

@@ -15,6 +15,8 @@ test('dashboard exposes a post-close one-click update action backed by the syste
   assert.match(dashboard, /api\.triggerUpdateNow\(\)/)
   assert.match(dashboard, /盤後一鍵更新/)
   assert.match(dashboard, /onDailyUpdate=\{handleUpdateNow\}/)
+  assert.match(dashboard, /function DecisionConsole\([\s\S]*onDailyUpdate/)
+  assert.match(dashboard, /daily-update-quick-card/)
 })
 
 test('update workflow card can trigger update without owning strategy logic', () => {

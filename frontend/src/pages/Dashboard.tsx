@@ -1229,6 +1229,7 @@ function DecisionConsole({
   dailyBrief,
   workflow,
   busy,
+  onDailyUpdate,
   onFocusFundamentals,
   onFocusDecisionJournal,
   onFocusDailyCheck,
@@ -1241,6 +1242,7 @@ function DecisionConsole({
   dailyBrief: DailyBrief | null
   workflow: WorkflowStatus | null
   busy: boolean
+  onDailyUpdate: () => void
   onFocusFundamentals: () => void
   onFocusDecisionJournal: () => void
   onFocusDailyCheck: () => void
@@ -1266,6 +1268,12 @@ function DecisionConsole({
   const lastUpdatedAt = dataStatus?.last_run_finished_at?.slice(0, 16).replace('T', ' ')
     ?? worklist?.generated_at?.slice(0, 16).replace('T', ' ')
     ?? null
+  const dataUpdateRunning = dataStatus?.last_run_status === 'running'
+  const quickUpdateText = dataUpdateRunning
+    ? '後端正在更新資料與策略輸出，完成後 Dashboard 會自動刷新。'
+    : dataStatus?.is_stale
+      ? `資料已 ${dataStatus.stale_days ?? '?'} 天未更新，建議先跑盤後一鍵更新。`
+      : '資料目前可用；盤後收盤後可手動刷新 OHLCV、籌碼與策略輸出。'
   const todayFocus = worklist?.today_focus ?? []
   const portfolioFocus = todayFocus.filter(item => item.category === 'portfolio_risk').slice(0, 3)
   const followupFocus = todayFocus.filter(item => item.category !== 'portfolio_risk').slice(0, 3)
@@ -1340,6 +1348,26 @@ function DecisionConsole({
         isStale={Boolean(dataStatus?.is_stale)}
         staleDays={dataStatus?.stale_days}
       />
+
+      <div className={`daily-update-quick-card ${dataUpdateRunning ? 'running' : dataStatus?.is_stale ? 'stale' : 'ready'}`}>
+        <div>
+          <span>盤後資料更新</span>
+          <strong>{dataUpdateRunning ? '更新中' : dataStatus?.is_stale ? '建議更新' : '可手動刷新'}</strong>
+          <em>{quickUpdateText}</em>
+        </div>
+        <div className="daily-update-quick-meta">
+          <small>資料日 {dataAsOf ?? '—'}</small>
+          {rawAsOf && rawAsOf !== dataAsOf && <small>OHLCV {rawAsOf}</small>}
+          <button
+            className="btn btn-primary btn-sm"
+            onClick={onDailyUpdate}
+            disabled={busy || dataUpdateRunning}
+            title="觸發後端 update-now：backfill + chips + signals + daily_check"
+          >
+            {dataUpdateRunning ? <><span className="spinner spinner-sm" aria-hidden="true" />更新中…</> : '盤後一鍵更新'}
+          </button>
+        </div>
+      </div>
 
       <div className="decision-console-grid">
         <PrimaryActionCard
@@ -2560,6 +2588,7 @@ export default function Dashboard({ onNavigateAnalysis, onNavigateUniverseReport
         dailyBrief={dailyBrief}
         workflow={workflowStatus}
         busy={isBusy || isDataRunning}
+        onDailyUpdate={handleUpdateNow}
         onFocusFundamentals={() => focusSection(fundamentalsRef)}
         onFocusDecisionJournal={() => focusSection(decisionJournalRef)}
         onFocusDailyCheck={() => focusSection(dailyCheckRef)}
