@@ -231,7 +231,7 @@
 目前推薦策略固定兩種：
 
 - `old_wang_market_chip_rotation`：老王短波段 / 大盤籌碼輪動
-- `steady_momentum_v1`：穩健動能策略
+- `steady_momentum_v1`：Quality Momentum Lite
 
 `core_technical_v2` 仍是內部技術訊號引擎，負責計算支撐壓力、長短線趨勢、breakout / breakdown、型態、相對強度、Stage、風險報酬與外部 `BUY` / `SELL` / `HOLD`；但它不再是獨立推薦桶。
 
@@ -263,14 +263,14 @@
 
 老王 tag 的設計重點是「不要因為大漲就自動賣出」，而是先看大盤是否允許、族群是否轉強、個股是否仍守住關鍵線；但若風險報酬不足或 RSI 過熱，仍只列觀察而不追價。
 
-穩健動能策略滿分 100 分，定位為第二主策略，補老王短線高波動的盲點：
+Quality Momentum Lite 滿分 100 分，定位為第二主策略，補老王短線高波動的盲點。此策略以價格動能為主，基本面只做低成本避雷，不追求完整價值投資資料庫：
 
 - 中期趨勢 25 分：使用 `trend_score`、MA20 / MA60、Stage 與相對趨勢結構。
 - 相對強度 20 分：使用 `relative_strength_score`，偏好 20 / 60 / 120 日表現優於大盤的標的。
 - 進場位置 20 分：使用 `entry_score`，偏好回測守穩、突破品質佳、不是離均線過遠的標的。
 - 風險報酬 15 分：`reward_risk_ratio >= 1.5` 才視為合理，低於 1.2 不給分。
 - 過熱控制 10 分：RSI 過熱或收盤距 MA20 過遠時降分，避免追高。
-- 基本面避雷 10 分：若基本面資料可用，使用品質、安全與成長分數；資料不足時給中性避雷分，不假裝基本面完整。`fundamental_*` 是正式基本面輔助欄位，不是推薦策略。
+- 基本面避雷 10 分：只使用低成本 guard 欄位（PE、營業利益率、負債權益比、營收/EPS 成長）。資料不足時給中性避雷分，不假裝基本面完整，也不要求 ROE、FCF、interest coverage 或 dividend years 才能運作。`fundamental_*` 是正式基本面輔助欄位，不是推薦策略。
 
 穩健動能成立條件：
 
@@ -304,12 +304,12 @@
 - 正式合併需先跑 `python3 scripts/merge_priority_fundamentals.py` 預覽，再用 `--apply --confirm MERGE_PRIORITY_FUNDAMENTALS` 寫回 `fundamentals.csv` 並匯入 JSON
 - 用 `python3 scripts/check_fundamentals.py` 檢查 leaders 股票中哪些缺整檔資料或缺必要欄位
 - 沒有基本面資料時，必須回傳 `fundamental_data_ok=false` 與 `fundamental_data_missing_reason`，不可用技術指標假裝基本面分數；`fundamental_*` 是正式基本面輔助欄位
-- 第一版分數拆成以下正式欄位：
-  - `fundamental_quality_score`：ROE、營業利益率、自由現金流、現金流轉換率
-  - `fundamental_safety_score`：負債權益比、利息保障倍數
-  - `fundamental_value_score`：PE、自由現金流殖利率
-  - `fundamental_growth_score`：營收/EPS 成長與股利穩定性
-- `fundamental_flag=true` 代表「品質、財務安全與估值條件達到基本面避雷門檻」，不是短線買進訊號
+- Quality Momentum Lite 分數拆成以下正式輔助欄位：
+  - `fundamental_quality_score`：以營業利益率為主，ROE / 現金流資料若存在才輔助加分
+  - `fundamental_safety_score`：以負債權益比為主，利息保障倍數若存在才輔助加分
+  - `fundamental_value_score`：以 PE 為主，FCF yield 若存在才輔助加分
+  - `fundamental_growth_score`：以營收/EPS 成長為主，股利穩定性若存在才輔助加分
+- `fundamental_flag=true` 代表「輕量基本面避雷通過」，不是短線買進訊號
 
 盤中監控：
 

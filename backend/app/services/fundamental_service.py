@@ -204,7 +204,7 @@ def _priority_fill_readiness(validation: dict | None) -> dict:
             "can_preview": True,
             "can_merge": False,
             "message": f"補資料 CSV 有 {row_count} 檔，但尚未填任何基本面欄位。",
-            "suggested_action": "先填 ROE、現金流、負債、成長與估值欄位，再按預覽合併。",
+            "suggested_action": "先填低成本 lite guard 欄位：PE、營業利益率、負債權益比、營收/EPS 成長。",
             "filled_code_count": filled_code_count,
             "filled_field_count": filled_field_count,
             "complete_code_count": complete_code_count,
@@ -218,7 +218,7 @@ def _priority_fill_readiness(validation: dict | None) -> dict:
             "can_preview": True,
             "can_merge": False,
             "message": f"補資料 CSV 已部分填寫 {filled_code_count} 檔、{filled_field_count} 個欄位，但尚無完整 11 欄股票。",
-            "suggested_action": "已部分填寫，仍需補齊 11 欄才會產生基本面避雷結果。",
+            "suggested_action": "已部分填寫，可作為 Quality Momentum Lite 避雷參考；正式合併仍需補齊 11 欄。",
             "filled_code_count": filled_code_count,
             "filled_field_count": filled_field_count,
             "complete_code_count": complete_code_count,
@@ -261,7 +261,7 @@ def _priority_fill_guide(validation: dict | None) -> dict:
     elif complete_count > 0:
         next_action = f"可先預覽合併 {complete_count} 檔"
     elif partial_count > 0:
-        next_action = f"已部分填寫 {partial_count} 檔，補齊 11 欄後再合併"
+        next_action = f"已部分填寫 {partial_count} 檔，可先作為 lite guard 參考；正式合併仍需補齊 11 欄"
     else:
         next_action = "先填優先 20 檔"
     return {
@@ -347,10 +347,10 @@ def _fundamentals_workflow_summary(
         checklist_status = ("done", "done", "todo", "blocked")
     elif readiness_status == "ready_to_preview":
         stage = "fill_priority_csv"
-        headline = "補齊基本面避雷必要欄位"
+        headline = "補齊 Quality Momentum Lite 避雷欄位"
         detail = (
             f"補資料 CSV 已部分填寫 {partial_count} 檔、{filled_field_count} 個欄位；"
-            "每檔需補齊 11 欄才會進入基本面避雷評分。"
+            "第二策略可先使用 lite guard，正式基本面合併仍需完整 11 欄。"
         )
         primary_action = {
             "label": "繼續填 CSV",
@@ -391,8 +391,8 @@ def _fundamentals_workflow_summary(
         ),
         _workflow_step(
             "fill_required_fields",
-            "補齊 11 欄",
-            fill_guide.get("format_note") or FILL_FORMAT_NOTE,
+            "補 lite guard",
+            "優先補 PE、營業利益率、負債權益比、營收/EPS 成長；其他 11 欄進階欄位可後補。",
             checklist_status[1],
         ),
         _workflow_step(
@@ -816,7 +816,7 @@ def merge_priority_fill_csv(
     next_action_label = (
         "可合併，合併後重新產生訊號"
         if merge_allowed
-        else "補齊 11 欄後再預覽"
+        else "lite guard 可參考；正式合併仍需補齊 11 欄"
     )
 
     response = {

@@ -12,17 +12,17 @@ Rules:
 
 ## Current State
 
-Active phase: none
+Active phase: F18_quality_momentum_lite_execution_closure.md
 
 Loop mode: active
 
 Last completed phase:
 
-* `F15_official_coverage_workflow_awareness.md` — official coverage Daily Check / PM Worklist awareness
+* `F17_quality_momentum_lite_strategy.md` — second strategy constrained to Quality Momentum Lite
 
 Current phase status:
 
-* No active phase. F1-F15 official fundamentals workflow slices are implemented; choose the next safe phase deliberately before continuing.
+* F18 active. First three execution-closure checks are done; heartbeat should continue from task 4 in `F18_quality_momentum_lite_execution_closure.md`.
 
 ## Completed Phase History
 
@@ -90,6 +90,8 @@ Current phase status:
 * F13 — Added read-only official fundamentals coverage audit API wrapper.
 * F14 — Added Dashboard / PM-facing official coverage audit status display without frontend recomputation.
 * F15 — Added Daily Check / PM Worklist official coverage awareness without triggering report generation or formal fundamentals writes.
+* F16 — Added official TWSE/TPEx PE priority CSV dry-run/apply path while keeping other fundamentals fields blocked.
+* F17 — Constrained `steady_momentum` to Quality Momentum Lite so the second strategy uses low-cost fundamentals guardrails instead of requiring all 11 advanced fields.
 
 ## Next Phase Candidates
 
@@ -121,6 +123,15 @@ Current phase status:
 * F14 frontend tests: `node --test frontend/tests/*.test.mjs` passed.
 * F14 frontend build: `npm run build` from `frontend/` passed, with existing Vite chunk-size warning.
 * F15 workflow tests: `/Library/Frameworks/Python.framework/Versions/3.11/bin/python3 -m pytest backend/tests/test_daily_check.py backend/tests/test_pm_worklist.py -q` passed, 31 tests.
+* F16 official fundamentals tests: `/Library/Frameworks/Python.framework/Versions/3.11/bin/python3 -m pytest backend/tests/test_official_fundamentals_service.py backend/tests/test_official_fundamentals_cli.py backend/tests/test_official_fundamentals_api.py -q` passed, 34 tests.
+* F16 live official PE apply: `/Library/Frameworks/Python.framework/Versions/3.11/bin/python3 backend/scripts/update_fundamentals_official.py --sleep 1 --apply` passed, updated 18 priority PE values, skipped 2 missing official PE values.
+* F16 fundamentals check: `/Library/Frameworks/Python.framework/Versions/3.11/bin/python3 backend/scripts/check_fundamentals.py` passed with priority CSV `ready_to_preview`, 18 partial priority rows, and no errors / warnings.
+* F17 fundamental guard tests: `/Library/Frameworks/Python.framework/Versions/3.11/bin/python3 -m pytest backend/tests/test_fundamental_guard.py -q` passed, 6 tests.
+* F17 fundamentals workflow tests: `/Library/Frameworks/Python.framework/Versions/3.11/bin/python3 -m pytest backend/tests/test_fundamental_service.py backend/tests/test_fundamentals_cli.py backend/tests/test_fundamental_guard.py -q` passed, 42 tests.
+* F17 official / PM workflow regression: `/Library/Frameworks/Python.framework/Versions/3.11/bin/python3 -m pytest backend/tests/test_official_fundamentals_service.py backend/tests/test_official_fundamentals_cli.py backend/tests/test_official_fundamentals_api.py backend/tests/test_daily_check.py backend/tests/test_pm_worklist.py backend/tests/test_workflow_status.py backend/tests/test_rules_metadata_service.py -q` passed, 81 tests.
+* F17 fundamentals check: `/Library/Frameworks/Python.framework/Versions/3.11/bin/python3 backend/scripts/check_fundamentals.py` passed with priority CSV `ready_to_preview` and next action describing lite guard usage.
+* F18 run signals: `/Library/Frameworks/Python.framework/Versions/3.11/bin/python3 backend/scripts/run_signals.py` passed, generated `old_wang=5`, `steady_momentum=17`, and refreshed summary / universe_report / today_scan / daily_check.
+* F18 focused strategy tests: `/Library/Frameworks/Python.framework/Versions/3.11/bin/python3 -m pytest backend/tests/test_signals_api.py::TestSignalsOutput backend/tests/test_today_scan_service.py backend/tests/test_today_scan_cli.py backend/tests/test_rules_metadata_service.py backend/tests/test_fundamental_guard.py backend/tests/test_fundamental_service.py backend/tests/test_fundamentals_cli.py -q` passed, 75 tests.
 * Fundamentals wording regression tests: `/Library/Frameworks/Python.framework/Versions/3.11/bin/python3 -m pytest backend/tests/test_fundamentals_cli.py -q` passed, 14 tests.
 * R9 focused fundamentals service tests: `/Library/Frameworks/Python.framework/Versions/3.11/bin/python3 -m pytest backend/tests/test_fundamental_service.py -q` passed, 20 tests.
 * R9 focused fundamentals CLI tests: `/Library/Frameworks/Python.framework/Versions/3.11/bin/python3 -m pytest backend/tests/test_fundamentals_cli.py::test_prepare_fundamentals_priority_import_help_exits_0 backend/tests/test_fundamentals_cli.py::test_prepare_fundamentals_priority_import_prints_preview -q` passed, 2 tests.
@@ -149,4 +160,4 @@ Current phase status:
 
 ## Last Stop Reason
 
-F15 completed official coverage awareness in Daily Check / PM Worklist. No active phase is selected; next heartbeat should not keep re-running F15.
+F18 selected to finish end-to-end execution closure for both strategies. Continue with read-only Quality Momentum Lite guard coverage before any formal apply path.

@@ -90,6 +90,40 @@ def test_apply_twse_official_values_apply_updates_only_mapped_fields(tmp_path):
     assert result["unmapped_official_fields"] == ["DividendYield", "PBratio"]
 
 
+def test_apply_official_pe_values_uses_tpex_when_twse_missing(tmp_path):
+    priority_csv = tmp_path / "fundamentals_priority_fill.csv"
+    _priority_csv(priority_csv)
+
+    result = svc.apply_official_pe_values_to_priority_csv(
+        priority_csv,
+        twse_bwibbu_rows=[],
+        tpex_daily_pe_rows=[
+            {
+                "code": "6488",
+                "name": "環球晶",
+                "pe": "18.25",
+                "dividend_yield": "2.1",
+                "pb_ratio": "1.8",
+                "source": "tpex_after_trading_pe_qry_date",
+                "skip_reason": "",
+            },
+        ],
+        dry_run=False,
+    )
+
+    with priority_csv.open(encoding="utf-8", newline="") as f:
+        rows = {row["code"]: row for row in csv.DictReader(f)}
+
+    assert result["dry_run"] is False
+    assert result["updated_code_count"] == 1
+    assert result["updated_codes"] == ["6488"]
+    assert result["updated_sources"] == {"6488": "tpex_after_trading_pe_qry_date"}
+    assert rows["6488"]["pe"] == "18.25"
+    assert rows["6488"]["roe_5y_avg"] == ""
+    assert rows["6488"]["fcf_yield"] == ""
+    assert rows["2330"]["pe"] == ""
+
+
 def test_apply_twse_official_values_skips_blank_pe(tmp_path):
     priority_csv = tmp_path / "fundamentals_priority_fill.csv"
     _priority_csv(priority_csv)

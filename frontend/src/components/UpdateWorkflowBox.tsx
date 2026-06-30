@@ -1,7 +1,19 @@
 import { useState } from 'react'
 import type { UpdateWorkflowStatus } from '../types'
 
-export default function UpdateWorkflowBox({ workflow }: { workflow: UpdateWorkflowStatus | null }) {
+interface UpdateWorkflowBoxProps {
+  workflow: UpdateWorkflowStatus | null
+  onDailyUpdate?: () => void
+  busy?: boolean
+  running?: boolean
+}
+
+export default function UpdateWorkflowBox({
+  workflow,
+  onDailyUpdate,
+  busy = false,
+  running = false,
+}: UpdateWorkflowBoxProps) {
   const [copied, setCopied] = useState(false)
   const statusText: Record<string, string> = {
     ready: '完成',
@@ -50,6 +62,23 @@ export default function UpdateWorkflowBox({ workflow }: { workflow: UpdateWorkfl
           </div>
           <span className="daily-check-badge warn">待讀取</span>
         </div>
+        {onDailyUpdate && (
+          <div className="daily-check-action-list">
+            <div className="daily-check-action warn">
+              <span>盤後資料</span>
+              <strong>可以先觸發一鍵更新</strong>
+              <p>等同後端 daily_update.py --months 1 的同源流程：更新 OHLCV、籌碼與策略輸出。</p>
+              <button
+                className="btn btn-primary btn-sm"
+                onClick={onDailyUpdate}
+                disabled={busy || running}
+                title="觸發後端 update-now：backfill + chips + signals + daily_check"
+              >
+                {running ? '更新中…' : '盤後一鍵更新'}
+              </button>
+            </div>
+          </div>
+        )}
       </div>
     )
   }
@@ -109,6 +138,34 @@ export default function UpdateWorkflowBox({ workflow }: { workflow: UpdateWorkfl
                 {copied ? '已複製' : '複製指令'}
               </button>
             )}
+            {onDailyUpdate && workflow.next_action.action_type === 'update_data' && (
+              <button
+                className="btn btn-primary btn-xs"
+                onClick={onDailyUpdate}
+                disabled={busy || running}
+                title="觸發後端 update-now：backfill + chips + signals + daily_check"
+              >
+                {running ? '更新中…' : '盤後一鍵更新'}
+              </button>
+            )}
+          </div>
+        </div>
+      )}
+
+      {onDailyUpdate && !workflow.next_action && (
+        <div className="daily-check-action-list">
+          <div className="daily-check-action ok">
+            <span>盤後資料</span>
+            <strong>需要時可手動刷新</strong>
+            <p>按鈕會呼叫後端 update-now，執行 daily_update.py --months 1 同源流程，不在前端重算策略。</p>
+            <button
+              className="btn btn-ghost btn-xs"
+              onClick={onDailyUpdate}
+              disabled={busy || running}
+              title="觸發後端 update-now：backfill + chips + signals + daily_check"
+            >
+              {running ? '更新中…' : '盤後一鍵更新'}
+            </button>
           </div>
         </div>
       )}

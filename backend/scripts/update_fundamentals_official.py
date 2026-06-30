@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """用官方 OpenAPI 安全補 fundamentals priority CSV。
 
-正式 apply 目前只允許 TWSE BWIBBU_ALL 直接對應的 `pe`。
+正式 apply 目前只允許 TWSE/TPEx 官方來源直接對應的 `pe`。
 其他官方來源一律先寫 neutral report-only CSV，不硬塞進基本面評分欄位。
 """
 
@@ -34,7 +34,7 @@ from app.services.official_fundamentals_service import (  # noqa: E402
     TWSE_INCOME_STATEMENT_CI_URL,
     TWSE_MONTHLY_REVENUE_URL,
     TWSE_PROFITABILITY_URL,
-    apply_twse_official_values_to_priority_csv,
+    apply_official_pe_values_to_priority_csv,
     build_official_balance_sheet_report_rows,
     build_official_dividend_report_rows,
     build_official_income_statement_report_rows,
@@ -356,6 +356,17 @@ def _fetch_tpex_daily_pe(sleep_seconds: float, date: str | None) -> dict[str, An
     return raw
 
 
+def _load_tpex_daily_pe_report_rows(args: argparse.Namespace) -> list[dict[str, str]]:
+    tpex_payload = (
+        json.loads(args.tpex_daily_pe_fixture.read_text(encoding="utf-8"))
+        if args.tpex_daily_pe_fixture
+        else _fetch_tpex_daily_pe(args.sleep, args.tpex_daily_pe_date)
+    )
+    if not isinstance(tpex_payload, dict):
+        raise ValueError("TPEx PE/PB fixture 必須是 JSON object")
+    return build_tpex_daily_pe_report_rows(tpex_payload)
+
+
 def _write_official_report(path: Path, rows: list[dict[str, str]]) -> None:
     fieldnames = ["code", "name", "pe", "dividend_yield", "pb_ratio", "source", "skip_reason"]
     path.parent.mkdir(parents=True, exist_ok=True)
@@ -540,9 +551,16 @@ def run_update(args: argparse.Namespace) -> int:
             )
             return 0
         rows = _load_fixture(args.fixture) if args.fixture else _fetch_twse_bwibbu(args.sleep)
-        result = apply_twse_official_values_to_priority_csv(
+        should_load_tpex_pe_for_apply = (
+            args.tpex_daily_pe_fixture is not None
+            or args.fixture is None
+            or args.write_tpex_daily_pe_report is not None
+        )
+        tpex_report_rows = _load_tpex_daily_pe_report_rows(args) if should_load_tpex_pe_for_apply else []
+        result = apply_official_pe_values_to_priority_csv(
             priority_csv,
-            rows,
+            twse_bwibbu_rows=rows,
+            tpex_daily_pe_rows=tpex_report_rows,
             dry_run=not args.apply,
         )
         if args.write_report:
@@ -560,14 +578,6 @@ def run_update(args: argparse.Namespace) -> int:
             result["monthly_revenue_report_path"] = str(args.write_monthly_revenue_report)
             result["monthly_revenue_report_row_count"] = len(monthly_report_rows)
         if args.write_tpex_daily_pe_report:
-            tpex_payload = (
-                json.loads(args.tpex_daily_pe_fixture.read_text(encoding="utf-8"))
-                if args.tpex_daily_pe_fixture
-                else _fetch_tpex_daily_pe(args.sleep, args.tpex_daily_pe_date)
-            )
-            if not isinstance(tpex_payload, dict):
-                raise ValueError("TPEx PE/PB fixture 必須是 JSON object")
-            tpex_report_rows = build_tpex_daily_pe_report_rows(tpex_payload)
             _write_tpex_daily_pe_report(args.write_tpex_daily_pe_report, tpex_report_rows)
             result["tpex_daily_pe_report_path"] = str(args.write_tpex_daily_pe_report)
             result["tpex_daily_pe_report_row_count"] = len(tpex_report_rows)

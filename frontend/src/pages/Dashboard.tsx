@@ -2778,7 +2778,12 @@ export default function Dashboard({ onNavigateAnalysis, onNavigateUniverseReport
             onFocusDailyCheck={() => focusSection(dailyCheckRef)}
             onRunUniverseReviewBatch={handleBulkCreateUniverseReviewJournal}
           />
-          <UpdateWorkflowBox workflow={updateWorkflow} />
+          <UpdateWorkflowBox
+            workflow={updateWorkflow}
+            onDailyUpdate={handleUpdateNow}
+            busy={isBusy || isDataRunning}
+            running={isDataRunning}
+          />
           <div ref={dailyCheckRef}>
             <DailyCheckBox
               report={dailyCheck}
@@ -2829,7 +2834,7 @@ export default function Dashboard({ onNavigateAnalysis, onNavigateUniverseReport
         >
           {(updating || isDataRunning)
             ? <><span className="spinner spinner-sm" aria-hidden="true" />更新中…</>
-            : '立即更新資料'}
+            : '盤後一鍵更新'}
         </button>
 
         <button className="btn btn-primary" onClick={handleRun} disabled={isBusy || isDataRunning}>

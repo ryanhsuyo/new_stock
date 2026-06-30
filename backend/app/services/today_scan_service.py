@@ -134,7 +134,7 @@ def _bucket_notes() -> dict[str, str]:
     return {
         "formal_entries": "可小試候選仍需照價格計畫分批，確認進場區、停損與風險報酬後才行動。",
         "old_wang_candidates": "老王短波段觀察名單，重點是資金發動與支撐是否延續；大盤或個股過熱時不追高。",
-        "steady_momentum_candidates": "穩健動能中期趨勢候選，仍需檢查 R/R、過熱控制、進場位置與基本面避雷資料。",
+        "steady_momentum_candidates": "Quality Momentum Lite 候選，仍需檢查 R/R、過熱控制、進場位置與輕量基本面避雷。",
         "risk_items": "風險項目先處理風險，再考慮新增部位；優先檢查停損、減碼或訊號失效原因。",
     }
 

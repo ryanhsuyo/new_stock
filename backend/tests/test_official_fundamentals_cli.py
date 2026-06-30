@@ -259,6 +259,62 @@ def test_update_fundamentals_official_writes_tpex_daily_pe_report_from_fixture(t
     ]
 
 
+def test_update_fundamentals_official_apply_uses_tpex_pe_fixture(tmp_path):
+    priority_csv = tmp_path / "fundamentals_priority_fill.csv"
+    priority_csv.write_text(
+        "code,name,priority_reason,missing_count,missing_fields,missing_field_labels,fill_format_note,example_values,"
+        "roe_5y_avg,operating_margin_5y_avg,free_cash_flow_positive_years,operating_cash_flow_to_net_income,"
+        "debt_to_equity,interest_coverage,revenue_growth_5y_cagr,eps_growth_5y_cagr,pe,fcf_yield,dividend_years\n"
+        "6488,環球晶,目前推薦/觀察名單,11,all,全部,note,examples,,,,,,,,,,,\n",
+        encoding="utf-8",
+    )
+    bwibbu_fixture = tmp_path / "bwibbu.json"
+    bwibbu_fixture.write_text(json.dumps([]), encoding="utf-8")
+    tpex_fixture = tmp_path / "tpex_pe.json"
+    tpex_fixture.write_text(
+        json.dumps(
+            {
+                "date": "20260626",
+                "stat": "ok",
+                "tables": [
+                    {
+                        "fields": ["股票代號", "公司名稱", "本益比", "每股股利", "股利年度", "殖利率(%)", "股價淨值比", "財報年/季"],
+                        "data": [["6488", "環球晶        ", "18.25", "9.00000000", 114, "2.20", "1.55", "115Q1"]],
+                    }
+                ],
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    result = subprocess.run(
+        [
+            sys.executable,
+            str(_SCRIPT),
+            "--priority-csv",
+            str(priority_csv),
+            "--fixture",
+            str(bwibbu_fixture),
+            "--tpex-daily-pe-fixture",
+            str(tpex_fixture),
+            "--apply",
+        ],
+        cwd=_BACKEND,
+        text=True,
+        capture_output=True,
+        check=False,
+    )
+
+    assert result.returncode == 0
+    assert "官方基本面 priority 更新 apply" in result.stdout
+    assert "更新檔數 / 欄位: 1 / 1" in result.stdout
+    with priority_csv.open(encoding="utf-8", newline="") as f:
+        rows = list(csv.DictReader(f))
+    assert rows[0]["pe"] == "18.25"
+    assert rows[0]["roe_5y_avg"] == ""
+    assert rows[0]["fcf_yield"] == ""
+
+
 def test_update_fundamentals_official_writes_profitability_report_from_fixtures(tmp_path):
     priority_csv = tmp_path / "fundamentals_priority_fill.csv"
     priority_csv.write_text(

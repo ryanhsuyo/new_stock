@@ -1,14 +1,14 @@
 """
-fundamental_guard_service.py — 基本面避雷品質價值指標 V1。
+fundamental_guard_service.py — 基本面避雷品質動能指標 V2。
 
-此服務只做基本面品質/價值評估，不參與短線 BUY/SELL 判斷。
-若沒有 fundamentals.json 或單檔資料不足，必須明確回傳 data_missing，
-避免用技術線型假裝基本面避雷分數。
+此服務只做 steady_momentum 的輕量基本面避雷，不參與短線 BUY/SELL 判斷。
+策略 guard 只依低成本官方/可維護欄位評估；舊 11 欄仍保留為 CSV 相容格式，
+但不再是 steady_momentum 的必要門檻。
 """
 
-FUNDAMENTAL_GUARD_TAG = "fundamental_guard_v1"
-FUNDAMENTAL_GUARD_NAME = "基本面避雷品質價值指標V1"
-REQUIRED_FIELDS = (
+FUNDAMENTAL_GUARD_TAG = "fundamental_guard_v2"
+FUNDAMENTAL_GUARD_NAME = "Quality Momentum Lite 基本面避雷"
+FORMAL_FIELDS = (
     "roe_5y_avg",
     "operating_margin_5y_avg",
     "free_cash_flow_positive_years",
@@ -21,34 +21,37 @@ REQUIRED_FIELDS = (
     "fcf_yield",
     "dividend_years",
 )
+REQUIRED_FIELDS = FORMAL_FIELDS
+LITE_GUARD_FIELDS = (
+    "operating_margin_5y_avg",
+    "debt_to_equity",
+    "revenue_growth_5y_cagr",
+    "eps_growth_5y_cagr",
+    "pe",
+)
 METRIC_GROUPS = {
     "quality": (
         "roe_5y_avg",
         "operating_margin_5y_avg",
-        "free_cash_flow_positive_years",
-        "operating_cash_flow_to_net_income",
     ),
     "safety": (
         "debt_to_equity",
-        "interest_coverage",
     ),
     "value": (
         "pe",
-        "fcf_yield",
     ),
     "growth": (
         "revenue_growth_5y_cagr",
         "eps_growth_5y_cagr",
-        "dividend_years",
     ),
 }
 GROUP_WEIGHTS = {
-    "quality": 0.35,
-    "safety": 0.25,
-    "value": 0.20,
-    "growth": 0.20,
+    "quality": 0.30,
+    "safety": 0.20,
+    "value": 0.25,
+    "growth": 0.25,
 }
-MIN_SCORABLE_GROUPS = 3
+MIN_SCORABLE_GROUPS = 1
 
 
 def _num(data: dict, key: str) -> float | None:
@@ -61,26 +64,38 @@ def _clamp(value: float) -> int:
 
 
 def _score_quality(data: dict) -> int:
-    score = 0
+    score = 50
     roe = _num(data, "roe_5y_avg")
     margin = _num(data, "operating_margin_5y_avg")
     fcf_years = _num(data, "free_cash_flow_positive_years")
     cash_conversion = _num(data, "operating_cash_flow_to_net_income")
 
-    if roe is not None:
-        score += min(35, roe / 20 * 35)
     if margin is not None:
-        score += min(25, margin / 25 * 25)
+        if margin >= 20:
+            score += 30
+        elif margin >= 10:
+            score += 15
+        elif margin < 0:
+            score -= 30
+        else:
+            score -= 10
+    if roe is not None:
+        if roe >= 20:
+            score += 15
+        elif roe >= 10:
+            score += 8
+        elif roe < 0:
+            score -= 20
     if fcf_years is not None:
-        score += min(25, fcf_years / 5 * 25)
+        score += min(10, fcf_years / 5 * 10)
     if cash_conversion is not None:
-        score += min(15, cash_conversion / 1.0 * 15)
+        score += min(10, cash_conversion / 1.0 * 10)
 
     return _clamp(score)
 
 
 def _score_safety(data: dict) -> int:
-    score = 50
+    score = 70
     debt_to_equity = _num(data, "debt_to_equity")
     interest_coverage = _num(data, "interest_coverage")
 
@@ -119,7 +134,7 @@ def _score_growth(data: dict) -> int:
 
 
 def _score_value(data: dict) -> int:
-    score = 50
+    score = 60
     pe = _num(data, "pe")
     fcf_yield = _num(data, "fcf_yield")
 
@@ -167,7 +182,7 @@ def _missing_result(reason: str) -> dict:
 def _missing_fields(fundamentals: dict) -> list[str]:
     return [
         field
-        for field in REQUIRED_FIELDS
+        for field in LITE_GUARD_FIELDS
         if _num(fundamentals, field) is None
     ]
 
@@ -181,8 +196,8 @@ def _available_groups(fundamentals: dict) -> list[str]:
 
 
 def _data_completeness_pct(missing_fields: list[str]) -> float:
-    present = len(REQUIRED_FIELDS) - len(missing_fields)
-    return round(present / len(REQUIRED_FIELDS) * 100, 1)
+    present = len(LITE_GUARD_FIELDS) - len(missing_fields)
+    return round(present / len(LITE_GUARD_FIELDS) * 100, 1)
 
 
 def _weighted_score(scores: dict[str, int | None], groups: list[str]) -> int:
@@ -203,8 +218,8 @@ def evaluate_fundamental_guard(code: str, fundamentals: dict | None) -> dict:
     if len(available_groups) < MIN_SCORABLE_GROUPS:
         joined = "、".join(missing_fields)
         result = _missing_result(
-            f"fundamentals.json 中 {code} 至少 {MIN_SCORABLE_GROUPS} 組基本面資料才可評分；"
-            f"目前可用 {len(available_groups)} 組，缺欄位：{joined}"
+            f"fundamentals.json 中 {code} 至少需要 1 個 lite guard 欄位才可避雷；"
+            f"缺欄位：{joined}"
         )
         result["fundamental_data_completeness_pct"] = completeness
         result["fundamental_missing_fields"] = missing_fields
@@ -226,9 +241,17 @@ def evaluate_fundamental_guard(code: str, fundamentals: dict | None) -> dict:
     quality_for_gate = quality if quality is not None else 0
     safety_for_gate = safety if safety is not None else 0
     value_for_gate = value if value is not None else 50
-    flag = score >= 75 and quality_for_gate >= 70 and safety_for_gate >= 60 and value_for_gate >= 50
+    flag = (
+        score >= 75
+        and len(available_groups) >= 2
+        and quality_for_gate >= 70
+        and safety_for_gate >= 60
+        and value_for_gate >= 50
+    )
     if flag:
         signal = "quality_value_watch"
+    elif len(available_groups) < 2:
+        signal = "lite_guard_partial"
     elif quality_for_gate >= 70 and safety_for_gate >= 60 and value is not None and value < 50:
         signal = "quality_but_expensive"
     elif quality_for_gate < 60:

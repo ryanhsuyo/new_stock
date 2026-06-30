@@ -430,15 +430,46 @@ def apply_twse_official_values_to_priority_csv(
     Dividend yield and P/B are returned as unmapped official fields because the
     current scoring schema has no exact destination for them.
     """
+    return apply_official_pe_values_to_priority_csv(
+        priority_csv_path,
+        twse_bwibbu_rows=bwibbu_rows,
+        tpex_daily_pe_rows=[],
+        dry_run=dry_run,
+        legacy_twse_skip_reasons=True,
+    )
+
+
+def apply_official_pe_values_to_priority_csv(
+    priority_csv_path: Path,
+    *,
+    twse_bwibbu_rows: list[dict[str, Any]] | None = None,
+    tpex_daily_pe_rows: list[dict[str, Any]] | None = None,
+    dry_run: bool = True,
+    legacy_twse_skip_reasons: bool = False,
+) -> dict[str, Any]:
+    """Fill direct official PE values into fundamentals priority CSV.
+
+    Safe direct mapping only:
+    - TWSE BWIBBU `PEratio` / report `pe` -> fundamentals `pe`
+    - TPEx daily PE report `pe` -> fundamentals `pe`
+
+    Other official fields remain report-only references.
+    """
     priority_csv_path = Path(priority_csv_path)
     fieldnames, rows = _load_priority_rows(priority_csv_path)
-    by_code = {
+    twse_by_code = {
         _row_code(row): row
-        for row in bwibbu_rows
+        for row in twse_bwibbu_rows or []
+        if _row_code(row)
+    }
+    tpex_by_code = {
+        _row_code(row): row
+        for row in tpex_daily_pe_rows or []
         if _row_code(row)
     }
 
     updated_codes: list[str] = []
+    updated_sources: dict[str, str] = {}
     skipped: list[dict[str, str]] = []
     updated_field_count = 0
 
@@ -446,18 +477,30 @@ def apply_twse_official_values_to_priority_csv(
         code = _clean(row.get("code"))
         if not code:
             continue
-        official = by_code.get(code)
+        twse_official = twse_by_code.get(code)
+        official = twse_official
+        source = "twse_openapi_bwibbu_all"
+        if official is None or not _row_pe(official):
+            official = tpex_by_code.get(code)
+            source = "tpex_after_trading_pe_qry_date"
         if official is None:
-            skipped.append({"code": code, "reason": "twse_b_wibbu_missing"})
+            if legacy_twse_skip_reasons and twse_official is None:
+                skipped.append({"code": code, "reason": "twse_b_wibbu_missing"})
+                continue
+            if legacy_twse_skip_reasons and twse_official is not None:
+                skipped.append({"code": code, "reason": "twse_pe_missing_or_empty"})
+                continue
+            skipped.append({"code": code, "reason": "official_pe_missing"})
             continue
         pe = _row_pe(official)
         if not pe:
-            skipped.append({"code": code, "reason": "twse_pe_missing_or_empty"})
+            skipped.append({"code": code, "reason": "official_pe_missing_or_empty"})
             continue
         if _clean(row.get("pe")) != pe:
             row["pe"] = pe
             updated_field_count += 1
             updated_codes.append(code)
+            updated_sources[code] = source
 
     if dry_run:
         with tempfile.NamedTemporaryFile("w", encoding="utf-8", newline="", suffix=".csv", delete=False) as tmp:
@@ -474,11 +517,12 @@ def apply_twse_official_values_to_priority_csv(
     return {
         "dry_run": dry_run,
         "priority_csv_path": str(priority_csv_path),
-        "source": "twse_openapi_bwibbu_all",
-        "source_url": TWSE_BWIBBU_URL,
-        "source_row_count": len(bwibbu_rows),
+        "source": "twse_tpex_official_pe",
+        "source_url": f"{TWSE_BWIBBU_URL}; {TPEX_DAILY_PE_URL}",
+        "source_row_count": len(twse_bwibbu_rows or []) + len(tpex_daily_pe_rows or []),
         "updated_code_count": len(updated_codes),
         "updated_codes": updated_codes,
+        "updated_sources": updated_sources,
         "updated_field_count": updated_field_count,
         "skipped_count": len(skipped),
         "skipped": skipped,

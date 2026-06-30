@@ -72,7 +72,7 @@ CORE_STRATEGY_ID = "core_technical_v2"
 OLD_WANG_TAG = "old_wang_market_chip_rotation"
 OLD_WANG_TAG_NAME = "老王大盤籌碼輪動"
 STEADY_MOMENTUM_TAG = "steady_momentum_v1"
-STEADY_MOMENTUM_NAME = "穩健動能策略"
+STEADY_MOMENTUM_NAME = "Quality Momentum Lite"
 DEFAULT_SIGNAL_STOCK_TIMEOUT_SECONDS = 20.0
 OLD_WANG_MA10_TOLERANCE_PCT = 0.002
 
@@ -3573,7 +3573,7 @@ def run_daily_signals(as_of_date: str | None = None, lineage: dict | None = None
             STEADY_MOMENTUM_TAG: {
                 "name": STEADY_MOMENTUM_NAME,
                 "role": "穩健主線策略",
-                "description": "以中期趨勢、相對強度、進場位置、風險報酬、過熱控制與基本面避雷建立 100 分穩健動能候選。",
+                "description": "以價格動能為主，搭配 PE、獲利、負債與成長等低成本基本面 guard，建立 Quality Momentum Lite 候選。",
             },
         },
         "recommendation_buckets": {

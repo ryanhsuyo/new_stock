@@ -3,7 +3,7 @@ from __future__ import annotations
 from copy import deepcopy
 from typing import Any
 
-RULES_VERSION = "rules-2026-06-26.1"
+RULES_VERSION = "rules-2026-06-30.1"
 STRATEGY_PROFILE = "two_strategy_daily_v1"
 
 _PARAMETERS: dict[str, Any] = {
@@ -24,8 +24,8 @@ _STRATEGIES: dict[str, dict[str, Any]] = {
     },
     "steady_momentum": {
         "id": "steady_momentum_v1",
-        "name": "穩健動能策略",
-        "role": "穩健主線策略",
+        "name": "Quality Momentum Lite",
+        "role": "價格動能主線 + 輕量基本面避雷",
     },
     "core": {
         "id": "core_technical_v2",

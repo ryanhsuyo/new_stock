@@ -304,7 +304,7 @@ def test_merge_priority_fill_csv_dry_run_does_not_write_json(tmp_path, monkeypat
     assert result["row_statuses"][0]["missing_field_count"] == 10
     assert "補齊 11 欄" in result["blocked_reason"]
     assert result["signals_refresh_required"] is False
-    assert result["next_action_label"] == "補齊 11 欄後再預覽"
+    assert result["next_action_label"] == "lite guard 可參考；正式合併仍需補齊 11 欄"
     assert fundamentals_json.exists() is False
 
 
@@ -453,10 +453,10 @@ def test_build_fundamentals_status_includes_priority_fill_readiness(tmp_path, mo
     assert readiness["filled_field_count"] == 1
     assert readiness["complete_code_count"] == 0
     assert readiness["partial_code_count"] == 1
-    assert readiness["suggested_action"] == "已部分填寫，仍需補齊 11 欄才會產生基本面避雷結果。"
+    assert readiness["suggested_action"] == "已部分填寫，可作為 Quality Momentum Lite 避雷參考；正式合併仍需補齊 11 欄。"
     workflow = status["workflow_summary"]
     assert workflow["stage"] == "fill_priority_csv"
-    assert workflow["headline"] == "補齊基本面避雷必要欄位"
+    assert workflow["headline"] == "補齊 Quality Momentum Lite 避雷欄位"
     assert workflow["primary_action"]["label"] == "繼續填 CSV"
     assert workflow["checklist"][0]["status"] == "done"
     assert workflow["checklist"][1]["status"] == "todo"
