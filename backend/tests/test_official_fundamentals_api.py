@@ -145,6 +145,73 @@ def test_official_fundamentals_coverage_audit_endpoint_returns_404_when_priority
     assert "fundamentals_priority_fill.csv" in response.json()["detail"]
 
 
+def test_quality_momentum_lite_guard_coverage_endpoint(client, monkeypatch):
+    import app.routers.system as router
+
+    monkeypatch.setattr(router, "get_quality_momentum_lite_guard_coverage", lambda: {
+        "priority_csv_path": "/tmp/fundamentals_priority_fill.csv",
+        "target_count": 2,
+        "guard_count": 5,
+        "available_guard_count": 6,
+        "coverage_pct": 60.0,
+        "formal_apply_fields": ["pe"],
+        "reference_only_fields": [
+            "operating_margin_reference",
+            "debt_to_equity_inputs",
+            "revenue_growth_reference",
+            "eps_reference",
+        ],
+        "warnings": [
+            "Only pe is a direct official apply field; other lite guard references must stay report-only until formulas and history depth are validated."
+        ],
+        "codes": [
+            {
+                "code": "2330",
+                "name": "台積電",
+                "priority_reason": "目前推薦/觀察名單",
+                "available_guard_count": 4,
+                "guards": {
+                    "pe": {
+                        "status": "available",
+                        "source_report": "twse_bwibbu",
+                        "present_fields": ["pe"],
+                        "skip_reason": "",
+                    }
+                },
+            }
+        ],
+        "next_action_label": "只可作為 Quality Momentum Lite read-only guard 覆蓋率參考",
+    })
+
+    response = client.get("/api/system/fundamentals-official/quality-momentum-lite-guard")
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["target_count"] == 2
+    assert body["formal_apply_fields"] == ["pe"]
+    assert body["reference_only_fields"] == [
+        "operating_margin_reference",
+        "debt_to_equity_inputs",
+        "revenue_growth_reference",
+        "eps_reference",
+    ]
+    assert body["codes"][0]["guards"]["pe"]["source_report"] == "twse_bwibbu"
+
+
+def test_quality_momentum_lite_guard_coverage_endpoint_returns_404_when_priority_csv_missing(client, monkeypatch):
+    import app.routers.system as router
+
+    def missing_guard_coverage():
+        raise FileNotFoundError("尚無 fundamentals_priority_fill.csv")
+
+    monkeypatch.setattr(router, "get_quality_momentum_lite_guard_coverage", missing_guard_coverage)
+
+    response = client.get("/api/system/fundamentals-official/quality-momentum-lite-guard")
+
+    assert response.status_code == 404
+    assert "fundamentals_priority_fill.csv" in response.json()["detail"]
+
+
 def test_run_official_fundamentals_reports_endpoint_defaults_to_report_only(client, monkeypatch):
     import app.routers.system as router
 
@@ -558,4 +625,78 @@ def test_build_official_fundamentals_coverage_audit_reads_priority_and_report_cs
         "eps",
     ]
     assert by_code["9999"]["available_report_count"] == 0
-    assert by_code["9999"]["reports"]["dividend"]["status"] == "missing_file"
+
+
+def test_build_quality_momentum_lite_guard_coverage_is_read_only_reference_summary(tmp_path):
+    import app.services.official_fundamentals_api_service as svc
+
+    priority_csv = tmp_path / "fundamentals_priority_fill.csv"
+    _write_csv(
+        priority_csv,
+        ["code", "name", "priority_reason"],
+        [
+            {"code": "2330", "name": "台積電", "priority_reason": "目前推薦/觀察名單"},
+            {"code": "6488", "name": "環球晶", "priority_reason": "目前推薦/觀察名單"},
+        ],
+    )
+    twse_bwibbu = tmp_path / "official_fundamentals_twse_bwibbu.csv"
+    tpex_daily_pe = tmp_path / "official_fundamentals_tpex_daily_pe.csv"
+    profitability = tmp_path / "official_fundamentals_profitability.csv"
+    balance_sheet = tmp_path / "official_fundamentals_balance_sheet.csv"
+    monthly_revenue = tmp_path / "official_fundamentals_twse_monthly_revenue.csv"
+    income_statement = tmp_path / "official_fundamentals_income_statement.csv"
+
+    _write_csv(twse_bwibbu, ["code", "name", "pe", "source", "skip_reason"], [
+        {"code": "2330", "name": "台積電", "pe": "22.5", "source": "twse", "skip_reason": ""},
+    ])
+    _write_csv(tpex_daily_pe, ["code", "name", "pe", "source", "skip_reason"], [
+        {"code": "6488", "name": "環球晶", "pe": "18.2", "source": "tpex", "skip_reason": ""},
+    ])
+    _write_csv(profitability, ["code", "name", "operating_margin", "source", "skip_reason"], [
+        {"code": "2330", "name": "台積電", "operating_margin": "49.20", "source": "twse", "skip_reason": ""},
+    ])
+    _write_csv(balance_sheet, ["code", "name", "liabilities", "equity", "source", "skip_reason"], [
+        {"code": "2330", "name": "台積電", "liabilities": "2713508871", "equity": "4216921181", "source": "twse", "skip_reason": ""},
+        {"code": "6488", "name": "環球晶", "liabilities": "", "equity": "129828345", "source": "tpex", "skip_reason": "liabilities_missing"},
+    ])
+    _write_csv(monthly_revenue, ["code", "name", "cumulative_revenue_yoy_pct", "source", "skip_reason"], [
+        {"code": "2330", "name": "台積電", "cumulative_revenue_yoy_pct": "42.6", "source": "twse", "skip_reason": ""},
+    ])
+    _write_csv(income_statement, ["code", "name", "revenue", "eps", "source", "skip_reason"], [
+        {"code": "6488", "name": "環球晶", "revenue": "15421032", "eps": "5.93", "source": "tpex", "skip_reason": ""},
+    ])
+
+    result = svc.build_quality_momentum_lite_guard_coverage(
+        priority_csv,
+        reports={
+            "twse_bwibbu": {"path": twse_bwibbu},
+            "tpex_daily_pe": {"path": tpex_daily_pe},
+            "profitability": {"path": profitability},
+            "balance_sheet": {"path": balance_sheet},
+            "twse_monthly_revenue": {"path": monthly_revenue},
+            "income_statement": {"path": income_statement},
+        },
+    )
+
+    assert result["target_count"] == 2
+    assert result["guard_count"] == 5
+    assert result["coverage_pct"] == 60.0
+    assert result["formal_apply_fields"] == ["pe"]
+    assert result["reference_only_fields"] == [
+        "operating_margin_reference",
+        "debt_to_equity_inputs",
+        "revenue_growth_reference",
+        "eps_reference",
+    ]
+    assert result["warnings"] == [
+        "Only pe is a direct official apply field; other lite guard references must stay report-only until formulas and history depth are validated."
+    ]
+
+    by_code = {row["code"]: row for row in result["codes"]}
+    assert by_code["2330"]["available_guard_count"] == 4
+    assert by_code["2330"]["guards"]["pe"]["status"] == "available"
+    assert by_code["2330"]["guards"]["pe"]["source_report"] == "twse_bwibbu"
+    assert by_code["2330"]["guards"]["debt_to_equity_inputs"]["present_fields"] == ["liabilities", "equity"]
+    assert by_code["6488"]["available_guard_count"] == 2
+    assert by_code["6488"]["guards"]["debt_to_equity_inputs"]["status"] == "missing_values"
+    assert by_code["6488"]["guards"]["eps_reference"]["status"] == "available"

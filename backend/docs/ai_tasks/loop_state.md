@@ -22,7 +22,7 @@ Last completed phase:
 
 Current phase status:
 
-* F18 active. First three execution-closure checks are done; heartbeat should continue from task 4 in `F18_quality_momentum_lite_execution_closure.md`.
+* F18 active. Tasks 1-5 are done; heartbeat should continue from task 6 in `F18_quality_momentum_lite_execution_closure.md`.
 
 ## Completed Phase History
 
@@ -132,6 +132,7 @@ Current phase status:
 * F17 fundamentals check: `/Library/Frameworks/Python.framework/Versions/3.11/bin/python3 backend/scripts/check_fundamentals.py` passed with priority CSV `ready_to_preview` and next action describing lite guard usage.
 * F18 run signals: `/Library/Frameworks/Python.framework/Versions/3.11/bin/python3 backend/scripts/run_signals.py` passed, generated `old_wang=5`, `steady_momentum=17`, and refreshed summary / universe_report / today_scan / daily_check.
 * F18 focused strategy tests: `/Library/Frameworks/Python.framework/Versions/3.11/bin/python3 -m pytest backend/tests/test_signals_api.py::TestSignalsOutput backend/tests/test_today_scan_service.py backend/tests/test_today_scan_cli.py backend/tests/test_rules_metadata_service.py backend/tests/test_fundamental_guard.py backend/tests/test_fundamental_service.py backend/tests/test_fundamentals_cli.py -q` passed, 75 tests.
+* F18 lite guard coverage/API tests: `/Library/Frameworks/Python.framework/Versions/3.11/bin/python3 -m pytest backend/tests/test_official_fundamentals_api.py backend/tests/test_official_fundamentals_service.py -q` passed, 26 tests.
 * Fundamentals wording regression tests: `/Library/Frameworks/Python.framework/Versions/3.11/bin/python3 -m pytest backend/tests/test_fundamentals_cli.py -q` passed, 14 tests.
 * R9 focused fundamentals service tests: `/Library/Frameworks/Python.framework/Versions/3.11/bin/python3 -m pytest backend/tests/test_fundamental_service.py -q` passed, 20 tests.
 * R9 focused fundamentals CLI tests: `/Library/Frameworks/Python.framework/Versions/3.11/bin/python3 -m pytest backend/tests/test_fundamentals_cli.py::test_prepare_fundamentals_priority_import_help_exits_0 backend/tests/test_fundamentals_cli.py::test_prepare_fundamentals_priority_import_prints_preview -q` passed, 2 tests.
@@ -160,4 +161,4 @@ Current phase status:
 
 ## Last Stop Reason
 
-F18 selected to finish end-to-end execution closure for both strategies. Continue with read-only Quality Momentum Lite guard coverage before any formal apply path.
+F18 selected to finish end-to-end execution closure for both strategies. Continue by deciding the first safe apply path for lite guard fields before any new formal fundamentals writes.

@@ -172,6 +172,55 @@ _AUDIT_REPORT_KEY_FIELDS: dict[str, list[str]] = {
 FORMALLY_FILLABLE_OFFICIAL_FIELDS = ["pe"]
 BLOCKED_FORMAL_FIELDS = [field for field in REQUIRED_FIELDS if field not in FORMALLY_FILLABLE_OFFICIAL_FIELDS]
 
+QUALITY_MOMENTUM_LITE_GUARDS: dict[str, dict[str, Any]] = {
+    "pe": {
+        "label": "PE",
+        "formal_field": "pe",
+        "report_options": [
+            ("twse_bwibbu", ["pe"]),
+            ("tpex_daily_pe", ["pe"]),
+        ],
+        "status": "direct_apply_allowed",
+    },
+    "operating_margin_reference": {
+        "label": "Operating margin reference",
+        "formal_field": "operating_margin_5y_avg",
+        "report_options": [
+            ("profitability", ["operating_margin"]),
+        ],
+        "status": "report_only_reference",
+    },
+    "debt_to_equity_inputs": {
+        "label": "Debt-to-equity inputs",
+        "formal_field": "debt_to_equity",
+        "report_options": [
+            ("balance_sheet", ["liabilities", "equity"]),
+        ],
+        "status": "derived_input_only",
+    },
+    "revenue_growth_reference": {
+        "label": "Revenue growth reference",
+        "formal_field": "revenue_growth_5y_cagr",
+        "report_options": [
+            ("twse_monthly_revenue", ["cumulative_revenue_yoy_pct"]),
+        ],
+        "status": "report_only_reference",
+    },
+    "eps_reference": {
+        "label": "EPS reference",
+        "formal_field": "eps_growth_5y_cagr",
+        "report_options": [
+            ("income_statement", ["eps"]),
+        ],
+        "status": "report_only_reference",
+    },
+}
+
+QUALITY_MOMENTUM_LITE_DIRECT_APPLY_FIELDS = ["pe"]
+QUALITY_MOMENTUM_LITE_REFERENCE_ONLY_FIELDS = [
+    key for key in QUALITY_MOMENTUM_LITE_GUARDS if key not in QUALITY_MOMENTUM_LITE_DIRECT_APPLY_FIELDS
+]
+
 
 def _count_csv_rows(path: Path) -> int:
     if not path.exists():
@@ -348,11 +397,156 @@ def build_official_fundamentals_coverage_audit(
     }
 
 
+def _rows_by_report_code(reports: dict[str, dict[str, Any]]) -> tuple[dict[str, dict[str, dict[str, str]]], list[str]]:
+    rows_by_report: dict[str, dict[str, dict[str, str]]] = {}
+    missing_report_files: list[str] = []
+    for key, meta in reports.items():
+        path = Path(meta["path"])
+        if not path.exists():
+            rows_by_report[key] = {}
+            missing_report_files.append(key)
+            continue
+        rows = _read_csv_rows(path)
+        rows_by_report[key] = {
+            _clean_cell(row.get("code")): row
+            for row in rows
+            if _clean_cell(row.get("code"))
+        }
+    return rows_by_report, missing_report_files
+
+
+def _guard_status_for_code(
+    code: str,
+    guard: dict[str, Any],
+    rows_by_report: dict[str, dict[str, dict[str, str]]],
+) -> dict[str, Any]:
+    missing_reports: list[str] = []
+    missing_rows: list[str] = []
+    missing_values: list[str] = []
+    for report_key, fields in guard["report_options"]:
+        report_rows = rows_by_report.get(report_key)
+        if report_rows is None:
+            missing_reports.append(report_key)
+            continue
+        if not report_rows:
+            missing_reports.append(report_key)
+            continue
+        row = report_rows.get(code)
+        if row is None:
+            missing_rows.append(report_key)
+            continue
+        present_fields = [field for field in fields if _clean_cell(row.get(field))]
+        if len(present_fields) == len(fields):
+            return {
+                "status": "available",
+                "source_report": report_key,
+                "present_fields": present_fields,
+                "missing_fields": [],
+                "skip_reason": _clean_cell(row.get("skip_reason")),
+            }
+        missing_values.extend(field for field in fields if field not in present_fields)
+    if missing_values:
+        return {
+            "status": "missing_values",
+            "source_report": "",
+            "present_fields": [],
+            "missing_fields": sorted(set(missing_values)),
+            "skip_reason": "guard_reference_values_missing",
+        }
+    if missing_rows:
+        return {
+            "status": "missing_row",
+            "source_report": "",
+            "present_fields": [],
+            "missing_fields": [],
+            "skip_reason": "guard_reference_row_missing",
+        }
+    return {
+        "status": "missing_report",
+        "source_report": "",
+        "present_fields": [],
+        "missing_fields": [],
+        "skip_reason": "guard_reference_report_missing",
+    }
+
+
+def build_quality_momentum_lite_guard_coverage(
+    priority_csv_path: str | Path,
+    *,
+    reports: dict[str, dict[str, Any]] | None = None,
+) -> dict[str, Any]:
+    """Summarize report-only reference coverage for Quality Momentum Lite.
+
+    This is read-only. It does not derive 5-year averages/CAGR values and does
+    not write priority CSV, fundamentals.csv, or fundamentals.json.
+    """
+    report_meta = reports or OFFICIAL_REPORTS
+    targets = _read_priority_targets(Path(priority_csv_path))
+    rows_by_report, missing_report_files = _rows_by_report_code(report_meta)
+    codes: list[dict[str, Any]] = []
+    available_guard_count = 0
+
+    for target in targets:
+        code = target["code"]
+        guards: dict[str, dict[str, Any]] = {}
+        code_available = 0
+        for guard_key, guard in QUALITY_MOMENTUM_LITE_GUARDS.items():
+            status = _guard_status_for_code(code, guard, rows_by_report)
+            guards[guard_key] = status
+            if status["status"] == "available":
+                code_available += 1
+                available_guard_count += 1
+        codes.append({
+            "code": code,
+            "name": target["name"],
+            "priority_reason": target["priority_reason"],
+            "available_guard_count": code_available,
+            "guards": guards,
+        })
+
+    denominator = len(targets) * len(QUALITY_MOMENTUM_LITE_GUARDS)
+    coverage_pct = round(available_guard_count / denominator * 100, 1) if denominator else 0.0
+    return {
+        "priority_csv_path": str(priority_csv_path),
+        "target_count": len(targets),
+        "guard_count": len(QUALITY_MOMENTUM_LITE_GUARDS),
+        "available_guard_count": available_guard_count,
+        "coverage_pct": coverage_pct,
+        "missing_report_files": missing_report_files,
+        "formal_apply_fields": list(QUALITY_MOMENTUM_LITE_DIRECT_APPLY_FIELDS),
+        "reference_only_fields": list(QUALITY_MOMENTUM_LITE_REFERENCE_ONLY_FIELDS),
+        "guards": {
+            key: {
+                "label": guard["label"],
+                "formal_field": guard["formal_field"],
+                "status": guard["status"],
+                "report_options": [
+                    {"report": report_key, "fields": fields}
+                    for report_key, fields in guard["report_options"]
+                ],
+            }
+            for key, guard in QUALITY_MOMENTUM_LITE_GUARDS.items()
+        },
+        "codes": codes,
+        "warnings": [
+            "Only pe is a direct official apply field; other lite guard references must stay report-only until formulas and history depth are validated."
+        ],
+        "next_action_label": "Use this read-only summary to pick the next safe lite guard improvement; do not auto-fill derived fundamentals.",
+    }
+
+
 def get_official_fundamentals_coverage_audit() -> dict[str, Any]:
     """Return the read-only official coverage audit using generated out files."""
     if not DEFAULT_PRIORITY_CSV_PATH.exists():
         raise FileNotFoundError(f"尚無 {DEFAULT_PRIORITY_CSV_PATH.name}，請先產生或下載優先補資料 CSV")
     return build_official_fundamentals_coverage_audit(DEFAULT_PRIORITY_CSV_PATH)
+
+
+def get_quality_momentum_lite_guard_coverage() -> dict[str, Any]:
+    """Return read-only Quality Momentum Lite guard coverage from official reports."""
+    if not DEFAULT_PRIORITY_CSV_PATH.exists():
+        raise FileNotFoundError(f"尚無 {DEFAULT_PRIORITY_CSV_PATH.name}，請先產生或下載優先補資料 CSV")
+    return build_quality_momentum_lite_guard_coverage(DEFAULT_PRIORITY_CSV_PATH)
 
 
 def get_official_fundamentals_status() -> dict[str, Any]:

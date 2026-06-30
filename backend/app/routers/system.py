@@ -16,6 +16,7 @@ from app.models.system import (
     PersonalRestoreRequest,
     PersonalRestoreResult,
     PmWorklist,
+    QualityMomentumLiteGuardCoverage,
     TradingSettings,
     UpdateWorkflowStatus,
     WorkflowStatus,
@@ -23,6 +24,7 @@ from app.models.system import (
 from app.services.daily_check_service import get_daily_check_report
 from app.services.fundamental_service import get_fundamentals_status, get_priority_fill_csv_path, merge_priority_fill_csv
 from app.services.official_fundamentals_api_service import (
+    get_quality_momentum_lite_guard_coverage,
     get_official_fundamentals_coverage_audit,
     get_official_fundamentals_status,
     run_official_fundamentals_reports,
@@ -99,6 +101,18 @@ def official_fundamentals_coverage_audit() -> OfficialFundamentalsCoverageAudit:
     """讀取官方 report-only 覆蓋率稽核；不產生報告、不寫入策略輸入。"""
     try:
         return OfficialFundamentalsCoverageAudit(**get_official_fundamentals_coverage_audit())
+    except FileNotFoundError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+
+
+@router.get(
+    "/system/fundamentals-official/quality-momentum-lite-guard",
+    response_model=QualityMomentumLiteGuardCoverage,
+)
+def quality_momentum_lite_guard_coverage() -> QualityMomentumLiteGuardCoverage:
+    """讀取 Quality Momentum Lite guard 覆蓋率；只讀 report-only 暫存報告。"""
+    try:
+        return QualityMomentumLiteGuardCoverage(**get_quality_momentum_lite_guard_coverage())
     except FileNotFoundError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
 

@@ -27,14 +27,16 @@ Make both recommendation strategies operational end-to-end while keeping the sec
 * `strategy_catalog` contains only `old_wang_market_chip_rotation` and `steady_momentum_v1`.
 * Quality Momentum Lite currently uses neutral fundamentals guard when formal lite fields are missing.
 * Focused strategy/output tests passed: 75 tests.
+* Read-only Quality Momentum Lite guard coverage summary exists in service code; it counts PE as the only direct apply field and keeps operating margin, debt inputs, revenue growth reference, and EPS reference as report-only / derived-input references.
+* `GET /api/system/fundamentals-official/quality-momentum-lite-guard` exposes the read-only guard coverage summary without generating reports or writing formal fundamentals.
 
 ## Tasks
 
 1. Status: done — Verify `run_signals.py` produces `summary.json`, `universe_report.csv`, `today_scan.json`, and `daily_check.json`.
 2. Status: done — Verify recommendation buckets contain only `old_wang` and `steady_momentum`.
 3. Status: done — Update public strategy wording to Quality Momentum Lite while preserving `steady_momentum_v1`.
-4. Status: todo — Build a read-only service that summarizes lite guard coverage from official report-only CSVs for priority / recommended stocks.
-5. Status: todo — Add CLI/API visibility for lite guard coverage without writing formal fundamentals.
+4. Status: done — Build a read-only service that summarizes lite guard coverage from official report-only CSVs for priority / recommended stocks.
+5. Status: done — Add CLI/API visibility for lite guard coverage without writing formal fundamentals.
 6. Status: todo — Decide the first safe apply path for a lite guard field that is not misleading, likely PE only or a new report-derived guard field, not `*_5y_avg` unless a true 5-year series exists.
 7. Status: todo — Run focused tests and `run_signals.py` after each completed slice.
 
@@ -42,6 +44,7 @@ Make both recommendation strategies operational end-to-end while keeping the sec
 
 * `/Library/Frameworks/Python.framework/Versions/3.11/bin/python3 backend/scripts/run_signals.py`
 * `/Library/Frameworks/Python.framework/Versions/3.11/bin/python3 -m pytest backend/tests/test_signals_api.py::TestSignalsOutput backend/tests/test_today_scan_service.py backend/tests/test_today_scan_cli.py backend/tests/test_rules_metadata_service.py backend/tests/test_fundamental_guard.py backend/tests/test_fundamental_service.py backend/tests/test_fundamentals_cli.py -q`
+* `/Library/Frameworks/Python.framework/Versions/3.11/bin/python3 -m pytest backend/tests/test_official_fundamentals_api.py backend/tests/test_official_fundamentals_service.py -q`
 
 ## Stop Conditions
 
@@ -54,4 +57,4 @@ Stop and report instead of implementing if:
 
 ## Suggested Next Heartbeat
 
-Start with task 4. Do not auto-fill formal fundamentals. Produce a read-only `quality_momentum_lite_guard` coverage summary first.
+Start with task 6. Do not auto-fill formal fundamentals. Decide whether the only safe apply path remains PE, or whether a new explicitly report-derived guard field is needed.

@@ -131,6 +131,21 @@ class OfficialFundamentalsCoverageAudit(BaseModel):
     next_action_label: str | None = None
 
 
+class QualityMomentumLiteGuardCoverage(BaseModel):
+    priority_csv_path: str
+    target_count: int
+    guard_count: int
+    available_guard_count: int
+    coverage_pct: float
+    missing_report_files: list[str] = Field(default_factory=list)
+    formal_apply_fields: list[str] = Field(default_factory=list)
+    reference_only_fields: list[str] = Field(default_factory=list)
+    guards: dict[str, dict] = Field(default_factory=dict)
+    codes: list[dict] = Field(default_factory=list)
+    warnings: list[str] = Field(default_factory=list)
+    next_action_label: str | None = None
+
+
 class PersonalBackupFile(BaseModel):
     key: str | None = None
     source: str | None = None

@@ -296,6 +296,8 @@
 - 官方 report-only 覆蓋率也可用 `GET /api/system/fundamentals-official/coverage-audit` 查詢；此 API 只讀取既有 priority CSV 與官方暫存報告，不觸發官方 API 抓取，也不產生或改寫任何資料檔。若 priority CSV 不存在，應回傳清楚 404。
 - Dashboard 可呈現官方 report-only 覆蓋率稽核摘要，但只能使用後端 `coverage-audit` 回傳的 `target_count`、`coverage_pct`、`missing_report_files` 與 `next_action_label`，不得在前端重算覆蓋率或推導正式基本面欄位。
 - Daily Check / PM Worklist 可呈現官方 report-only 覆蓋率待辦，但只能讀取 `coverage-audit` 狀態；不得在 Daily Check 或 PM Worklist 觸發官方 API 抓取、產生 report-only CSV、合併 priority CSV 或寫入正式基本面欄位。PM Worklist 平常應沿用 Daily Check top action，只有 Daily Check 快照缺失或過期時才直接讀取 audit 作為 fallback。
+- Quality Momentum Lite guard 覆蓋率摘要必須保持 read-only：`pe` 是目前唯一可直接 apply 的官方欄位；營益率、負債 / 權益輸入、月營收 YoY 與 EPS 只能作為 report-only / derived-input 參考，不得從單期報告列推導 `*_5y_avg`、5 年 CAGR 或正式 `debt_to_equity`。
+- Quality Momentum Lite guard 覆蓋率可用 `GET /api/system/fundamentals-official/quality-momentum-lite-guard` 查詢；此 API 只讀取既有 priority CSV 與官方 report-only CSV，不觸發官方 API 抓取、不產生報告、不寫入 priority CSV 或正式基本面欄位。
 - 11 個正式基本面欄位保留為進階資料格式；但 `steady_momentum` 不再要求 11 欄完整才能運作。Quality Momentum Lite 只使用低成本 guard 欄位：`pe`、`operating_margin_5y_avg`、`debt_to_equity`、`revenue_growth_5y_cagr`、`eps_growth_5y_cagr`。其餘 ROE、FCF、interest coverage、dividend years 等欄位只能作為進階參考，不得因缺值阻塞第二策略。
 - F7 官方財報來源決策已確認 TWSE / TPEx OpenAPI 有損益表、資產負債表、營益分析與股利分派來源，可作為 report-only probe 候選；但尚未確認現金流量表 / 資本支出來源，因此 `free_cash_flow_positive_years`、`operating_cash_flow_to_net_income`、`fcf_yield` 仍維持 blocked，不得自動填值。
 - 正式合併使用 `python3 scripts/merge_priority_fundamentals.py` 預覽，再用 `--apply --confirm MERGE_PRIORITY_FUNDAMENTALS` 寫回 `fundamentals.csv` 並匯入 `fundamentals.json`
