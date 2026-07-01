@@ -18,11 +18,11 @@ Loop mode: waiting_for_next_phase
 
 Last completed phase:
 
-* `F24_dashboard_data_freshness_grouping.md` — Dashboard now groups PM Worklist data freshness with data repair work
+* `F25_today_focus_data_freshness.md` — Today Focus now surfaces PM Worklist data freshness primary actions
 
 Current phase status:
 
-* No active phase. F24 is done; when a heartbeat wakes with no active phase, use the F21 operating contract to select the next safe productization slice.
+* No active phase. F25 is done; when a heartbeat wakes with no active phase, use the F21 operating contract to select the next safe productization slice.
 
 ## Completed Phase History
 
@@ -99,6 +99,7 @@ Current phase status:
 * F22 — Promoted partial stale universe rows into a first-class Daily Check data freshness action with update command and preview.
 * F23 — Mapped Daily Check data freshness into PM Worklist as higher-priority data health work.
 * F24 — Grouped PM Worklist data freshness with Dashboard data repair / blocker work.
+* F25 — Surfaced PM Worklist data freshness primary action in Today Focus.
 
 ## Next Phase Candidates
 
@@ -155,6 +156,8 @@ Use `F21_heartbeat_development_operating_contract.md` when no active phase exist
 * F23 Daily Check / PM Worklist integration tests: `/Library/Frameworks/Python.framework/Versions/3.11/bin/python3 -m pytest backend/tests/test_daily_check.py backend/tests/test_pm_worklist.py -q` passed, 33 tests.
 * F24 frontend focused test: `node --test frontend/tests/pm-worklist-data-freshness.test.mjs` passed.
 * F24 frontend structure tests: `node --test frontend/tests/*.test.mjs` passed, 17 tests.
+* F25 PM Worklist tests: `/Library/Frameworks/Python.framework/Versions/3.11/bin/python3 -m pytest backend/tests/test_pm_worklist.py -q` passed, 12 tests.
+* F25 Daily Check / PM Worklist integration tests: `/Library/Frameworks/Python.framework/Versions/3.11/bin/python3 -m pytest backend/tests/test_daily_check.py backend/tests/test_pm_worklist.py -q` passed, 34 tests.
 * Fundamentals wording regression tests: `/Library/Frameworks/Python.framework/Versions/3.11/bin/python3 -m pytest backend/tests/test_fundamentals_cli.py -q` passed, 14 tests.
 * R9 focused fundamentals service tests: `/Library/Frameworks/Python.framework/Versions/3.11/bin/python3 -m pytest backend/tests/test_fundamental_service.py -q` passed, 20 tests.
 * R9 focused fundamentals CLI tests: `/Library/Frameworks/Python.framework/Versions/3.11/bin/python3 -m pytest backend/tests/test_fundamentals_cli.py::test_prepare_fundamentals_priority_import_help_exits_0 backend/tests/test_fundamentals_cli.py::test_prepare_fundamentals_priority_import_prints_preview -q` passed, 2 tests.
@@ -183,4 +186,4 @@ Use `F21_heartbeat_development_operating_contract.md` when no active phase exist
 
 ## Last Stop Reason
 
-F24 completed. Continue proactively by selecting the next safe small productization phase from the F21 operating contract when no active phase exists.
+F25 completed. Continue proactively by selecting the next safe small productization phase from the F21 operating contract when no active phase exists.

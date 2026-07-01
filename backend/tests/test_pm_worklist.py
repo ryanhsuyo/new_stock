@@ -413,6 +413,61 @@ def test_pm_worklist_maps_daily_check_data_freshness_as_data_health(monkeypatch)
     ]
 
 
+def test_pm_worklist_today_focus_surfaces_data_freshness_primary_action(monkeypatch):
+    import app.services.pm_worklist_service as svc
+
+    monkeypatch.setattr(svc, "get_update_workflow_status", lambda: {
+        "overall_status": "ready",
+        "headline": "每日更新流程完成，可以使用最新交易輸出。",
+        "can_use_trade_outputs": True,
+        "current_step": "ready",
+        "next_action": None,
+        "checks": {},
+    })
+    monkeypatch.setattr(svc, "get_universe", lambda: [])
+    monkeypatch.setattr(svc, "get_fundamentals_status", lambda: {"workflow_summary": {"stage": "complete"}})
+    monkeypatch.setattr(svc, "build_universe_report_review_workflow_summary", lambda limit=10: {"stage": "complete", "top_items": []})
+    monkeypatch.setattr(svc, "get_daily_check_report", lambda: {
+        "overall_status": "warn",
+        "data_as_of": "2026-06-30",
+        "top_actions": [
+            {
+                "key": "data_freshness",
+                "status": "warn",
+                "title": "追蹤股票資料日落後",
+                "message": "有 2 檔股票資料日落後，目標資料日為 2026-06-30。",
+                "next_action": "python3 scripts/daily_update.py --months 1",
+                "action_payload": {
+                    "kind": "command",
+                    "command": "python3 scripts/daily_update.py --months 1",
+                    "preview_items": [
+                        "2492 華新科 仍停在 2026-06-26",
+                        "5425 台半 仍停在 2026-06-29",
+                    ],
+                },
+            },
+        ],
+    })
+    monkeypatch.setattr(svc, "get_workflow_status", lambda: {
+        "can_trade_today": True,
+        "data_as_of": "2026-06-30",
+        "portfolio_tasks": [],
+    })
+    monkeypatch.setattr(svc, "get_universe_report_json", lambda: [])
+
+    worklist = svc.get_pm_worklist()
+    focus = worklist["today_focus"]
+
+    assert [item["code"] for item in focus[:2]] == ["2492", "5425"]
+    assert all(item["category"] == "review_needed" for item in focus[:2])
+    assert focus[0]["name"] == "華新科"
+    assert focus[0]["label"] == "資料日落後"
+    assert focus[0]["source"] == "daily_check"
+    assert focus[0]["action_label"] == "複製更新指令"
+    assert focus[0]["primary_metric"] == "2026-06-26"
+    assert "先更新日線資料" in focus[0]["next_action"]
+
+
 def test_pm_worklist_exposes_ready_today_focus_from_backend_contract(monkeypatch):
     import app.services.pm_worklist_service as svc
 

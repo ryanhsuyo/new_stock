@@ -85,6 +85,22 @@ def _focus_codes_from_preview_items(payload: dict[str, Any] | None) -> list[str]
     return codes
 
 
+def _parse_data_freshness_preview(label: str) -> dict[str, str]:
+    text = " ".join(str(label or "").split())
+    code, _, rest = text.partition(" ")
+    name = rest
+    data_as_of = ""
+    marker = " 仍停在 "
+    if marker in rest:
+        name, data_as_of = rest.split(marker, 1)
+    return {
+        "code": code.strip(),
+        "name": name.strip() or code.strip(),
+        "data_as_of": data_as_of.strip(),
+        "label": text,
+    }
+
+
 def _item(
     *,
     key: str,
@@ -511,6 +527,28 @@ def _review_focus_items(
 
     if len(focus) >= 3:
         return focus[:3]
+
+    if primary_action and primary_action.get("action_type") == "data_freshness":
+        for label in (primary_action.get("action_payload") or {}).get("preview_items") or []:
+            if len(focus) >= 3:
+                return focus
+            parsed = _parse_data_freshness_preview(str(label))
+            code = parsed["code"]
+            focus.append(_focus_item(
+                category="review_needed",
+                code=code,
+                name=parsed["name"],
+                label="資料日落後",
+                reason=str(primary_action.get("detail") or "追蹤股票資料日落後，先更新日線資料再做盤後判斷。"),
+                next_action=f"先更新日線資料：{primary_action.get('command') or 'python3 scripts/daily_update.py --months 1'}",
+                severity=str(primary_action.get("severity") or "warning"),
+                source=str(primary_action.get("source") or "daily_check"),
+                as_of=as_of,
+                action_label=str(primary_action.get("action_label") or "複製更新指令"),
+                primary_metric=parsed["data_as_of"],
+                short_reason="先更新日線資料",
+                detail_reason=parsed["label"],
+            ))
 
     for item in items:
         if primary_action and item.get("key") == primary_action.get("key"):
