@@ -302,6 +302,19 @@ def test_pm_worklist_keeps_daily_check_action_payload_when_not_duplicated(monkey
         "overall_status": "warn",
         "top_actions": [
             {
+                "key": "signal_alerts",
+                "action_type": "signal_alerts",
+                "status": "block",
+                "title": "隔日訊號警示",
+                "message": "偵測到 1 筆隔日訊號變化警示。",
+                "next_action": "查看 backend/out/signal_alerts.json",
+                "action_payload": {
+                    "kind": "file",
+                    "file_path": "backend/out/signal_alerts.json",
+                    "preview_items": ["2330 台積電：隔日動作變更"],
+                },
+            },
+            {
                 "key": "manual_market_note",
                 "status": "warn",
                 "title": "更新人工盤後筆記",
@@ -333,19 +346,22 @@ def test_pm_worklist_keeps_daily_check_action_payload_when_not_duplicated(monkey
     worklist = svc.get_pm_worklist()
 
     assert [item["key"] for item in worklist["items"]] == [
+        "daily_check_signal_alerts",
         "daily_check_manual_market_note",
         "daily_check_fundamentals_priority",
     ]
-    assert worklist["primary_action"]["key"] == "daily_check_manual_market_note"
-    assert worklist["primary_action"]["action_payload"]["endpoint"] == "/api/stocks/market-notes"
-    assert worklist["items"][0]["action_payload"] == {
+    assert worklist["primary_action"]["key"] == "daily_check_signal_alerts"
+    assert worklist["primary_action"]["action_type"] == "signal_alerts"
+    assert worklist["items"][0]["action_type"] == "signal_alerts"
+    assert worklist["items"][0]["action_payload"]["file_path"] == "backend/out/signal_alerts.json"
+    assert worklist["items"][1]["action_payload"] == {
         "kind": "api",
         "method": "POST",
         "endpoint": "/api/stocks/market-notes",
         "confirm_message": "只更新盤後筆記，不改正式訊號。",
     }
-    assert worklist["items"][1]["action_payload"]["preview_items"] == ["聯發科 2454", "台光電 2383"]
-    assert worklist["items"][1]["action_payload"]["file_path"] == "/backend/out/fundamentals_priority_fill.csv"
+    assert worklist["items"][2]["action_payload"]["preview_items"] == ["聯發科 2454", "台光電 2383"]
+    assert worklist["items"][2]["action_payload"]["file_path"] == "/backend/out/fundamentals_priority_fill.csv"
 
 
 def test_pm_worklist_maps_daily_check_data_freshness_as_data_health(monkeypatch):

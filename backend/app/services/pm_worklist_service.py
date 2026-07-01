@@ -371,7 +371,7 @@ def _daily_check_items(existing_keys: set[str]) -> list[dict[str, Any]]:
             detail=str(action.get("message") or ""),
             priority=40,
             severity="danger" if action.get("status") == "block" else "warning",
-            action_type="daily_check",
+            action_type=str(action.get("action_type") or "daily_check"),
             action_label="查看 Daily Check",
             command=str(action.get("next_action") or ""),
             source="daily_check",
