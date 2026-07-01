@@ -348,6 +348,71 @@ def test_pm_worklist_keeps_daily_check_action_payload_when_not_duplicated(monkey
     assert worklist["items"][1]["action_payload"]["file_path"] == "/backend/out/fundamentals_priority_fill.csv"
 
 
+def test_pm_worklist_maps_daily_check_data_freshness_as_data_health(monkeypatch):
+    import app.services.pm_worklist_service as svc
+
+    monkeypatch.setattr(svc, "get_update_workflow_status", lambda: {
+        "overall_status": "ready",
+        "headline": "每日更新流程完成，可以使用最新交易輸出。",
+        "can_use_trade_outputs": True,
+        "current_step": "ready",
+        "next_action": None,
+        "checks": {},
+    })
+    monkeypatch.setattr(svc, "get_universe", lambda: [])
+    monkeypatch.setattr(svc, "get_fundamentals_status", lambda: {
+        "workflow_summary": {
+            "stage": "fill_priority_csv",
+            "headline": "補基本面",
+            "detail": "補資料 CSV 已產生。",
+            "coverage_label": "0/76 完整",
+            "primary_action": {"label": "填寫 CSV", "command": "/backend/out/fundamentals_priority_fill.csv", "kind": "file"},
+            "fill_targets_copy_text": "基本面避雷優先補資料清單\n1. 聯發科 2454 - 缺 11 欄",
+            "focus_targets": [{"code": "2454", "name": "聯發科"}],
+        }
+    })
+    monkeypatch.setattr(svc, "build_universe_report_review_workflow_summary", lambda limit=10: {"stage": "complete"})
+    monkeypatch.setattr(svc, "get_daily_check_report", lambda: {
+        "overall_status": "warn",
+        "top_actions": [
+            {
+                "key": "data_freshness",
+                "status": "warn",
+                "title": "追蹤股票資料日落後",
+                "message": "有 2 檔股票資料日落後，目標資料日為 2026-06-30。",
+                "next_action": "python3 scripts/daily_update.py --months 1",
+                "action_payload": {
+                    "kind": "command",
+                    "command": "python3 scripts/daily_update.py --months 1",
+                    "copy_command": "cd /Users/ryan/Desktop/code/new_stock/backend\npython3 scripts/daily_update.py --months 1",
+                    "expected_outputs": ["backend/out/summary.json", "backend/out/daily_check.json"],
+                    "preview_items": [
+                        "2492 華新科 仍停在 2026-06-26",
+                        "5425 台半 仍停在 2026-06-29",
+                    ],
+                },
+            },
+        ],
+    })
+
+    worklist = svc.get_pm_worklist()
+
+    assert [item["key"] for item in worklist["items"][:2]] == ["data_freshness", "fundamentals"]
+    freshness = worklist["items"][0]
+    assert freshness["action_type"] == "data_freshness"
+    assert freshness["source"] == "daily_check"
+    assert freshness["priority"] > worklist["items"][1]["priority"]
+    assert freshness["action_label"] == "複製更新指令"
+    assert freshness["command"] == "python3 scripts/daily_update.py --months 1"
+    assert freshness["metric"] == "2 檔資料日落後"
+    assert freshness["focus_codes"] == ["2492", "5425"]
+    assert freshness["action_payload"]["copy_command"].endswith("python3 scripts/daily_update.py --months 1")
+    assert freshness["action_payload"]["preview_items"] == [
+        "2492 華新科 仍停在 2026-06-26",
+        "5425 台半 仍停在 2026-06-29",
+    ]
+
+
 def test_pm_worklist_exposes_ready_today_focus_from_backend_contract(monkeypatch):
     import app.services.pm_worklist_service as svc
 

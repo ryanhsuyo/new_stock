@@ -18,11 +18,11 @@ Loop mode: waiting_for_next_phase
 
 Last completed phase:
 
-* `F22_daily_check_data_freshness_action.md` — Daily Check now surfaces partial stale universe rows as a first-class data freshness action
+* `F23_pm_worklist_data_freshness_mapping.md` — PM Worklist now treats Daily Check data freshness as a data health action
 
 Current phase status:
 
-* No active phase. F22 is done; when a heartbeat wakes with no active phase, use the F21 operating contract to select the next safe productization slice.
+* No active phase. F23 is done; when a heartbeat wakes with no active phase, use the F21 operating contract to select the next safe productization slice.
 
 ## Completed Phase History
 
@@ -97,6 +97,7 @@ Current phase status:
 * F20 — Clarified UI product language: weekly recommendations are separate from daily scan signals.
 * F21 — Added heartbeat operating contract, safe backlog order, slice limits, and notify policy.
 * F22 — Promoted partial stale universe rows into a first-class Daily Check data freshness action with update command and preview.
+* F23 — Mapped Daily Check data freshness into PM Worklist as higher-priority data health work.
 
 ## Next Phase Candidates
 
@@ -149,6 +150,8 @@ Use `F21_heartbeat_development_operating_contract.md` when no active phase exist
 * F21 docs sanity: `rg -n "F21|heartbeat|Safe Backlog|Active phase: none|Phase ID: none" backend/docs/ai_tasks/F21_heartbeat_development_operating_contract.md backend/docs/ai_execution_plan.md backend/docs/ai_tasks/loop_state.md` passed.
 * F22 Daily Check tests: `/Library/Frameworks/Python.framework/Versions/3.11/bin/python3 -m pytest backend/tests/test_daily_check.py -q` passed, 22 tests.
 * F22 Daily Check output refresh: `/Library/Frameworks/Python.framework/Versions/3.11/bin/python3 backend/scripts/daily_check.py --write-report` produced the expected WARN report and wrote `backend/out/daily_check.json`.
+* F23 PM Worklist tests: `/Library/Frameworks/Python.framework/Versions/3.11/bin/python3 -m pytest backend/tests/test_pm_worklist.py -q` passed, 11 tests.
+* F23 Daily Check / PM Worklist integration tests: `/Library/Frameworks/Python.framework/Versions/3.11/bin/python3 -m pytest backend/tests/test_daily_check.py backend/tests/test_pm_worklist.py -q` passed, 33 tests.
 * Fundamentals wording regression tests: `/Library/Frameworks/Python.framework/Versions/3.11/bin/python3 -m pytest backend/tests/test_fundamentals_cli.py -q` passed, 14 tests.
 * R9 focused fundamentals service tests: `/Library/Frameworks/Python.framework/Versions/3.11/bin/python3 -m pytest backend/tests/test_fundamental_service.py -q` passed, 20 tests.
 * R9 focused fundamentals CLI tests: `/Library/Frameworks/Python.framework/Versions/3.11/bin/python3 -m pytest backend/tests/test_fundamentals_cli.py::test_prepare_fundamentals_priority_import_help_exits_0 backend/tests/test_fundamentals_cli.py::test_prepare_fundamentals_priority_import_prints_preview -q` passed, 2 tests.
@@ -177,4 +180,4 @@ Use `F21_heartbeat_development_operating_contract.md` when no active phase exist
 
 ## Last Stop Reason
 
-F22 completed. Continue proactively by selecting the next safe small productization phase from the F21 operating contract when no active phase exists.
+F23 completed. Continue proactively by selecting the next safe small productization phase from the F21 operating contract when no active phase exists.

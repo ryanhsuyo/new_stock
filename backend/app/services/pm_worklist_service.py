@@ -74,6 +74,17 @@ def _normalize_action_payload(payload: dict[str, Any] | None) -> dict[str, Any]:
     return normalized
 
 
+def _focus_codes_from_preview_items(payload: dict[str, Any] | None) -> list[str]:
+    codes: list[str] = []
+    for label in (payload or {}).get("preview_items") or []:
+        code = str(label or "").strip().split(" ", 1)[0]
+        if code and code.isdigit() and code not in codes:
+            codes.append(code)
+        if len(codes) >= 5:
+            break
+    return codes
+
+
 def _item(
     *,
     key: str,
@@ -315,6 +326,24 @@ def _daily_check_items(existing_keys: set[str]) -> list[dict[str, Any]]:
         key = str(action.get("key") or "")
         if duplicate_map.get(key, key) in existing_keys:
             continue
+        payload = action.get("action_payload") if isinstance(action.get("action_payload"), dict) else None
+        if key == "data_freshness":
+            stale_count = len((payload or {}).get("preview_items") or [])
+            mapped.append(_item(
+                key="data_freshness",
+                title=str(action.get("title") or "追蹤股票資料日落後"),
+                detail=str(action.get("message") or ""),
+                priority=90,
+                severity="warning",
+                action_type="data_freshness",
+                action_label="複製更新指令",
+                command=str(action.get("next_action") or (payload or {}).get("command") or ""),
+                source="daily_check",
+                metric=f"{stale_count} 檔資料日落後" if stale_count else str(action.get("status") or "warn"),
+                focus_codes=_focus_codes_from_preview_items(payload),
+                action_payload=payload,
+            ))
+            continue
         mapped.append(_item(
             key=f"daily_check_{key or len(mapped) + 1}",
             title=str(action.get("title") or "Daily Check 待辦"),
@@ -326,7 +355,7 @@ def _daily_check_items(existing_keys: set[str]) -> list[dict[str, Any]]:
             command=str(action.get("next_action") or ""),
             source="daily_check",
             metric=str(action.get("status") or "warn"),
-            action_payload=action.get("action_payload") if isinstance(action.get("action_payload"), dict) else None,
+            action_payload=payload,
         ))
     return mapped
 
