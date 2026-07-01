@@ -18,11 +18,11 @@ Loop mode: waiting_for_next_phase
 
 Last completed phase:
 
-* `F28_today_scan_cli_strategy_score_summary.md` — Today Scan text CLI now displays backend-provided two-strategy score summaries.
+* `F29_today_scan_api_endpoint.md` — Today Scan report is now available through a read-only system API endpoint.
 
 Current phase status:
 
-* No active phase. F28 is done; when a heartbeat wakes with no active phase, use the F21 operating contract to select the next safe productization slice.
+* No active phase. F29 is done; when a heartbeat wakes with no active phase, use the F21 operating contract to select the next safe productization slice.
 
 ## Completed Phase History Summary
 
@@ -33,7 +33,7 @@ Large historical phase detail is intentionally summarized here. Use phase files 
 * Fundamentals priority import phases R9.0 through R9.2 are complete.
 * Daily Check / Today Scan observability phase D1.0 is complete.
 * Official fundamentals and Quality Momentum Lite phases F1 through F20 are complete.
-* Heartbeat/product-health phases F21 through F28 are complete.
+* Heartbeat/product-health phases F21 through F29 are complete.
 
 Recent completed phases:
 
@@ -45,6 +45,7 @@ Recent completed phases:
 * F26 — Archived long loop-state verification history and compacted this state file.
 * F27 — Added Today Scan strategy score summaries for first/second strategy scanability.
 * F28 — Displayed Today Scan strategy score summaries in text CLI output.
+* F29 — Added read-only Today Scan system API endpoint.
 
 ## Next Phase Candidates
 
@@ -73,7 +74,8 @@ Recent verification:
 * F26 docs sanity checks passed and confirmed `loop_state.md` is back under the 200-line limit.
 * F27 Today Scan service tests passed: `/Library/Frameworks/Python.framework/Versions/3.11/bin/python3 -m pytest backend/tests/test_today_scan_service.py -q`
 * F28 Today Scan CLI tests passed: `/Library/Frameworks/Python.framework/Versions/3.11/bin/python3 -m pytest backend/tests/test_today_scan_cli.py -q`
+* F29 Today Scan API tests passed: `/Library/Frameworks/Python.framework/Versions/3.11/bin/python3 -m pytest backend/tests/test_today_scan_api.py -q`
 
 ## Last Stop Reason
 
-F28 completed. Continue proactively by selecting the next safe small productization phase from the F21 operating contract when no active phase exists.
+F29 completed. Continue proactively by selecting the next safe small productization phase from the F21 operating contract when no active phase exists.

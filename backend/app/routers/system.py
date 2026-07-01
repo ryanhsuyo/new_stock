@@ -37,6 +37,7 @@ from app.services.personal_backup_service import (
 )
 from app.services.pm_worklist_service import get_pm_worklist
 from app.services.settings_service import get_trading_settings
+from app.services.today_scan_service import load_today_scan_report
 from app.services.update_service import get_data_status, trigger_background_update
 from app.services.update_workflow_service import get_update_workflow_status
 from app.services.workflow_service import get_workflow_status
@@ -71,6 +72,15 @@ def daily_check() -> dict:
     report = get_daily_check_report()
     if report is None:
         raise HTTPException(status_code=404, detail="尚無 daily_check.json，請先執行 python3 scripts/daily_check.py --write-report")
+    return report
+
+
+@router.get("/system/today-scan")
+def today_scan() -> dict:
+    """讀取 Today Scan 衍生報告；不重算策略、不寫入任何檔案。"""
+    report = load_today_scan_report()
+    if report is None:
+        raise HTTPException(status_code=404, detail="尚無 today_scan.json，請先執行 python3 scripts/today_scan.py --write-report")
     return report
 
 
