@@ -155,6 +155,21 @@ def test_build_today_scan_report_groups_current_candidates(tmp_path):
     assert [item["code"] for item in report["old_wang_candidates"]] == ["2303"]
     assert [item["code"] for item in report["steady_momentum_candidates"]] == ["2337", "6239"]
     assert [item["code"] for item in report["risk_items"]] == ["2603"]
+    steady_summary = report["formal_entries"][0]["strategy_score_summary"]
+    assert steady_summary == {
+        "primary_strategy": "steady_momentum",
+        "primary_label": "第二 穩健",
+        "primary_score": 95,
+        "old_wang_level": "low",
+        "steady_momentum_level": "high",
+        "score_gap": 30,
+        "summary_label": "第二 穩健 95，高於第一 老王 65",
+    }
+    old_wang_summary = report["old_wang_candidates"][0]["strategy_score_summary"]
+    assert old_wang_summary["primary_strategy"] == "old_wang"
+    assert old_wang_summary["primary_label"] == "第一 老王"
+    assert old_wang_summary["primary_score"] == 90
+    assert old_wang_summary["summary_label"] == "第一 老王 90，高於第二 穩健 55"
     assert "老王大盤濾網目前封鎖" in report["notes"][0]
     assert report["data_freshness"]["expected_as_of"] == "2026-06-25"
     assert report["data_freshness"]["stale_count"] == 0

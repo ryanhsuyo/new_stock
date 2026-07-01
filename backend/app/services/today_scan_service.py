@@ -64,6 +64,50 @@ def _as_int(value: Any) -> int:
         return 0
 
 
+def _score_level(score: int) -> str:
+    if score >= 85:
+        return "high"
+    if score >= 70:
+        return "mid"
+    return "low"
+
+
+def _strategy_score_summary(row: dict[str, Any]) -> dict[str, Any]:
+    old_wang_score = _as_int(row.get("old_wang_score"))
+    steady_score = _as_int(row.get("steady_momentum_score"))
+    if old_wang_score <= 0 and steady_score <= 0:
+        return {
+            "primary_strategy": "none",
+            "primary_label": "尚未成形",
+            "primary_score": 0,
+            "old_wang_level": "low",
+            "steady_momentum_level": "low",
+            "score_gap": 0,
+            "summary_label": "兩策略分數皆未成形",
+        }
+
+    if old_wang_score >= steady_score:
+        primary_strategy = "old_wang"
+        primary_label = "第一 老王"
+        primary_score = old_wang_score
+        summary_label = f"第一 老王 {old_wang_score}，高於第二 穩健 {steady_score}"
+    else:
+        primary_strategy = "steady_momentum"
+        primary_label = "第二 穩健"
+        primary_score = steady_score
+        summary_label = f"第二 穩健 {steady_score}，高於第一 老王 {old_wang_score}"
+
+    return {
+        "primary_strategy": primary_strategy,
+        "primary_label": primary_label,
+        "primary_score": primary_score,
+        "old_wang_level": _score_level(old_wang_score),
+        "steady_momentum_level": _score_level(steady_score),
+        "score_gap": abs(old_wang_score - steady_score),
+        "summary_label": summary_label,
+    }
+
+
 def _reason(row: dict[str, Any]) -> str:
     for key in (
         "daily_action_reason",
@@ -90,6 +134,7 @@ def _compact_item(row: dict[str, Any]) -> dict[str, Any]:
         "old_wang_signal": row.get("old_wang_signal"),
         "steady_momentum_score": _as_int(row.get("steady_momentum_score")),
         "steady_momentum_signal": row.get("steady_momentum_signal"),
+        "strategy_score_summary": _strategy_score_summary(row),
         "entry_score": _as_int(row.get("entry_score")),
         "risk_score": _as_int(row.get("risk_score")),
         "entry_price_low": _as_float(row.get("entry_price_low")),
