@@ -31,10 +31,11 @@ _ACTION_KEY_RANK = {
     "signal_alerts": 1,
     "data_repair": 2,
     "data_freshness": 3,
-    "fundamentals": 4,
-    "official_fundamentals_coverage": 5,
-    "today_scan": 6,
-    "decision_journal": 7,
+    "manual_market_note": 4,
+    "fundamentals": 5,
+    "official_fundamentals_coverage": 6,
+    "today_scan": 7,
+    "decision_journal": 8,
 }
 _DATA_REPAIR_COMMAND = "python3 scripts/daily_update.py --months 12"
 _DATA_FRESHNESS_COMMAND = "python3 scripts/daily_update.py --months 1"
@@ -211,6 +212,37 @@ def _signal_alert_action(alerts: dict[str, Any] | None) -> dict[str, Any] | None
                 for item in (alerts.get("alerts") or [])[:5]
             ],
         },
+    }
+
+
+def _manual_market_note_action(signals_summary: dict[str, Any] | None) -> dict[str, Any] | None:
+    note = (signals_summary or {}).get("manual_market_note") or {}
+    if not note.get("update_required") and not note.get("is_stale"):
+        return None
+    note_date = str(note.get("date") or "")
+    title = str(note.get("title") or "人工盤後筆記")
+    status_label = str(note.get("status_label") or "需更新")
+    stale_reason = str(note.get("stale_reason") or "人工盤後筆記已過期，請更新今天盤勢。")
+    preview = f"{status_label}{f' {note_date}' if note_date else ''}：{title}"
+    return {
+        "key": "manual_market_note",
+        "status": "warn",
+        "title": "更新人工盤後筆記",
+        "message": stale_reason,
+        "next_action": "POST /api/stocks/market-notes",
+        "details": {
+            "note_date": note_date,
+            "stale_trading_days": note.get("stale_trading_days"),
+            "status_label": status_label,
+        },
+        "action_payload": {
+            "kind": "api",
+            "method": "POST",
+            "endpoint": "/api/stocks/market-notes",
+            "confirm_message": "只更新盤後筆記，不改交易紀錄。",
+            "preview_items": [preview],
+        },
+        "action_type": "market_note",
     }
 
 
@@ -484,6 +516,7 @@ def build_daily_summary(
     universe: list[dict[str, Any]] | None = None,
     signal_alerts: dict[str, Any] | None = None,
     today_scan: dict[str, Any] | None = None,
+    signals_summary: dict[str, Any] | None = None,
     include_official_coverage: bool = False,
 ) -> dict[str, Any]:
     generated_at = report.get("generated_at")
@@ -495,6 +528,7 @@ def build_daily_summary(
         for action in [
             _signal_alert_action(signal_alerts),
             _data_freshness_action(today_scan_summary, can_use_trade_outputs),
+            _manual_market_note_action(signals_summary),
             _today_scan_action(today_scan_summary, can_use_trade_outputs),
             _data_repair_action(data_repair),
             _official_coverage_action() if include_official_coverage else None,
@@ -594,6 +628,17 @@ def load_universe_for_daily_check() -> list[dict[str, Any]]:
         return []
 
 
+def load_summary_for_daily_check(backend: Path) -> dict[str, Any] | None:
+    path = backend / "out" / "summary.json"
+    if not path.exists():
+        return None
+    try:
+        return json.loads(path.read_text(encoding="utf-8"))
+    except Exception as exc:  # pragma: no cover - 防止每日摘要因 summary 解析失敗而中斷
+        print(f"[WARN] 無法載入 summary.json 人工筆記狀態：{exc}", file=sys.stderr)
+        return None
+
+
 def run_daily_check(args: argparse.Namespace) -> int:
     report = build_doctor_report(args.backend)
     summary = build_daily_summary(
@@ -602,6 +647,7 @@ def run_daily_check(args: argparse.Namespace) -> int:
         universe=load_universe_for_daily_check(),
         signal_alerts=load_signal_alerts(args.backend / "out"),
         today_scan=load_today_scan_report(args.backend / "out"),
+        signals_summary=load_summary_for_daily_check(args.backend),
         include_official_coverage=args.backend.resolve() == _BACKEND.resolve(),
     )
     if args.json:

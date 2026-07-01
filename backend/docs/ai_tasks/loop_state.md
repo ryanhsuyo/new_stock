@@ -18,7 +18,7 @@ Loop mode: waiting_for_next_safe_phase
 
 Last completed phase:
 
-* `F41_signal_alert_file_action_payload.md` — Daily Check signal alert file actions now include safe copy commands and expected outputs.
+* `F42_daily_check_manual_note_awareness.md` — Daily Check now surfaces stale manual market notes as a safe PM action.
 
 Current phase status:
 
@@ -33,7 +33,7 @@ Large historical phase detail is intentionally summarized here. Use phase files 
 * Fundamentals priority import phases R9.0 through R9.2 are complete.
 * Daily Check / Today Scan observability phase D1.0 is complete.
 * Official fundamentals and Quality Momentum Lite phases F1 through F20 are complete.
-* Heartbeat/product-health phases F21 through F41 are complete.
+* Heartbeat/product-health phases F21 through F42 are complete.
 
 Recent completed phases:
 
@@ -58,6 +58,7 @@ Recent completed phases:
 * F39 — Preserved Update Workflow action payload context in PM Worklist primary actions.
 * F40 — Rendered backend-owned Primary Action payload context on the Dashboard first screen.
 * F41 — Added safe copy command and expected outputs to Daily Check signal alert file actions.
+* F42 — Added Daily Check awareness for stale manual market notes.
 
 ## Next Phase Candidates
 
@@ -99,7 +100,8 @@ Recent verification:
 * F39 PM Worklist and Update Workflow tests passed: `/Library/Frameworks/Python.framework/Versions/3.11/bin/python3 -m pytest backend/tests/test_pm_worklist.py -q`, `/Library/Frameworks/Python.framework/Versions/3.11/bin/python3 -m pytest backend/tests/test_update_workflow.py -q`
 * F40 frontend focused/all structure tests and build passed: `node --test frontend/tests/primary-action-card-payload.test.mjs`, `node --test frontend/tests/*.test.mjs`, `npm run build`
 * F41 Daily Check, PM Worklist, and Update Workflow tests passed: `/Library/Frameworks/Python.framework/Versions/3.11/bin/python3 -m pytest backend/tests/test_daily_check.py -q`, `/Library/Frameworks/Python.framework/Versions/3.11/bin/python3 -m pytest backend/tests/test_pm_worklist.py -q`, `/Library/Frameworks/Python.framework/Versions/3.11/bin/python3 -m pytest backend/tests/test_update_workflow.py -q`
+* F42 Daily Check, PM Worklist, and Update Workflow tests passed: `/Library/Frameworks/Python.framework/Versions/3.11/bin/python3 -m pytest backend/tests/test_daily_check.py -q`, `/Library/Frameworks/Python.framework/Versions/3.11/bin/python3 -m pytest backend/tests/test_pm_worklist.py -q`, `/Library/Frameworks/Python.framework/Versions/3.11/bin/python3 -m pytest backend/tests/test_update_workflow.py -q`
 
 ## Last Stop Reason
 
-F41 completed. Continue proactively by selecting the next safe small productization phase from the F21 operating contract when no active phase exists.
+F42 completed. Continue proactively by selecting the next safe small productization phase from the F21 operating contract when no active phase exists.

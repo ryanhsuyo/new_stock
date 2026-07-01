@@ -288,6 +288,55 @@ def test_daily_check_keeps_zero_signal_alerts_out_of_top_actions():
     assert summary["top_actions"] == []
 
 
+def test_daily_check_surfaces_stale_manual_market_note():
+    import daily_check
+
+    report = {
+        "overall_status": "ok",
+        "exit_code": 0,
+        "generated_at": "2026-06-30",
+        "checks": [
+            {
+                "key": "outputs",
+                "status": "ok",
+                "title": "交易輸出同步",
+                "message": "ok",
+                "details": {"last_data_as_of": "2026-06-30"},
+                "next_action": "",
+            }
+        ],
+    }
+    signals_summary = {
+        "manual_market_note": {
+            "date": "2026-05-27",
+            "title": "舊盤後筆記",
+            "is_stale": True,
+            "update_required": True,
+            "stale_trading_days": 24,
+            "stale_reason": "距離訊號基準日 24 個交易日，請更新人工盤後筆記",
+            "status_label": "舊筆記",
+        }
+    }
+
+    summary = daily_check.build_daily_summary(report, limit=3, signals_summary=signals_summary)
+
+    action = summary["top_actions"][0]
+    assert action["key"] == "manual_market_note"
+    assert action["action_type"] == "market_note"
+    assert action["status"] == "warn"
+    assert action["title"] == "更新人工盤後筆記"
+    assert action["message"] == "距離訊號基準日 24 個交易日，請更新人工盤後筆記"
+    assert action["details"]["note_date"] == "2026-05-27"
+    assert action["details"]["stale_trading_days"] == 24
+    assert action["action_payload"] == {
+        "kind": "api",
+        "method": "POST",
+        "endpoint": "/api/stocks/market-notes",
+        "confirm_message": "只更新盤後筆記，不改交易紀錄。",
+        "preview_items": ["舊筆記 2026-05-27：舊盤後筆記"],
+    }
+
+
 def test_daily_check_adds_today_scan_summary_and_action_when_outputs_are_usable():
     import daily_check
 
