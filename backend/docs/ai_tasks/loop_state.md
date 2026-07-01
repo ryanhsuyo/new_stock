@@ -18,11 +18,11 @@ Loop mode: waiting_for_next_phase
 
 Last completed phase:
 
-* `F35_pm_worklist_preserve_daily_check_action_type.md` — PM Worklist now preserves Daily Check-provided action types for generic actions.
+* `F36_pm_worklist_daily_check_block_priority.md` — PM Worklist now promotes Daily Check block actions above warning maintenance actions.
 
 Current phase status:
 
-* No active phase. F35 is done; when a heartbeat wakes with no active phase, use the F21 operating contract to select the next safe productization slice.
+* No active phase. F36 is done; when a heartbeat wakes with no active phase, use the F21 operating contract to select the next safe productization slice.
 
 ## Completed Phase History Summary
 
@@ -33,7 +33,7 @@ Large historical phase detail is intentionally summarized here. Use phase files 
 * Fundamentals priority import phases R9.0 through R9.2 are complete.
 * Daily Check / Today Scan observability phase D1.0 is complete.
 * Official fundamentals and Quality Momentum Lite phases F1 through F20 are complete.
-* Heartbeat/product-health phases F21 through F35 are complete.
+* Heartbeat/product-health phases F21 through F36 are complete.
 
 Recent completed phases:
 
@@ -52,6 +52,7 @@ Recent completed phases:
 * F33 — Added stable `action_type` values to Daily Check top actions.
 * F34 — Fixed PM Worklist data freshness metric to use Daily Check details counts instead of preview length.
 * F35 — Preserved Daily Check-provided action types in PM Worklist generic items.
+* F36 — Promoted generic Daily Check block actions above warning maintenance actions in PM Worklist.
 
 ## Next Phase Candidates
 
@@ -87,7 +88,8 @@ Recent verification:
 * F33 Daily Check tests passed: `/Library/Frameworks/Python.framework/Versions/3.11/bin/python3 -m pytest backend/tests/test_daily_check.py -q`
 * F34 PM Worklist and Daily Check tests passed: `/Library/Frameworks/Python.framework/Versions/3.11/bin/python3 -m pytest backend/tests/test_pm_worklist.py -q`, `/Library/Frameworks/Python.framework/Versions/3.11/bin/python3 -m pytest backend/tests/test_daily_check.py -q`
 * F35 PM Worklist and Daily Check tests passed: `/Library/Frameworks/Python.framework/Versions/3.11/bin/python3 -m pytest backend/tests/test_pm_worklist.py -q`, `/Library/Frameworks/Python.framework/Versions/3.11/bin/python3 -m pytest backend/tests/test_daily_check.py -q`
+* F36 PM Worklist and Daily Check tests passed: `/Library/Frameworks/Python.framework/Versions/3.11/bin/python3 -m pytest backend/tests/test_pm_worklist.py -q`, `/Library/Frameworks/Python.framework/Versions/3.11/bin/python3 -m pytest backend/tests/test_daily_check.py -q`
 
 ## Last Stop Reason
 
-F35 completed. Continue proactively by selecting the next safe small productization phase from the F21 operating contract when no active phase exists.
+F36 completed. Continue proactively by selecting the next safe small productization phase from the F21 operating contract when no active phase exists.

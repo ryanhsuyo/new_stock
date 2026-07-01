@@ -433,6 +433,60 @@ def test_pm_worklist_maps_daily_check_data_freshness_as_data_health(monkeypatch)
     ]
 
 
+def test_pm_worklist_promotes_daily_check_block_before_data_freshness_warning(monkeypatch):
+    import app.services.pm_worklist_service as svc
+
+    monkeypatch.setattr(svc, "get_update_workflow_status", lambda: {
+        "overall_status": "ready",
+        "headline": "每日更新流程完成，可以使用最新交易輸出。",
+        "can_use_trade_outputs": True,
+        "current_step": "ready",
+        "next_action": None,
+        "checks": {},
+    })
+    monkeypatch.setattr(svc, "get_universe", lambda: [])
+    monkeypatch.setattr(svc, "get_fundamentals_status", lambda: {"workflow_summary": {"stage": "complete"}})
+    monkeypatch.setattr(svc, "build_universe_report_review_workflow_summary", lambda limit=10: {"stage": "complete"})
+    monkeypatch.setattr(svc, "get_daily_check_report", lambda: {
+        "overall_status": "warn",
+        "top_actions": [
+            {
+                "key": "signal_alerts",
+                "action_type": "signal_alerts",
+                "status": "block",
+                "title": "隔日訊號警示",
+                "message": "偵測到 4 筆 block 警示。",
+                "next_action": "查看 backend/out/signal_alerts.json",
+                "action_payload": {
+                    "kind": "file",
+                    "file_path": "backend/out/signal_alerts.json",
+                    "preview_items": ["2330 台積電：隔日動作變更"],
+                },
+            },
+            {
+                "key": "data_freshness",
+                "status": "warn",
+                "title": "追蹤股票資料日落後",
+                "message": "有 9 檔股票資料日落後，目標資料日為 2026-06-30。",
+                "next_action": "python3 scripts/daily_update.py --months 1",
+                "details": {"stale_count": 9, "missing_date_count": 0},
+                "action_payload": {
+                    "kind": "command",
+                    "command": "python3 scripts/daily_update.py --months 1",
+                    "preview_items": ["2492 華新科 仍停在 2026-06-26"],
+                },
+            },
+        ],
+    })
+
+    worklist = svc.get_pm_worklist()
+
+    assert worklist["primary_action"]["key"] == "daily_check_signal_alerts"
+    assert worklist["primary_action"]["action_type"] == "signal_alerts"
+    assert worklist["items"][0]["key"] == "daily_check_signal_alerts"
+    assert worklist["items"][1]["key"] == "data_freshness"
+
+
 def test_pm_worklist_today_focus_surfaces_data_freshness_primary_action(monkeypatch):
     import app.services.pm_worklist_service as svc
 
