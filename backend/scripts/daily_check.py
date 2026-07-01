@@ -499,15 +499,16 @@ def build_daily_summary(
     ]
     top_actions = _top_actions(report, limit=limit, extra_actions=extra_actions)
     blockers = _blocked_by(report, extra_actions)
+    effective_can_use_trade_outputs = can_use_trade_outputs and not blockers
     return {
         "overall_status": report.get("overall_status"),
         "exit_code": int(report.get("exit_code") or 0),
         "generated_at": generated_at,
         "source_report_generated_at": generated_at,
         "data_as_of": _data_as_of_from_report(report),
-        "can_use_trade_outputs": can_use_trade_outputs,
+        "can_use_trade_outputs": effective_can_use_trade_outputs,
         "status_reason": _status_reason(report, top_actions, blockers),
-        "trade_outputs_note": _trade_outputs_note(can_use_trade_outputs, top_actions),
+        "trade_outputs_note": _trade_outputs_note(effective_can_use_trade_outputs, top_actions),
         "blocked_by": blockers,
         "data_repair": data_repair,
         "today_scan": today_scan_summary,

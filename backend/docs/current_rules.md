@@ -31,6 +31,7 @@
 - `GET /api/system/daily-check` 讀取舊的 `daily_check.json` 時，後端必須補上 `snapshot_is_stale`、`snapshot_stale_reason`、`snapshot_refresh_command`、`snapshot_refresh_copy_command` 與 `snapshot_refresh_expected_outputs`；Dashboard 必須把非今日產生的快照標示為需刷新，並提供可複製刷新指令，避免隔天誤用昨日 PM 摘要。
 - `GET /api/system/update-workflow` 是每日更新流程的單一狀態入口，負責彙整資料是否過期、交易輸出是否落後、Daily Check 是否需刷新，以及下一個可複製指令；此 API 不新增交易訊號，也不直接執行長時間回補。
 - 若 Daily Check 快照是今日版本但 `can_use_trade_outputs=false`，Update Workflow 必須視為 `blocked`，並沿用 Daily Check 的第一個 blocker / top action 作為 `next_action`，不得顯示 ready。
+- `daily_check.json.can_use_trade_outputs` 必須同時考慮 doctor report block 與 Daily Check extra actions 的 `status=block`；例如 `signal_alerts` 若為 block，Daily Check 不得仍標示交易輸出可用。
 - Update Workflow 沿用 Daily Check blocker / top action 時，必須保留原本的 `action_payload`，讓 API / copy_text / file 類待辦在 Dashboard 上仍可操作，不可只留下 `command` 字串。
 - Update Workflow 的 `next_action.command` 可保留短指令供畫面閱讀；若要提供複製按鈕，應優先使用 `next_action.copy_command`，內含 `cd backend` 所需工作目錄，避免使用者在錯誤目錄執行失敗。
 - Update Workflow 的 `next_action.expected_outputs` 必須列出跑完指令後應檢查的主要產物；`daily_update.py` 流程至少包含 `ohlcv.csv`、`update_status.json`、`data_coverage_report.json`、`summary.json`、`universe_report.csv`、`daily_brief.json` 與 `daily_check.json`。

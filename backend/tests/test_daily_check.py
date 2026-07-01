@@ -250,6 +250,8 @@ def test_daily_check_adds_signal_alert_action_before_warnings():
 
     summary = daily_check.build_daily_summary(report, limit=3, signal_alerts=alerts)
 
+    assert summary["can_use_trade_outputs"] is False
+    assert "不可作為今天判斷依據" in summary["trade_outputs_note"]
     assert summary["signal_alerts"]["alert_count"] == 1
     assert [item["key"] for item in summary["top_actions"]] == ["signal_alerts", "fundamentals"]
     action = summary["top_actions"][0]
