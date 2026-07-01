@@ -1210,6 +1210,22 @@ export interface TodayScanItem {
   reason?: string
 }
 
+export interface TodayScanFreshnessItem {
+  code: string
+  name: string
+  data_as_of?: string | null
+}
+
+export interface TodayScanDataFreshness {
+  expected_as_of?: string | null
+  row_count?: number
+  fresh_count?: number
+  stale_count?: number
+  missing_date_count?: number
+  date_counts?: Record<string, number>
+  top_stale_items?: TodayScanFreshnessItem[]
+}
+
 export interface TodayScanReport {
   as_of: string | null
   generated_at?: string | null
@@ -1223,7 +1239,7 @@ export interface TodayScanReport {
   steady_momentum_candidates: TodayScanItem[]
   risk_items: TodayScanItem[]
   bucket_notes?: Record<string, string>
-  data_freshness?: Record<string, unknown>
+  data_freshness?: TodayScanDataFreshness
   notes?: string[]
 }
 

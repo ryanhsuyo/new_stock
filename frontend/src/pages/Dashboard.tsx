@@ -1464,6 +1464,10 @@ function TodayScanQuickCard({
   const riskCount = todayScan.risk_items.length
   const firstEntry = todayScan.formal_entries[0] ?? todayScan.old_wang_candidates[0] ?? todayScan.steady_momentum_candidates[0] ?? null
   const strategySummary = firstEntry?.strategy_score_summary?.summary_label
+  const staleCount = todayScan.data_freshness?.stale_count ?? 0
+  const missingDateCount = todayScan.data_freshness?.missing_date_count ?? 0
+  const topStaleItem = todayScan.data_freshness?.top_stale_items?.[0]
+  const hasFreshnessWarning = staleCount > 0 || missingDateCount > 0
 
   return (
     <div className="decision-console-card today-scan-quick-card">
@@ -1475,6 +1479,18 @@ function TodayScanQuickCard({
         <b>穩健 {steadyCount}</b>
         <b>風險 {riskCount}</b>
       </div>
+      {hasFreshnessWarning && (
+        <div className="today-scan-freshness" aria-label="Today Scan 資料日提醒">
+          <b>資料日提醒</b>
+          <span>
+            {staleCount > 0 ? `${staleCount} 檔落後` : '無落後資料'}
+            {missingDateCount > 0 ? `，${missingDateCount} 檔缺日期` : ''}
+          </span>
+          {topStaleItem && (
+            <small>最舊：{topStaleItem.code} {topStaleItem.name} {topStaleItem.data_as_of || '日期待確認'}</small>
+          )}
+        </div>
+      )}
       {firstEntry ? (
         <button
           className="today-scan-lead"

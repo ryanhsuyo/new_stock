@@ -25,7 +25,7 @@ Not allowed:
 * [x] Add minimal Dashboard state/fetch/rendering.
 * [x] Run focused/all frontend structure tests.
 * [x] Update `current_rules.md`, execution plan, and loop state.
-* [ ] Commit the completed slice.
+* [x] Commit the completed slice.
 
 ## Verification
 
