@@ -1175,6 +1175,58 @@ export interface SignalChangeReport {
   }
 }
 
+export interface TodayScanStrategyScoreSummary {
+  primary_strategy: 'old_wang' | 'steady_momentum' | 'none' | string
+  primary_label: string
+  primary_score: number
+  old_wang_level: 'high' | 'mid' | 'low' | string
+  steady_momentum_level: 'high' | 'mid' | 'low' | string
+  score_gap: number
+  summary_label: string
+}
+
+export interface TodayScanItem {
+  code: string
+  name: string
+  close?: number | null
+  internal_signal?: string | null
+  daily_action?: string | null
+  daily_action_label?: string | null
+  old_wang_score?: number | null
+  old_wang_signal?: string | null
+  steady_momentum_score?: number | null
+  steady_momentum_signal?: string | null
+  strategy_score_summary?: TodayScanStrategyScoreSummary
+  entry_score?: number | null
+  risk_score?: number | null
+  entry_price_low?: number | null
+  entry_price_high?: number | null
+  stop_price?: number | null
+  target_price?: number | null
+  reward_risk_ratio?: number | null
+  vol_ratio?: number | null
+  rsi14?: number | null
+  data_as_of?: string | null
+  reason?: string
+}
+
+export interface TodayScanReport {
+  as_of: string | null
+  generated_at?: string | null
+  rules_version?: string | null
+  rules_metadata?: Record<string, unknown>
+  data_status?: Record<string, unknown>
+  market_context?: Record<string, unknown>
+  signal_counts?: Record<string, unknown>
+  formal_entries: TodayScanItem[]
+  old_wang_candidates: TodayScanItem[]
+  steady_momentum_candidates: TodayScanItem[]
+  risk_items: TodayScanItem[]
+  bucket_notes?: Record<string, string>
+  data_freshness?: Record<string, unknown>
+  notes?: string[]
+}
+
 export interface UniverseReportItem {
   code: string
   name: string

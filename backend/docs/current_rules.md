@@ -400,6 +400,7 @@ Dashboard 補資料流程：
 - `today_scan.json` 的候選列可提供 `strategy_score_summary` 作為呈現用摘要，僅整理既有 `old_wang_score` / `steady_momentum_score`，用 `第一 老王`、`第二 穩健`、`high/mid/low` 與分差幫助使用者快速辨識主策略；不得重新計算策略、不得新增推薦桶。
 - `python3 scripts/today_scan.py` 的文字輸出應優先顯示 `strategy_score_summary.summary_label`，讓 CLI / 心跳回報也能看出第一策略或第二策略哪個分數較高；JSON 輸出仍以原始後端欄位為準。
 - `GET /api/system/today-scan` 只能讀取既有 `backend/out/today_scan.json` 並回傳原始衍生報告；router 不得重算掃描、不觸發寫檔、不新增策略桶。
+- Frontend 若消費 Today Scan，必須透過 `api.getTodayScanOrNull()` 與 `TodayScanReport` 型別讀取後端契約；前端不得自行重算分桶、策略分數或 `strategy_score_summary`。
 - 每次刷新 `today_scan.json` 時，應同步保存 `backend/out/today_scans/today_scan_YYYY-MM-DD.json`，供隔日驗算與歷史復盤；此快照同樣不得新增交易判斷。
 - `summary.json`、`summary_previous.json`、`universe_report.csv`、`daily_brief.json`、`update_status.json` 與使用者資料 JSON 寫入時必須先寫同資料夾暫存檔，再 replace 正式檔，避免 API 讀到半寫入內容。
 - `today_scan.json` 必須提供 `data_freshness` 摘要，說明 `universe_report.csv` 中各資料日分布、局部落後檔數與前幾檔落後股票；Daily Check 的今日規則掃描 action 必須把局部資料日落後列入 details / preview_items，讓使用者不用打開 raw CSV 就知道哪些候選可能需要資料修復。
