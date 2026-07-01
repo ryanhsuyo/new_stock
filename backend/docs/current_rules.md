@@ -398,6 +398,7 @@ Dashboard 補資料流程：
 - `run_signals.py` 每次產生正式輸出時應同步刷新 `backend/out/today_scan.json`；每日更新流程的預期輸出也必須包含此檔，避免使用者看到舊掃描分桶。
 - `today_scan.json` 是衍生報告，必須保留資料日、規則版本、大盤濾網與分桶原因；老王大盤濾網為 block 時，老王候選只能列觀察並顯示封鎖原因。
 - `today_scan.json` 的候選列可提供 `strategy_score_summary` 作為呈現用摘要，僅整理既有 `old_wang_score` / `steady_momentum_score`，用 `第一 老王`、`第二 穩健`、`high/mid/low` 與分差幫助使用者快速辨識主策略；不得重新計算策略、不得新增推薦桶。
+- `python3 scripts/today_scan.py` 的文字輸出應優先顯示 `strategy_score_summary.summary_label`，讓 CLI / 心跳回報也能看出第一策略或第二策略哪個分數較高；JSON 輸出仍以原始後端欄位為準。
 - 每次刷新 `today_scan.json` 時，應同步保存 `backend/out/today_scans/today_scan_YYYY-MM-DD.json`，供隔日驗算與歷史復盤；此快照同樣不得新增交易判斷。
 - `summary.json`、`summary_previous.json`、`universe_report.csv`、`daily_brief.json`、`update_status.json` 與使用者資料 JSON 寫入時必須先寫同資料夾暫存檔，再 replace 正式檔，避免 API 讀到半寫入內容。
 - `today_scan.json` 必須提供 `data_freshness` 摘要，說明 `universe_report.csv` 中各資料日分布、局部落後檔數與前幾檔落後股票；Daily Check 的今日規則掃描 action 必須把局部資料日落後列入 details / preview_items，讓使用者不用打開 raw CSV 就知道哪些候選可能需要資料修復。

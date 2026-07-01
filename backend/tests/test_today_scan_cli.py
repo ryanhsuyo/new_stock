@@ -52,7 +52,12 @@ def test_today_scan_text_cli_prints_key_sections(monkeypatch, capsys, tmp_path):
     monkeypatch.setattr(today_scan, "build_today_scan_report", lambda out_dir, limit=1000: {
         "as_of": "2026-06-25",
         "market_context": {"market_filter": "allow", "old_wang_market_filter": "block"},
-        "formal_entries": [{"code": "2337", "name": "旺宏", "reason": "可分批"}],
+        "formal_entries": [{
+            "code": "2337",
+            "name": "旺宏",
+            "reason": "可分批",
+            "strategy_score_summary": {"summary_label": "第二 穩健 95，高於第一 老王 65"},
+        }],
         "old_wang_candidates": [{"code": "2303", "name": "聯電", "reason": "短均線轉強"}],
         "steady_momentum_candidates": [],
         "risk_items": [{"code": "2603", "name": "長榮", "reason": "跌破支撐"}],
@@ -66,5 +71,6 @@ def test_today_scan_text_cli_prints_key_sections(monkeypatch, capsys, tmp_path):
     assert "資料日：2026-06-25" in out
     assert "正式可小試" in out
     assert "2337 旺宏" in out
+    assert "第二 穩健 95，高於第一 老王 65" in out
     assert "老王觀察" in out
     assert "風險處理" in out

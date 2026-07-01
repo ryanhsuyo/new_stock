@@ -33,8 +33,11 @@ def _print_items(title: str, items: list[dict[str, Any]]) -> None:
         return
     for item in items:
         reason = str(item.get("reason") or "").strip()
+        strategy_summary = item.get("strategy_score_summary") if isinstance(item.get("strategy_score_summary"), dict) else {}
+        strategy_label = str(strategy_summary.get("summary_label") or "").strip()
+        strategy_suffix = f"｜{strategy_label}" if strategy_label else ""
         suffix = f"：{reason}" if reason else ""
-        print(f"  - {item.get('code')} {item.get('name')}{suffix}")
+        print(f"  - {item.get('code')} {item.get('name')}{strategy_suffix}{suffix}")
 
 
 def print_today_scan_report(report: dict[str, Any]) -> None:
