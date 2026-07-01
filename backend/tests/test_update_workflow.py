@@ -314,6 +314,56 @@ def test_update_workflow_preserves_daily_check_action_payload(monkeypatch):
     }
 
 
+def test_update_workflow_converts_daily_check_file_blocker_to_safe_copy_command(monkeypatch):
+    import app.services.update_workflow_service as svc
+
+    class FakeDate(date):
+        @classmethod
+        def today(cls):
+            return cls(2026, 6, 7)
+
+    monkeypatch.setattr(svc, "date", FakeDate)
+    monkeypatch.setattr(svc, "get_data_status", lambda: {
+        "last_run_status": "success",
+        "last_data_as_of": "2026-06-07",
+        "raw_ohlcv_as_of": "2026-06-07",
+        "outputs_lag_raw_data": False,
+        "is_stale": False,
+        "stale_days": 0,
+    })
+    monkeypatch.setattr(svc, "get_daily_check_report", lambda: {
+        "generated_at": "2026-06-07",
+        "data_as_of": "2026-06-07",
+        "snapshot_is_stale": False,
+        "can_use_trade_outputs": False,
+        "top_actions": [
+            {
+                "key": "signal_alerts",
+                "status": "block",
+                "title": "隔日訊號警示",
+                "message": "偵測到 4 筆 block 警示。",
+                "next_action": "查看 backend/out/signal_alerts.json 並先處理 block / warn 項目。",
+                "action_payload": {
+                    "kind": "file",
+                    "file_path": "backend/out/signal_alerts.json",
+                    "preview_items": ["2330 台積電：隔日動作變更"],
+                },
+            }
+        ],
+    })
+
+    report = svc.get_update_workflow_status()
+
+    assert report["overall_status"] == "blocked"
+    assert report["next_action"]["key"] == "signal_alerts"
+    assert report["next_action"]["command"] == "cat backend/out/signal_alerts.json"
+    assert report["next_action"]["copy_command"].endswith(
+        "backend\ncat backend/out/signal_alerts.json"
+    )
+    assert report["next_action"]["action_payload"]["kind"] == "file"
+    assert report["next_action"]["action_payload"]["file_path"] == "backend/out/signal_alerts.json"
+
+
 def test_update_workflow_api_returns_schema(client, monkeypatch):
     import app.routers.system as router
 

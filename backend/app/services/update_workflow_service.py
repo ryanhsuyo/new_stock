@@ -56,11 +56,20 @@ def _expected_outputs_for_command(command: str | None) -> list[str]:
     return expected_outputs_for_command(command)
 
 
+def _file_view_command(payload: dict[str, Any]) -> str:
+    if payload.get("kind") != "file":
+        return ""
+    file_path = str(payload.get("file_path") or "").strip()
+    if not file_path:
+        return ""
+    return f"cat {file_path}"
+
+
 def _daily_check_blocker_action(daily_check: dict[str, Any] | None) -> dict[str, Any]:
     actions = list((daily_check or {}).get("top_actions") or [])
     top = next((item for item in actions if item.get("status") == "block"), None) or (actions[0] if actions else {})
     payload = top.get("action_payload") if isinstance(top.get("action_payload"), dict) else {}
-    command = str(payload.get("command") or top.get("next_action") or "")
+    command = str(payload.get("command") or _file_view_command(payload) or top.get("next_action") or "")
     copy_command = str(payload.get("copy_command") or "") or None
     expected_outputs = payload.get("expected_outputs")
     return _action(

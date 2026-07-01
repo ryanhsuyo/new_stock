@@ -33,6 +33,7 @@
 - 若 Daily Check 快照是今日版本但 `can_use_trade_outputs=false`，Update Workflow 必須視為 `blocked`，並沿用 Daily Check 的第一個 blocker / top action 作為 `next_action`，不得顯示 ready。
 - `daily_check.json.can_use_trade_outputs` 必須同時考慮 doctor report block 與 Daily Check extra actions 的 `status=block`；例如 `signal_alerts` 若為 block，Daily Check 不得仍標示交易輸出可用。
 - Update Workflow 沿用 Daily Check blocker / top action 時，必須保留原本的 `action_payload`，讓 API / copy_text / file 類待辦在 Dashboard 上仍可操作，不可只留下 `command` 字串。
+- Update Workflow 沿用 Daily Check `action_payload.kind="file"` blocker 時，複製指令必須轉成安全可執行的檔案查看命令（例如 `cat backend/out/signal_alerts.json`），不得把自然語言 `next_action` 包成 shell 指令。
 - Update Workflow 的 `next_action.command` 可保留短指令供畫面閱讀；若要提供複製按鈕，應優先使用 `next_action.copy_command`，內含 `cd backend` 所需工作目錄，避免使用者在錯誤目錄執行失敗。
 - Update Workflow 的 `next_action.expected_outputs` 必須列出跑完指令後應檢查的主要產物；`daily_update.py` 流程至少包含 `ohlcv.csv`、`update_status.json`、`data_coverage_report.json`、`summary.json`、`universe_report.csv`、`daily_brief.json` 與 `daily_check.json`。
 - `daily_update.py` / `update_all_data.py` 若在 backfill、基本面同步或 signals 重算途中被中斷，必須把 `update_status.json.last_run_status` 寫成 `failed` 並附中斷原因，避免 Dashboard 長期誤顯示 running。
