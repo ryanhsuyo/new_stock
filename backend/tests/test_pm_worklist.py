@@ -147,6 +147,47 @@ def test_pm_worklist_returns_clear_state_when_no_work(monkeypatch):
     assert worklist["items"] == []
 
 
+def test_pm_worklist_preserves_update_workflow_file_payload(monkeypatch):
+    import app.services.pm_worklist_service as svc
+
+    monkeypatch.setattr(svc, "get_update_workflow_status", lambda: {
+        "overall_status": "blocked",
+        "headline": "Daily Check 判斷交易輸出不可使用，需先處理阻塞。",
+        "can_use_trade_outputs": False,
+        "current_step": "resolve_daily_check_blocker",
+        "next_action": {
+            "key": "signal_alerts",
+            "title": "隔日訊號警示",
+            "detail": "偵測到 4 筆 block 警示。",
+            "action_type": "copy_command",
+            "command": "cat backend/out/signal_alerts.json",
+            "copy_command": "cd /Users/ryan/Desktop/code/new_stock/backend\ncat backend/out/signal_alerts.json",
+            "expected_outputs": [],
+            "action_payload": {
+                "kind": "file",
+                "file_path": "backend/out/signal_alerts.json",
+                "preview_items": ["2330 台積電：隔日動作變更"],
+            },
+        },
+        "checks": {},
+    })
+    monkeypatch.setattr(svc, "get_universe", lambda: [])
+    monkeypatch.setattr(svc, "get_fundamentals_status", lambda: {"workflow_summary": {"stage": "complete"}})
+    monkeypatch.setattr(svc, "build_universe_report_review_workflow_summary", lambda limit=10: {"stage": "complete"})
+    monkeypatch.setattr(svc, "get_daily_check_report", lambda: {"overall_status": "warn", "top_actions": []})
+
+    worklist = svc.get_pm_worklist()
+
+    payload = worklist["primary_action"]["action_payload"]
+    assert worklist["primary_action"]["key"] == "update_workflow"
+    assert worklist["primary_action"]["command"] == "cat backend/out/signal_alerts.json"
+    assert payload["kind"] == "file"
+    assert payload["file_path"] == "backend/out/signal_alerts.json"
+    assert payload["preview_items"] == ["2330 台積電：隔日動作變更"]
+    assert payload["copy_command"].endswith("cat backend/out/signal_alerts.json")
+    assert payload["current_step"] == "resolve_daily_check_blocker"
+
+
 def test_pm_worklist_surfaces_official_coverage_when_daily_check_has_not_refreshed(monkeypatch):
     import app.services.pm_worklist_service as svc
 

@@ -143,6 +143,12 @@ def _update_workflow_item() -> dict[str, Any] | None:
     command = str(action.get("command") or "")
     severity = "danger" if workflow.get("overall_status") == "blocked" else "warning"
     current_step = str(workflow.get("current_step") or "")
+    action_payload = dict(action.get("action_payload") or {})
+    action_payload.setdefault("kind", "command" if command else "workflow")
+    action_payload.setdefault("command", command)
+    action_payload.setdefault("copy_command", str(action.get("copy_command") or command))
+    action_payload.setdefault("current_step", current_step)
+    action_payload.setdefault("expected_outputs", list(action.get("expected_outputs") or []))
     return _item(
         key="update_workflow",
         title=str(action.get("title") or "先處理每日更新流程"),
@@ -154,13 +160,7 @@ def _update_workflow_item() -> dict[str, Any] | None:
         command=command,
         source="update_workflow",
         metric=str(workflow.get("headline") or current_step),
-        action_payload={
-            "kind": "command" if command else "workflow",
-            "command": command,
-            "copy_command": str(action.get("copy_command") or command),
-            "current_step": current_step,
-            "expected_outputs": list(action.get("expected_outputs") or []),
-        },
+        action_payload=action_payload,
     )
 
 

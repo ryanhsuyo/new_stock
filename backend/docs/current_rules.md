@@ -44,6 +44,7 @@
 - 舊版 `GET /api/system/workflow-status` 的 `next_actions[*]` 也應提供 `action_payload`；command 類 payload 包含 `copy_command` / `expected_outputs`，API 類 payload 包含 `method` / `endpoint`，讓前端不必為新舊工作流入口各寫一套操作解析。
 - 舊版 `workflow-status.decision_guardrails` 若阻擋交易輸出，除了 `required_action` / `required_action_copy_command`，也必須提供 `required_action_expected_outputs` 與 `action_payload`，讓最後風控閘門本身就能說明「要跑什麼、在哪裡跑、跑完檢查什麼」。
 - Dashboard 首頁 PM Worklist 必須由後端 `/api/system/pm-worklist` 彙整 Update Workflow、資料修復、基本面避雷補資料、候選股復盤與 Daily Check 待辦；若 Update Workflow 顯示資料或交易輸出阻塞，必須排在 PM Worklist 最前面，並把 `next_action.expected_outputs` 傳入 `action_payload.expected_outputs`。資料修復項也必須提供 `copy_command` 與 `expected_outputs`。需要長時間執行的資料更新只複製指令或導引，不直接啟動；候選股復盤這類已定義的安全批次動作可限量寫入 `decision_journal`，但不得修改交易紀錄、持倉或現金。
+- PM Worklist 包裝 Update Workflow primary action 時，必須保留 Update Workflow 原始 `next_action.action_payload` 的 `kind`、`file_path`、`preview_items`、API metadata 等上下文，再補上 `copy_command` / `current_step` / `expected_outputs`；不得把 file/API 類操作全部降成純 command。
 - PM Worklist 顯示 Daily Check data_freshness 時，數量必須使用 `details.stale_count + details.missing_date_count`；`action_payload.preview_items` 只做範例與 focus code，不得拿來當總數，避免 preview 截斷造成低估。
 - PM Worklist 收斂 Daily Check 非重複待辦時，必須保留 Daily Check 後端提供的 `action_type`；若舊輸出缺此欄位才 fallback `daily_check`，避免前端或 PM 分組重新猜分類。
 - PM Worklist 若收斂到 Daily Check `status=block` 的非重複待辦，必須提升到 warning 維護項目前面，讓 Primary Action 優先處理 block 警示；但仍低於 Update Workflow / 資料修復這類系統級阻塞。

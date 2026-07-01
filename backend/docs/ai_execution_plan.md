@@ -92,7 +92,7 @@ Phase name: none
 
 Active phase file:
 
-None. F38 is complete; idle heartbeats should follow `backend/docs/ai_tasks/F21_heartbeat_development_operating_contract.md` to choose the next safe productization slice.
+None. F39 is complete; idle heartbeats should follow `backend/docs/ai_tasks/F21_heartbeat_development_operating_contract.md` to choose the next safe productization slice.
 
 ## 7. Required Reading
 
