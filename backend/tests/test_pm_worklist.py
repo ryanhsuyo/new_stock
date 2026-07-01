@@ -379,8 +379,12 @@ def test_pm_worklist_maps_daily_check_data_freshness_as_data_health(monkeypatch)
                 "key": "data_freshness",
                 "status": "warn",
                 "title": "追蹤股票資料日落後",
-                "message": "有 2 檔股票資料日落後，目標資料日為 2026-06-30。",
+                "message": "有 9 檔股票資料日落後，目標資料日為 2026-06-30。",
                 "next_action": "python3 scripts/daily_update.py --months 1",
+                "details": {
+                    "stale_count": 9,
+                    "missing_date_count": 0,
+                },
                 "action_payload": {
                     "kind": "command",
                     "command": "python3 scripts/daily_update.py --months 1",
@@ -404,7 +408,7 @@ def test_pm_worklist_maps_daily_check_data_freshness_as_data_health(monkeypatch)
     assert freshness["priority"] > worklist["items"][1]["priority"]
     assert freshness["action_label"] == "複製更新指令"
     assert freshness["command"] == "python3 scripts/daily_update.py --months 1"
-    assert freshness["metric"] == "2 檔資料日落後"
+    assert freshness["metric"] == "9 檔資料日落後"
     assert freshness["focus_codes"] == ["2492", "5425"]
     assert freshness["action_payload"]["copy_command"].endswith("python3 scripts/daily_update.py --months 1")
     assert freshness["action_payload"]["preview_items"] == [

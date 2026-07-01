@@ -42,6 +42,7 @@
 - 舊版 `GET /api/system/workflow-status` 的 `next_actions[*]` 也應提供 `action_payload`；command 類 payload 包含 `copy_command` / `expected_outputs`，API 類 payload 包含 `method` / `endpoint`，讓前端不必為新舊工作流入口各寫一套操作解析。
 - 舊版 `workflow-status.decision_guardrails` 若阻擋交易輸出，除了 `required_action` / `required_action_copy_command`，也必須提供 `required_action_expected_outputs` 與 `action_payload`，讓最後風控閘門本身就能說明「要跑什麼、在哪裡跑、跑完檢查什麼」。
 - Dashboard 首頁 PM Worklist 必須由後端 `/api/system/pm-worklist` 彙整 Update Workflow、資料修復、基本面避雷補資料、候選股復盤與 Daily Check 待辦；若 Update Workflow 顯示資料或交易輸出阻塞，必須排在 PM Worklist 最前面，並把 `next_action.expected_outputs` 傳入 `action_payload.expected_outputs`。資料修復項也必須提供 `copy_command` 與 `expected_outputs`。需要長時間執行的資料更新只複製指令或導引，不直接啟動；候選股復盤這類已定義的安全批次動作可限量寫入 `decision_journal`，但不得修改交易紀錄、持倉或現金。
+- PM Worklist 顯示 Daily Check data_freshness 時，數量必須使用 `details.stale_count + details.missing_date_count`；`action_payload.preview_items` 只做範例與 focus code，不得拿來當總數，避免 preview 截斷造成低估。
 - `/api/system/pm-worklist` 必須回傳 `primary_action`，代表 Dashboard 第一屏唯一最優先待辦；此欄位由後端 service 排序後產生，前端不得自行重建優先順序或用多張同權重卡片取代主待辦。
 - `/api/system/pm-worklist` 必須回傳 `today_focus`，代表 Dashboard 第一屏的今日焦點契約；每筆至少包含 `category`、`code`、`name`、`label`、`reason`、`next_action`、`severity`、`source`、`price_basis`、`as_of`。分類順序固定為 `portfolio_risk`、`entry_candidate`、`review_needed`，每類最多 3 筆；持股風險永遠優先於候選股。若交易輸出 blocked 或資料過期，`today_focus` 不得把候選股包裝成可交易進場訊號，只能提示先解除阻塞。
 - Dashboard 第一屏應以 Decision Console 呈現資料日、交易輸出可用性、價格基準、Primary Action、大盤姿態與今日焦點；完整 Update Workflow、Daily Check、PM Worklist 明細與檔案狀態應放在下方，避免第一屏資訊過載。

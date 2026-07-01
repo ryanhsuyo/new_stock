@@ -344,7 +344,12 @@ def _daily_check_items(existing_keys: set[str]) -> list[dict[str, Any]]:
             continue
         payload = action.get("action_payload") if isinstance(action.get("action_payload"), dict) else None
         if key == "data_freshness":
-            stale_count = len((payload or {}).get("preview_items") or [])
+            details = action.get("details") if isinstance(action.get("details"), dict) else {}
+            stale_count = int(details.get("stale_count") or 0)
+            missing_count = int(details.get("missing_date_count") or 0)
+            total_issue_count = stale_count + missing_count
+            if total_issue_count <= 0:
+                total_issue_count = len((payload or {}).get("preview_items") or [])
             mapped.append(_item(
                 key="data_freshness",
                 title=str(action.get("title") or "追蹤股票資料日落後"),
@@ -355,7 +360,7 @@ def _daily_check_items(existing_keys: set[str]) -> list[dict[str, Any]]:
                 action_label="複製更新指令",
                 command=str(action.get("next_action") or (payload or {}).get("command") or ""),
                 source="daily_check",
-                metric=f"{stale_count} 檔資料日落後" if stale_count else str(action.get("status") or "warn"),
+                metric=f"{total_issue_count} 檔資料日落後" if total_issue_count else str(action.get("status") or "warn"),
                 focus_codes=_focus_codes_from_preview_items(payload),
                 action_payload=payload,
             ))
