@@ -321,8 +321,19 @@ def test_daily_check_adds_today_scan_summary_and_action_when_outputs_are_usable(
     assert summary["today_scan"]["old_wang_count"] == 1
     assert summary["today_scan"]["steady_momentum_count"] == 1
     assert summary["today_scan"]["risk_count"] == 1
-    assert [item["key"] for item in summary["top_actions"]] == ["today_scan"]
-    action = summary["top_actions"][0]
+    assert [item["key"] for item in summary["top_actions"]] == ["data_freshness", "today_scan"]
+    freshness_action = summary["top_actions"][0]
+    assert freshness_action["status"] == "warn"
+    assert freshness_action["title"] == "追蹤股票資料日落後"
+    assert freshness_action["message"] == "有 1 檔股票資料日落後，目標資料日為 2026-06-25。"
+    assert freshness_action["next_action"] == "python3 scripts/daily_update.py --months 1"
+    assert freshness_action["details"]["stale_count"] == 1
+    assert freshness_action["action_payload"]["kind"] == "command"
+    assert freshness_action["action_payload"]["command"] == "python3 scripts/daily_update.py --months 1"
+    assert "cd " in freshness_action["action_payload"]["copy_command"]
+    assert "backend/out/daily_check.json" in freshness_action["action_payload"]["expected_outputs"]
+    assert freshness_action["action_payload"]["preview_items"] == ["5425 台半 仍停在 2026-06-24"]
+    action = summary["top_actions"][1]
     assert action["status"] == "warn"
     assert action["message"] == "可小試 2 檔、老王觀察 1 檔、穩健動能 1 檔、風險處理 1 檔。"
     assert action["details"]["data_freshness"]["stale_count"] == 1
@@ -332,6 +343,54 @@ def test_daily_check_adds_today_scan_summary_and_action_when_outputs_are_usable(
         "風險：2603 長榮",
         "資料日落後：5425 台半 仍停在 2026-06-24",
     ]
+
+
+def test_daily_check_prioritizes_data_freshness_before_fundamentals_warning():
+    import daily_check
+
+    report = {
+        "overall_status": "warn",
+        "exit_code": 1,
+        "generated_at": "2026-06-25",
+        "checks": [
+            {
+                "key": "outputs",
+                "status": "ok",
+                "title": "交易輸出同步",
+                "message": "ok",
+                "details": {"last_data_as_of": "2026-06-25"},
+                "next_action": "",
+            },
+            {
+                "key": "fundamentals",
+                "status": "warn",
+                "title": "基本面避雷覆蓋",
+                "message": "0/76 檔可進行基本面避雷評分。",
+                "details": {},
+                "next_action": "補基本面避雷資料。",
+            },
+        ],
+    }
+    today_scan = {
+        "as_of": "2026-06-25",
+        "formal_entries": [],
+        "old_wang_candidates": [],
+        "steady_momentum_candidates": [],
+        "risk_items": [],
+        "data_freshness": {
+            "expected_as_of": "2026-06-25",
+            "row_count": 2,
+            "fresh_count": 1,
+            "stale_count": 1,
+            "missing_date_count": 0,
+            "top_stale_items": [{"code": "2492", "name": "華新科", "data_as_of": "2026-06-24"}],
+        },
+    }
+
+    summary = daily_check.build_daily_summary(report, limit=2, today_scan=today_scan)
+
+    assert [item["key"] for item in summary["top_actions"]] == ["data_freshness", "fundamentals"]
+    assert "華新科" in summary["top_actions"][0]["action_payload"]["preview_items"][0]
 
 
 def test_daily_check_suppresses_today_scan_action_when_outputs_are_blocked():

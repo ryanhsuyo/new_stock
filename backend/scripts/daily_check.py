@@ -29,13 +29,15 @@ _SEVERITY_RANK = {"block": 0, "warn": 1, "ok": 2}
 _ACTION_KEY_RANK = {
     "outputs": 0,
     "signal_alerts": 1,
-    "fundamentals": 2,
-    "official_fundamentals_coverage": 3,
-    "data_repair": 4,
-    "today_scan": 5,
-    "decision_journal": 6,
+    "data_repair": 2,
+    "data_freshness": 3,
+    "fundamentals": 4,
+    "official_fundamentals_coverage": 5,
+    "today_scan": 6,
+    "decision_journal": 7,
 }
 _DATA_REPAIR_COMMAND = "python3 scripts/daily_update.py --months 12"
+_DATA_FRESHNESS_COMMAND = "python3 scripts/daily_update.py --months 1"
 _DATA_REPAIR_REQUIRED_ROWS = 60
 
 def _copy_command(command: str) -> str:
@@ -287,6 +289,48 @@ def _today_scan_action(today_scan_summary: dict[str, Any], can_use_trade_outputs
     }
 
 
+def _data_freshness_action(today_scan_summary: dict[str, Any], can_use_trade_outputs: bool) -> dict[str, Any] | None:
+    if not can_use_trade_outputs:
+        return None
+    freshness = today_scan_summary.get("data_freshness") or {}
+    stale_count = int(freshness.get("stale_count") or 0)
+    missing_count = int(freshness.get("missing_date_count") or 0)
+    if stale_count <= 0 and missing_count <= 0:
+        return None
+
+    stale_items = freshness.get("top_stale_items") or []
+    preview_items = [
+        f"{_item_label(item)} 仍停在 {item.get('data_as_of') or '—'}"
+        for item in stale_items[:8]
+    ]
+    if missing_count:
+        preview_items.append(f"另有 {missing_count} 檔缺少資料日。")
+
+    expected_as_of = freshness.get("expected_as_of") or today_scan_summary.get("as_of") or "最新交易日"
+    return {
+        "key": "data_freshness",
+        "status": "warn",
+        "title": "追蹤股票資料日落後",
+        "message": f"有 {stale_count} 檔股票資料日落後，目標資料日為 {expected_as_of}。",
+        "next_action": _DATA_FRESHNESS_COMMAND,
+        "details": {
+            "expected_as_of": expected_as_of,
+            "row_count": int(freshness.get("row_count") or 0),
+            "fresh_count": int(freshness.get("fresh_count") or 0),
+            "stale_count": stale_count,
+            "missing_date_count": missing_count,
+            "top_stale_items": stale_items,
+        },
+        "action_payload": {
+            "kind": "command",
+            "command": _DATA_FRESHNESS_COMMAND,
+            "copy_command": _copy_command(_DATA_FRESHNESS_COMMAND),
+            "expected_outputs": _expected_outputs_for_command(_DATA_FRESHNESS_COMMAND),
+            "preview_items": preview_items,
+        },
+    }
+
+
 def _normalize_action_payload(payload: dict[str, Any]) -> dict[str, Any]:
     normalized = dict(payload)
     command = str(normalized.get("command") or "")
@@ -301,12 +345,17 @@ def _normalize_action_payload(payload: dict[str, Any]) -> dict[str, Any]:
 
 def _print_action_payload(payload: dict[str, Any]) -> None:
     kind = payload.get("kind")
+    preview_items = payload.get("preview_items") or []
+    if preview_items:
+        print("   預覽：")
+        for item in preview_items[:8]:
+            print(f"     - {item}")
     if kind == "file" and payload.get("file_path"):
         print(f"   查看檔案：{payload['file_path']}")
     elif kind == "copy_text":
-        preview_items = preview_numbered_lines(str(payload.get("copy_text") or ""))
-        if preview_items:
-            print(f"   優先補基本面：{', '.join(preview_items)}")
+        copy_preview_items = preview_numbered_lines(str(payload.get("copy_text") or ""))
+        if copy_preview_items:
+            print(f"   優先補基本面：{', '.join(copy_preview_items)}")
         if payload.get("file_path"):
             print(f"   目標檔案：{payload['file_path']}")
         if payload.get("write_template_command"):
@@ -420,6 +469,7 @@ def build_daily_summary(
         action
         for action in [
             _signal_alert_action(signal_alerts),
+            _data_freshness_action(today_scan_summary, can_use_trade_outputs),
             _today_scan_action(today_scan_summary, can_use_trade_outputs),
             _data_repair_action(data_repair),
             _official_coverage_action() if include_official_coverage else None,
