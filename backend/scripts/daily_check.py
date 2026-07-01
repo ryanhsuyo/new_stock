@@ -38,6 +38,8 @@ _ACTION_KEY_RANK = {
 }
 _DATA_REPAIR_COMMAND = "python3 scripts/daily_update.py --months 12"
 _DATA_FRESHNESS_COMMAND = "python3 scripts/daily_update.py --months 1"
+_SIGNAL_ALERTS_FILE = "backend/out/signal_alerts.json"
+_SIGNAL_ALERTS_COMMAND = f"cat {_SIGNAL_ALERTS_FILE}"
 _DATA_REPAIR_REQUIRED_ROWS = 60
 
 def _copy_command(command: str) -> str:
@@ -201,7 +203,9 @@ def _signal_alert_action(alerts: dict[str, Any] | None) -> dict[str, Any] | None
         },
         "action_payload": {
             "kind": "file",
-            "file_path": "backend/out/signal_alerts.json",
+            "file_path": _SIGNAL_ALERTS_FILE,
+            "copy_command": _copy_command(_SIGNAL_ALERTS_COMMAND),
+            "expected_outputs": [_SIGNAL_ALERTS_FILE],
             "preview_items": [
                 f"{item.get('code')} {item.get('name')}：{item.get('title')}"
                 for item in (alerts.get("alerts") or [])[:5]

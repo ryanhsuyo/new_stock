@@ -259,6 +259,8 @@ def test_daily_check_adds_signal_alert_action_before_warnings():
     assert action["status"] == "block"
     assert action["action_payload"]["kind"] == "file"
     assert action["action_payload"]["file_path"] == "backend/out/signal_alerts.json"
+    assert action["action_payload"]["copy_command"].endswith("backend\ncat backend/out/signal_alerts.json")
+    assert action["action_payload"]["expected_outputs"] == ["backend/out/signal_alerts.json"]
     assert action["action_payload"]["preview_items"] == ["2330 台積電：持股/候選轉風險"]
 
 
