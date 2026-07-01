@@ -18,11 +18,11 @@ Loop mode: waiting_for_next_phase
 
 Last completed phase:
 
-* `F32_dashboard_today_scan_freshness_hint.md` — Dashboard Today Scan now shows backend-owned stale / missing-date freshness warnings.
+* `F33_daily_check_action_type_contract.md` — Daily Check top actions now include stable backend-owned action types.
 
 Current phase status:
 
-* No active phase. F32 is done; when a heartbeat wakes with no active phase, use the F21 operating contract to select the next safe productization slice.
+* No active phase. F33 is done; when a heartbeat wakes with no active phase, use the F21 operating contract to select the next safe productization slice.
 
 ## Completed Phase History Summary
 
@@ -33,7 +33,7 @@ Large historical phase detail is intentionally summarized here. Use phase files 
 * Fundamentals priority import phases R9.0 through R9.2 are complete.
 * Daily Check / Today Scan observability phase D1.0 is complete.
 * Official fundamentals and Quality Momentum Lite phases F1 through F20 are complete.
-* Heartbeat/product-health phases F21 through F32 are complete.
+* Heartbeat/product-health phases F21 through F33 are complete.
 
 Recent completed phases:
 
@@ -49,6 +49,7 @@ Recent completed phases:
 * F30 — Added frontend Today Scan API client/types contract.
 * F31 — Displayed backend-owned Today Scan summary in Dashboard Decision Console.
 * F32 — Displayed backend-owned Today Scan freshness warning in Dashboard Decision Console.
+* F33 — Added stable `action_type` values to Daily Check top actions.
 
 ## Next Phase Candidates
 
@@ -81,7 +82,8 @@ Recent verification:
 * F30 frontend Today Scan contract test passed: `node --test frontend/tests/today-scan-api-contract.test.mjs`
 * F31 frontend structure tests passed: `node --test frontend/tests/*.test.mjs`
 * F32 frontend focused/all structure tests and build passed: `node --test frontend/tests/today-scan-dashboard.test.mjs`, `node --test frontend/tests/*.test.mjs`, `npm run build`
+* F33 Daily Check tests passed: `/Library/Frameworks/Python.framework/Versions/3.11/bin/python3 -m pytest backend/tests/test_daily_check.py -q`
 
 ## Last Stop Reason
 
-F32 completed. Continue proactively by selecting the next safe small productization phase from the F21 operating contract when no active phase exists.
+F33 completed. Continue proactively by selecting the next safe small productization phase from the F21 operating contract when no active phase exists.

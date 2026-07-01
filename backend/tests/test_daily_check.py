@@ -59,10 +59,12 @@ def test_daily_check_builds_summary_from_doctor_report():
     assert summary["can_use_trade_outputs"] is True
     assert len(summary["top_actions"]) == 2
     assert summary["top_actions"][0]["key"] == "fundamentals"
+    assert summary["top_actions"][0]["action_type"] == "fundamentals"
     assert summary["top_actions"][0]["action_payload"]["kind"] == "copy_text"
     assert "台積電 2330" in summary["top_actions"][0]["action_payload"]["copy_text"]
     assert summary["top_actions"][0]["action_payload"]["preview_items"] == ["台積電 2330"]
     assert summary["top_actions"][1]["details"]["missing_codes"] == ["2330", "2454"]
+    assert summary["top_actions"][1]["action_type"] == "decision_journal"
 
 
 def test_daily_check_surfaces_official_coverage_audit_without_generating_reports(monkeypatch):
@@ -86,6 +88,7 @@ def test_daily_check_surfaces_official_coverage_audit_without_generating_reports
     summary = daily_check.build_daily_summary(report, limit=3, include_official_coverage=True)
 
     action = next(item for item in summary["top_actions"] if item["key"] == "official_fundamentals_coverage")
+    assert action["action_type"] == "fundamentals"
     assert action["status"] == "warn"
     assert "37.5%" in action["message"]
     assert action["details"]["target_count"] == 2
@@ -116,6 +119,7 @@ def test_daily_check_guides_when_official_coverage_priority_csv_is_missing(monke
     summary = daily_check.build_daily_summary(report, limit=3, include_official_coverage=True)
 
     action = next(item for item in summary["top_actions"] if item["key"] == "official_fundamentals_coverage")
+    assert action["action_type"] == "fundamentals"
     assert action["status"] == "warn"
     assert "fundamentals_priority_fill.csv" in action["message"]
     assert action["action_payload"]["kind"] == "api"
@@ -249,6 +253,7 @@ def test_daily_check_adds_signal_alert_action_before_warnings():
     assert summary["signal_alerts"]["alert_count"] == 1
     assert [item["key"] for item in summary["top_actions"]] == ["signal_alerts", "fundamentals"]
     action = summary["top_actions"][0]
+    assert action["action_type"] == "signal_alerts"
     assert action["status"] == "block"
     assert action["action_payload"]["kind"] == "file"
     assert action["action_payload"]["file_path"] == "backend/out/signal_alerts.json"
@@ -323,6 +328,7 @@ def test_daily_check_adds_today_scan_summary_and_action_when_outputs_are_usable(
     assert summary["today_scan"]["risk_count"] == 1
     assert [item["key"] for item in summary["top_actions"]] == ["data_freshness", "today_scan"]
     freshness_action = summary["top_actions"][0]
+    assert freshness_action["action_type"] == "data_freshness"
     assert freshness_action["status"] == "warn"
     assert freshness_action["title"] == "追蹤股票資料日落後"
     assert freshness_action["message"] == "有 1 檔股票資料日落後，目標資料日為 2026-06-25。"
@@ -334,6 +340,7 @@ def test_daily_check_adds_today_scan_summary_and_action_when_outputs_are_usable(
     assert "backend/out/daily_check.json" in freshness_action["action_payload"]["expected_outputs"]
     assert freshness_action["action_payload"]["preview_items"] == ["5425 台半 仍停在 2026-06-24"]
     action = summary["top_actions"][1]
+    assert action["action_type"] == "today_scan"
     assert action["status"] == "warn"
     assert action["message"] == "可小試 2 檔、老王觀察 1 檔、穩健動能 1 檔、風險處理 1 檔。"
     assert action["details"]["data_freshness"]["stale_count"] == 1
@@ -390,6 +397,7 @@ def test_daily_check_prioritizes_data_freshness_before_fundamentals_warning():
     summary = daily_check.build_daily_summary(report, limit=2, today_scan=today_scan)
 
     assert [item["key"] for item in summary["top_actions"]] == ["data_freshness", "fundamentals"]
+    assert [item["action_type"] for item in summary["top_actions"]] == ["data_freshness", "fundamentals"]
     assert "華新科" in summary["top_actions"][0]["action_payload"]["preview_items"][0]
 
 
@@ -457,6 +465,7 @@ def test_daily_check_includes_data_repair_queue_from_universe():
     assert repair["command"] == "python3 scripts/daily_update.py --months 12"
     assert [item["code"] for item in repair["top_items"]] == ["9999", "8888"]
     data_repair_action = next(action for action in summary["top_actions"] if action["key"] == "data_repair")
+    assert data_repair_action["action_type"] == "data_repair"
     assert data_repair_action["action_payload"]["command"] == "python3 scripts/daily_update.py --months 12"
     assert data_repair_action["action_payload"]["copy_command"].endswith(
         "cd /Users/ryan/Desktop/code/new_stock/backend\npython3 scripts/daily_update.py --months 12"

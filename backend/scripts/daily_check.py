@@ -343,6 +343,26 @@ def _normalize_action_payload(payload: dict[str, Any]) -> dict[str, Any]:
     return normalized
 
 
+def _action_type_for_key(key: str) -> str:
+    mapping = {
+        "data_repair": "data_repair",
+        "data_freshness": "data_freshness",
+        "decision_journal": "decision_journal",
+        "fundamentals": "fundamentals",
+        "official_fundamentals_coverage": "fundamentals",
+        "signal_alerts": "signal_alerts",
+        "today_scan": "today_scan",
+    }
+    return mapping.get(key, "daily_check")
+
+
+def _with_action_type(action: dict[str, Any]) -> dict[str, Any]:
+    normalized = dict(action)
+    key = str(normalized.get("key") or "")
+    normalized["action_type"] = str(normalized.get("action_type") or _action_type_for_key(key))
+    return normalized
+
+
 def _print_action_payload(payload: dict[str, Any]) -> None:
     kind = payload.get("kind")
     preview_items = payload.get("preview_items") or []
@@ -386,6 +406,7 @@ def _top_actions(
             continue
         item = {
             "key": str(check.get("key") or ""),
+            "action_type": _action_type_for_key(str(check.get("key") or "")),
             "status": str(check.get("status") or ""),
             "title": str(check.get("title") or ""),
             "message": str(check.get("message") or ""),
@@ -395,7 +416,7 @@ def _top_actions(
         if isinstance(check.get("action_payload"), dict):
             item["action_payload"] = _normalize_action_payload(check["action_payload"])
         candidates.append(item)
-    candidates.extend(extra_actions or [])
+    candidates.extend(_with_action_type(action) for action in (extra_actions or []))
     candidates.sort(
         key=lambda item: (
             _SEVERITY_RANK.get(item["status"], 9),
