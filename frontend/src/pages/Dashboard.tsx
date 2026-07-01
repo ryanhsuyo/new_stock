@@ -1133,7 +1133,12 @@ function PmWorklistBox({
   }
 
   const worklistGroupForItem = (item: WorklistItem) => {
-    if (item.severity === 'danger' || item.key === 'update_workflow' || item.action_type === 'data_repair') {
+    if (
+      item.severity === 'danger'
+      || item.key === 'update_workflow'
+      || item.action_type === 'data_repair'
+      || item.action_type === 'data_freshness'
+    ) {
       return { key: 'blockers', label: '阻塞 / 資料修復' }
     }
     if (item.action_type === 'decision_journal') {

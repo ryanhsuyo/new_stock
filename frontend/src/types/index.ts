@@ -268,7 +268,7 @@ export interface PmWorklistItem {
   priority: number
   severity: 'danger' | 'warning' | 'info' | string
   status: 'todo' | 'done' | string
-  action_type: 'data_repair' | 'fundamentals' | 'decision_journal' | 'daily_check' | string
+  action_type: 'data_repair' | 'data_freshness' | 'fundamentals' | 'decision_journal' | 'daily_check' | string
   action_label: string
   command: string
   source: string
