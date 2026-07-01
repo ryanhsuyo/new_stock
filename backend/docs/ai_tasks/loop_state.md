@@ -18,11 +18,11 @@ Loop mode: waiting_for_next_phase
 
 Last completed phase:
 
-* `F20_weekly_recommendation_product_language.md` — recommendation page language now separates weekly list from daily scan
+* `F21_heartbeat_development_operating_contract.md` — heartbeat now has a deterministic operating loop and safe product backlog
 
 Current phase status:
 
-* No active phase. F20 is done; start a new phase only when there is a concrete next product or data task.
+* No active phase. F21 is done; when a heartbeat wakes with no active phase, use the F21 operating contract to select the next safe productization slice.
 
 ## Completed Phase History
 
@@ -95,11 +95,18 @@ Current phase status:
 * F18 — Closed end-to-end two-strategy execution verification, read-only Quality Momentum Lite guard coverage, API visibility, and PE-only apply-path decision.
 * F19 — Added Today Scan data freshness summary and Daily Check preview for partial stale universe rows.
 * F20 — Clarified UI product language: weekly recommendations are separate from daily scan signals.
+* F21 — Added heartbeat operating contract, safe backlog order, slice limits, and notify policy.
 
 ## Next Phase Candidates
 
-* Prepare a commit-ready change summary for F1-F15 official fundamentals workflow.
-* Add a small official fundamentals smoke-verification phase only after deciding whether generated `backend/out/*` refreshes should be part of the heartbeat.
+Use `F21_heartbeat_development_operating_contract.md` when no active phase exists. Current preferred backlog order:
+
+* Product health and freshness.
+* Daily use path noise reduction.
+* Today Scan / Universe Report scanability.
+* Two-strategy reliability checks.
+* Official fundamentals observability.
+* Documentation consistency.
 
 ## Last Verification
 
@@ -138,6 +145,7 @@ Current phase status:
 * F18 lite guard coverage/API tests: `/Library/Frameworks/Python.framework/Versions/3.11/bin/python3 -m pytest backend/tests/test_official_fundamentals_api.py backend/tests/test_official_fundamentals_service.py -q` passed, 26 tests.
 * F19 product observability tests: `/Library/Frameworks/Python.framework/Versions/3.11/bin/python3 -m pytest backend/tests/test_today_scan_service.py backend/tests/test_daily_check.py -q` passed.
 * F20 frontend wording test: `node --test frontend/tests/weekly-recommendation-language.test.mjs` passed.
+* F21 docs sanity: `rg -n "F21|heartbeat|Safe Backlog|Active phase: none|Phase ID: none" backend/docs/ai_tasks/F21_heartbeat_development_operating_contract.md backend/docs/ai_execution_plan.md backend/docs/ai_tasks/loop_state.md` passed.
 * Fundamentals wording regression tests: `/Library/Frameworks/Python.framework/Versions/3.11/bin/python3 -m pytest backend/tests/test_fundamentals_cli.py -q` passed, 14 tests.
 * R9 focused fundamentals service tests: `/Library/Frameworks/Python.framework/Versions/3.11/bin/python3 -m pytest backend/tests/test_fundamental_service.py -q` passed, 20 tests.
 * R9 focused fundamentals CLI tests: `/Library/Frameworks/Python.framework/Versions/3.11/bin/python3 -m pytest backend/tests/test_fundamentals_cli.py::test_prepare_fundamentals_priority_import_help_exits_0 backend/tests/test_fundamentals_cli.py::test_prepare_fundamentals_priority_import_prints_preview -q` passed, 2 tests.
@@ -166,4 +174,4 @@ Current phase status:
 
 ## Last Stop Reason
 
-F20 completed. Continue proactively with small productization phases when a clear low-risk task is visible.
+F21 completed. Continue proactively by selecting the next safe small productization phase from the F21 operating contract when no active phase exists.

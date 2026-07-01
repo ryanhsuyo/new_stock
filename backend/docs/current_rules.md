@@ -4,6 +4,8 @@
 
 詳細欄位規格與完整定義仍以 `backend/docs/signal_rules.md` 為準；本文件負責整理目前實際採用的判斷優先順序與操作語氣。
 
+心跳自動開發若沒有 active phase，必須先依 `backend/docs/ai_tasks/F21_heartbeat_development_operating_contract.md` 選擇下一個低風險產品化切片；不可只因健康檢查正常就長期空轉，也不可跳過 phase 文件直接大改策略或資料流程。
+
 ---
 
 ## 1) 核心定位

@@ -92,7 +92,7 @@ Phase name: none
 
 Active phase file:
 
-None. F20 is complete; create a new phase file only for a concrete next product or data task.
+None. F21 is complete; idle heartbeats should follow `backend/docs/ai_tasks/F21_heartbeat_development_operating_contract.md` to choose the next safe productization slice.
 
 ## 7. Required Reading
 
@@ -105,6 +105,7 @@ Before changing code, read:
 * `backend/docs/homepage_pm_roadmap.md`
 * `backend/docs/ai_execution_plan.md`
 * `backend/docs/ai_tasks/loop_state.md`
+* `backend/docs/ai_tasks/F21_heartbeat_development_operating_contract.md` when there is no active phase
 * Active phase file listed above
 
 Task files should reference these docs instead of copying their full content.
