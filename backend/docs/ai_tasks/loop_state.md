@@ -18,11 +18,11 @@ Loop mode: waiting_for_next_phase
 
 Last completed phase:
 
-* `F19_partial_data_freshness_visibility.md` — Daily Check now surfaces partial stale Today Scan rows
+* `F20_weekly_recommendation_product_language.md` — recommendation page language now separates weekly list from daily scan
 
 Current phase status:
 
-* No active phase. F19 is done; start a new phase only when there is a concrete next product or data task.
+* No active phase. F20 is done; start a new phase only when there is a concrete next product or data task.
 
 ## Completed Phase History
 
@@ -94,6 +94,7 @@ Current phase status:
 * F17 — Constrained `steady_momentum` to Quality Momentum Lite so the second strategy uses low-cost fundamentals guardrails instead of requiring all 11 advanced fields.
 * F18 — Closed end-to-end two-strategy execution verification, read-only Quality Momentum Lite guard coverage, API visibility, and PE-only apply-path decision.
 * F19 — Added Today Scan data freshness summary and Daily Check preview for partial stale universe rows.
+* F20 — Clarified UI product language: weekly recommendations are separate from daily scan signals.
 
 ## Next Phase Candidates
 
@@ -136,6 +137,7 @@ Current phase status:
 * F18 focused strategy tests: `/Library/Frameworks/Python.framework/Versions/3.11/bin/python3 -m pytest backend/tests/test_signals_api.py::TestSignalsOutput backend/tests/test_today_scan_service.py backend/tests/test_today_scan_cli.py backend/tests/test_rules_metadata_service.py backend/tests/test_fundamental_guard.py backend/tests/test_fundamental_service.py backend/tests/test_fundamentals_cli.py -q` passed, 75 tests.
 * F18 lite guard coverage/API tests: `/Library/Frameworks/Python.framework/Versions/3.11/bin/python3 -m pytest backend/tests/test_official_fundamentals_api.py backend/tests/test_official_fundamentals_service.py -q` passed, 26 tests.
 * F19 product observability tests: `/Library/Frameworks/Python.framework/Versions/3.11/bin/python3 -m pytest backend/tests/test_today_scan_service.py backend/tests/test_daily_check.py -q` passed.
+* F20 frontend wording test: `node --test frontend/tests/weekly-recommendation-language.test.mjs` passed.
 * Fundamentals wording regression tests: `/Library/Frameworks/Python.framework/Versions/3.11/bin/python3 -m pytest backend/tests/test_fundamentals_cli.py -q` passed, 14 tests.
 * R9 focused fundamentals service tests: `/Library/Frameworks/Python.framework/Versions/3.11/bin/python3 -m pytest backend/tests/test_fundamental_service.py -q` passed, 20 tests.
 * R9 focused fundamentals CLI tests: `/Library/Frameworks/Python.framework/Versions/3.11/bin/python3 -m pytest backend/tests/test_fundamentals_cli.py::test_prepare_fundamentals_priority_import_help_exits_0 backend/tests/test_fundamentals_cli.py::test_prepare_fundamentals_priority_import_prints_preview -q` passed, 2 tests.
@@ -164,4 +166,4 @@ Current phase status:
 
 ## Last Stop Reason
 
-F19 completed. No safe autonomous next phase is currently selected; wait for the next concrete product/data signal before implementing more changes.
+F20 completed. Continue proactively with small productization phases when a clear low-risk task is visible.

@@ -70,6 +70,27 @@ body {
 }
 .page-subtitle { font-size: 16px; font-weight: 700; color: #333; }
 
+.weekly-recommendation-note {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  margin: -8px 0 16px;
+  border: 1px solid #bfdbfe;
+  border-radius: 10px;
+  background: #eff6ff;
+  color: #1e3a8a;
+  padding: 10px 12px;
+  font-size: 13px;
+  line-height: 1.45;
+}
+.weekly-recommendation-note strong {
+  flex: 0 0 auto;
+  white-space: nowrap;
+}
+.weekly-recommendation-note span {
+  color: #36506b;
+}
+
 /* ── Buttons ──────────────────────────────────────────────────────────────── */
 .btn {
   display: inline-flex;

@@ -48,6 +48,14 @@ export default function StocksPage({ onNavigateAnalysis }: Props) {
         </button>
       </div>
 
+      <div className="weekly-recommendation-note">
+        <strong>正式推薦以週為單位</strong>
+        <span>
+          每日盤後掃描只用來更新候選、風險與進出場提醒；今日異動請看 Dashboard / Today Scan，
+          本頁保留本週主要觀察與可執行標的，避免每天追價換單。
+        </span>
+      </div>
+
       {stocks.length === 0 && (
         summary
           ? <NoSignalExplainer summary={summary} />

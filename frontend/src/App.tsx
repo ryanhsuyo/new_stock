@@ -14,7 +14,7 @@ type UniverseJournalFilter = 'all' | 'unrecorded' | 'recorded'
 
 const TABS: { id: Tab; label: string }[] = [
   { id: 'dashboard',       label: '訊號 Dashboard' },
-  { id: 'stocks',          label: '推薦清單' },
+  { id: 'stocks',          label: '本週推薦' },
   { id: 'universe-report', label: '候選股篩選報告' },
   { id: 'analysis',        label: '技術分析' },
   { id: 'watchlists',      label: '觀察清單' },

@@ -392,6 +392,7 @@ Dashboard 補資料流程：
 - 每次 `run_signals.py` 應由 `signal_snapshot_review.json` 產生 `backend/out/signal_alerts.json`；alerts 只整理 `risk_triggered`、`action_changed`、`risk_eased`、`missing_current` 等變化，作為 Daily Check 待辦提示，不代表外部通知已送出。
 - `summary.json`、`daily_brief.json`、signal snapshot、snapshot review 與 `signal_alerts.json` 都必須保留同一份 `rules_version` / `rules_metadata`，避免日後無法解釋舊輸出。
 - `python3 scripts/today_scan.py` 是盤後規則掃描入口，只能讀取既有 `summary.json` / `daily_brief.json` / `universe_report.csv`，分出正式可小試、老王觀察、穩健動能與風險處理；不得重算策略、放寬濾網或新增推薦桶。
+- UI 上應區分「本週推薦」與「每日盤後掃描」：推薦頁是每週主要觀察 / 可執行清單，Today Scan / Daily Check 是每日候選、風險與提醒；不得把每日掃描文案包裝成每天正式換單。
 - `run_signals.py` 每次產生正式輸出時應同步刷新 `backend/out/today_scan.json`；每日更新流程的預期輸出也必須包含此檔，避免使用者看到舊掃描分桶。
 - `today_scan.json` 是衍生報告，必須保留資料日、規則版本、大盤濾網與分桶原因；老王大盤濾網為 block 時，老王候選只能列觀察並顯示封鎖原因。
 - 每次刷新 `today_scan.json` 時，應同步保存 `backend/out/today_scans/today_scan_YYYY-MM-DD.json`，供隔日驗算與歷史復盤；此快照同樣不得新增交易判斷。
