@@ -18,11 +18,11 @@ Loop mode: waiting_for_next_phase
 
 Last completed phase:
 
-* `F30_today_scan_frontend_contract.md` — Frontend now has a typed read-only Today Scan API contract.
+* `F31_dashboard_today_scan_summary_card.md` — Dashboard Decision Console now shows a backend-owned Today Scan summary card.
 
 Current phase status:
 
-* No active phase. F30 is done; when a heartbeat wakes with no active phase, use the F21 operating contract to select the next safe productization slice.
+* No active phase. F31 is done; when a heartbeat wakes with no active phase, use the F21 operating contract to select the next safe productization slice.
 
 ## Completed Phase History Summary
 
@@ -33,7 +33,7 @@ Large historical phase detail is intentionally summarized here. Use phase files 
 * Fundamentals priority import phases R9.0 through R9.2 are complete.
 * Daily Check / Today Scan observability phase D1.0 is complete.
 * Official fundamentals and Quality Momentum Lite phases F1 through F20 are complete.
-* Heartbeat/product-health phases F21 through F30 are complete.
+* Heartbeat/product-health phases F21 through F31 are complete.
 
 Recent completed phases:
 
@@ -47,6 +47,7 @@ Recent completed phases:
 * F28 — Displayed Today Scan strategy score summaries in text CLI output.
 * F29 — Added read-only Today Scan system API endpoint.
 * F30 — Added frontend Today Scan API client/types contract.
+* F31 — Displayed backend-owned Today Scan summary in Dashboard Decision Console.
 
 ## Next Phase Candidates
 
@@ -77,7 +78,8 @@ Recent verification:
 * F28 Today Scan CLI tests passed: `/Library/Frameworks/Python.framework/Versions/3.11/bin/python3 -m pytest backend/tests/test_today_scan_cli.py -q`
 * F29 Today Scan API tests passed: `/Library/Frameworks/Python.framework/Versions/3.11/bin/python3 -m pytest backend/tests/test_today_scan_api.py -q`
 * F30 frontend Today Scan contract test passed: `node --test frontend/tests/today-scan-api-contract.test.mjs`
+* F31 frontend structure tests passed: `node --test frontend/tests/*.test.mjs`
 
 ## Last Stop Reason
 
-F30 completed. Continue proactively by selecting the next safe small productization phase from the F21 operating contract when no active phase exists.
+F31 completed. Continue proactively by selecting the next safe small productization phase from the F21 operating contract when no active phase exists.

@@ -14,7 +14,7 @@ import ParseErrorAlert from '../components/ParseErrorAlert'
 import PrimaryActionCard from '../components/PrimaryActionCard'
 import TodayFocusCards from '../components/TodayFocusCards'
 import UpdateWorkflowBox from '../components/UpdateWorkflowBox'
-import type { DailyBrief, DailyCheckReport, DataStatus, DecisionJournalCreate, DecisionJournalDecision, DecisionJournalEntry, DecisionJournalSummary, FundamentalsPriorityMergeResult, FundamentalsStatus, ManualWatchlistReview, MarketNoteInput, OfficialFundamentalsCoverageAudit, OfficialFundamentalsStatus, PmWorklist, RecommendationStrategy, SignalsSummary, SignalsStatus, StockRecommendation, StockUniverseItem, UniverseReportReviewWorkflow, UpdateWorkflowStatus, WorkflowPortfolioTask, WorkflowStatus } from '../types'
+import type { DailyBrief, DailyCheckReport, DataStatus, DecisionJournalCreate, DecisionJournalDecision, DecisionJournalEntry, DecisionJournalSummary, FundamentalsPriorityMergeResult, FundamentalsStatus, ManualWatchlistReview, MarketNoteInput, OfficialFundamentalsCoverageAudit, OfficialFundamentalsStatus, PmWorklist, RecommendationStrategy, SignalsSummary, SignalsStatus, StockRecommendation, StockUniverseItem, TodayScanReport, UniverseReportReviewWorkflow, UpdateWorkflowStatus, WorkflowPortfolioTask, WorkflowStatus } from '../types'
 
 interface WorkflowUniversePendingItem {
   code: string
@@ -1261,6 +1261,7 @@ function DecisionConsole({
   dataStatus,
   updateWorkflow,
   worklist,
+  todayScan,
   dailyBrief,
   workflow,
   busy,
@@ -1274,6 +1275,7 @@ function DecisionConsole({
   dataStatus: DataStatus | null
   updateWorkflow: UpdateWorkflowStatus | null
   worklist: PmWorklist | null
+  todayScan: TodayScanReport | null
   dailyBrief: DailyBrief | null
   workflow: WorkflowStatus | null
   busy: boolean
@@ -1424,6 +1426,11 @@ function DecisionConsole({
           onNavigateAnalysis={onNavigateAnalysis}
           onFocusDecisionJournal={onFocusDecisionJournal}
         />
+
+        <TodayScanQuickCard
+          todayScan={todayScan}
+          onNavigateAnalysis={onNavigateAnalysis}
+        />
       </div>
 
       <MarketPostureCard
@@ -1431,6 +1438,56 @@ function DecisionConsole({
         {...marketPostureProps}
       />
     </section>
+  )
+}
+
+function TodayScanQuickCard({
+  todayScan,
+  onNavigateAnalysis,
+}: {
+  todayScan: TodayScanReport | null
+  onNavigateAnalysis?: (code: string) => void
+}) {
+  if (!todayScan) {
+    return (
+      <div className="decision-console-card today-scan-quick-card">
+        <span>Today Scan</span>
+        <strong>尚未產生</strong>
+        <p>先跑盤後更新或 today_scan.py，產生每日候選與風險分桶。</p>
+      </div>
+    )
+  }
+
+  const formalCount = todayScan.formal_entries.length
+  const oldWangCount = todayScan.old_wang_candidates.length
+  const steadyCount = todayScan.steady_momentum_candidates.length
+  const riskCount = todayScan.risk_items.length
+  const firstEntry = todayScan.formal_entries[0] ?? todayScan.old_wang_candidates[0] ?? todayScan.steady_momentum_candidates[0] ?? null
+  const strategySummary = firstEntry?.strategy_score_summary?.summary_label
+
+  return (
+    <div className="decision-console-card today-scan-quick-card">
+      <span>Today Scan</span>
+      <strong>{todayScan.as_of || '資料日待確認'}</strong>
+      <div className="today-scan-counts" aria-label="今日掃描分桶">
+        <b>可小試 {formalCount}</b>
+        <b>老王 {oldWangCount}</b>
+        <b>穩健 {steadyCount}</b>
+        <b>風險 {riskCount}</b>
+      </div>
+      {firstEntry ? (
+        <button
+          className="today-scan-lead"
+          onClick={() => onNavigateAnalysis?.(firstEntry.code)}
+          title={firstEntry.reason || strategySummary || ''}
+        >
+          <span>{firstEntry.name} {firstEntry.code}</span>
+          <em>{strategySummary || firstEntry.daily_action_label || '查看候選'}</em>
+        </button>
+      ) : (
+        <p>目前沒有可顯示的掃描候選。</p>
+      )}
+    </div>
   )
 }
 
@@ -2071,6 +2128,7 @@ export default function Dashboard({ onNavigateAnalysis, onNavigateUniverseReport
   const [workflowStatus, setWorkflowStatus] = useState<WorkflowStatus | null>(null)
   const [updateWorkflow, setUpdateWorkflow] = useState<UpdateWorkflowStatus | null>(null)
   const [pmWorklist, setPmWorklist] = useState<PmWorklist | null>(null)
+  const [todayScan, setTodayScan] = useState<TodayScanReport | null>(null)
   const [dailyCheck, setDailyCheck] = useState<DailyCheckReport | null>(null)
   const [decisionJournal, setDecisionJournal] = useState<DecisionJournalEntry[]>([])
   const [decisionJournalSummary, setDecisionJournalSummary] = useState<DecisionJournalSummary | null>(null)
@@ -2138,7 +2196,7 @@ export default function Dashboard({ onNavigateAnalysis, onNavigateUniverseReport
   }
 
   const fetchAll = async (nextStrategy: RecommendationStrategy = strategy) => {
-    const [s, r, ds, fs, ofs, oca, wf, uw, pm, dc, sm, brief, manual, universeItems] = await Promise.all([
+    const [s, r, ds, fs, ofs, oca, wf, uw, pm, scan, dc, sm, brief, manual, universeItems] = await Promise.all([
       api.getSignalsStatus(),
       api.getRecommendations(nextStrategy),
       api.getDataStatus(),
@@ -2148,6 +2206,7 @@ export default function Dashboard({ onNavigateAnalysis, onNavigateUniverseReport
       api.getWorkflowStatus(),
       api.getUpdateWorkflow(),
       api.getPmWorklist(),
+      api.getTodayScanOrNull(),
       api.getDailyCheckOrNull(),
       api.getSummaryOrNull(),
       api.getDailyBriefOrNull(),
@@ -2163,6 +2222,7 @@ export default function Dashboard({ onNavigateAnalysis, onNavigateUniverseReport
     setWorkflowStatus(wf)
     setUpdateWorkflow(uw)
     setPmWorklist(pm)
+    setTodayScan(scan)
     setDailyCheck(dc)
     await refreshDecisionJournal(wf, journalDateFilter || wf.data_as_of || todayInputValue(), journalDecisionFilter, journalCodeFilter)
     setSummary(sm)
@@ -2621,6 +2681,7 @@ export default function Dashboard({ onNavigateAnalysis, onNavigateUniverseReport
         dataStatus={dataStatus}
         updateWorkflow={updateWorkflow}
         worklist={pmWorklist}
+        todayScan={todayScan}
         dailyBrief={dailyBrief}
         workflow={workflowStatus}
         busy={isBusy || isDataRunning}
