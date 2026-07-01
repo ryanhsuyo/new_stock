@@ -49,6 +49,7 @@
 - PM Worklist 收斂 Daily Check 非重複待辦時，必須保留 Daily Check 後端提供的 `action_type`；若舊輸出缺此欄位才 fallback `daily_check`，避免前端或 PM 分組重新猜分類。
 - PM Worklist 若收斂到 Daily Check `status=block` 的非重複待辦，必須提升到 warning 維護項目前面，讓 Primary Action 優先處理 block 警示；但仍低於 Update Workflow / 資料修復這類系統級阻塞。
 - `/api/system/pm-worklist` 必須回傳 `primary_action`，代表 Dashboard 第一屏唯一最優先待辦；此欄位由後端 service 排序後產生，前端不得自行重建優先順序或用多張同權重卡片取代主待辦。
+- Dashboard 第一屏 Primary Action 卡片應呈現後端提供的 `action_payload.file_path`、`preview_items` 與 `expected_outputs`，讓使用者不用展開明細也能知道要看哪個檔案、有哪些範例與跑完後檢查什麼；前端只能顯示此上下文，不得自行重算 PM 優先序或改寫行動分類。
 - `/api/system/pm-worklist` 必須回傳 `today_focus`，代表 Dashboard 第一屏的今日焦點契約；每筆至少包含 `category`、`code`、`name`、`label`、`reason`、`next_action`、`severity`、`source`、`price_basis`、`as_of`。分類順序固定為 `portfolio_risk`、`entry_candidate`、`review_needed`，每類最多 3 筆；持股風險永遠優先於候選股。若交易輸出 blocked 或資料過期，`today_focus` 不得把候選股包裝成可交易進場訊號，只能提示先解除阻塞。
 - Dashboard 第一屏應以 Decision Console 呈現資料日、交易輸出可用性、價格基準、Primary Action、大盤姿態與今日焦點；完整 Update Workflow、Daily Check、PM Worklist 明細與檔案狀態應放在下方，避免第一屏資訊過載。
 - Dashboard 的 Today Scan 卡片可呈現後端 `today_scan.json.data_freshness` 的 stale / missing-date 摘要與最舊資料項；前端只顯示後端欄位，不得自行重算資料新鮮度、候選桶、分數或策略判斷。
