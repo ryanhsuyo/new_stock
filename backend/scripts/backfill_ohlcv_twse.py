@@ -586,6 +586,59 @@ def fetch_stock(
     return all_rows, market, stock_name
 
 
+def retry_skipped_stocks(
+    skipped_codes: list[str],
+    months_back: int,
+    include_current_month: bool = False,
+) -> dict:
+    """
+    Retry codes that were skipped by the first pass.
+
+    TWSE can temporarily return an empty / non-OK STOCK_DAY response for a
+    small subset of listed symbols while the same month is already available
+    for other symbols. A same-run second pass avoids leaving tracked stocks
+    partially stale when the endpoint becomes consistent minutes later.
+    """
+    result = {
+        "rows": [],
+        "names": {},
+        "markets": {},
+        "twse_count": 0,
+        "tpex_count": 0,
+        "skipped": [],
+    }
+    if not skipped_codes:
+        return result
+
+    print()
+    print(f"[RETRY] 第一輪跳過 {len(skipped_codes)} 支，進行同次二次修復 ...")
+
+    total = len(skipped_codes)
+    for idx, code in enumerate(skipped_codes, start=1):
+        print(f"[RETRY {idx:>3}/{total}] {code} ...", flush=True)
+        rows, market, name = fetch_stock(code, months_back, include_current_month)
+
+        if not rows:
+            print(f"  STILL SKIP（TWSE / TPEX 均無資料）")
+            result["skipped"].append(code)
+        else:
+            label = f"  {name}" if name else ""
+            print(f"  RECOVERED [{market}]，取得 {len(rows)} 筆{label}")
+            result["rows"].extend(rows)
+            if name:
+                result["names"][code] = name
+            if market in ("TWSE", "TPEX"):
+                result["markets"][code] = market
+                if market == "TWSE":
+                    result["twse_count"] += 1
+                else:
+                    result["tpex_count"] += 1
+
+        time.sleep(SLEEP_BETWEEN_STOCKS)
+
+    return result
+
+
 # ---------------------------------------------------------------------------
 # CSV 讀寫與 merge
 # ---------------------------------------------------------------------------
@@ -692,6 +745,15 @@ def main() -> None:
                     tpex_count += 1
 
         time.sleep(SLEEP_BETWEEN_STOCKS)
+
+    if skipped:
+        retry_result = retry_skipped_stocks(skipped, args.months, args.include_current_month)
+        skipped = retry_result["skipped"]
+        all_new_rows.extend(retry_result["rows"])
+        names_collected.update(retry_result["names"])
+        markets_collected.update(retry_result["markets"])
+        twse_count += retry_result["twse_count"]
+        tpex_count += retry_result["tpex_count"]
 
     if not args.skip_market_indices:
         print()

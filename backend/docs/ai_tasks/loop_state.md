@@ -18,12 +18,13 @@ Loop mode: waiting_for_next_safe_phase
 
 Last completed phase:
 
-* `F45_signal_alert_action_hints.md` — Signal alerts now include backend-owned action hints per alert.
+* `F46_ohlcv_skip_retry_no_lag.md` — Backfill now retries first-pass skipped OHLCV codes before writing CSV, preventing recoverable partial stale data from becoming an accepted product state.
 
 Current phase status:
 
 * F44 completed: if Daily Check reports partial stale tracked stocks, Update Workflow returns `action_required` with a safe daily update action instead of `ready`.
 * F45 completed: `signal_alerts.json.alerts[*]` now includes `action_label`, `next_action`, and `review_focus`.
+* F46 completed: backfill now retries first-pass skipped OHLCV codes during the same daily update run; `daily_update.py --months 1` verified 2408 / 2412 / 2882 / 2330 at `2026-07-03` with skip count 0.
 * Use `backend/docs/ai_tasks/F21_heartbeat_development_operating_contract.md` to select the next low-risk productization slice.
 
 ## Completed Phase History Summary
@@ -69,6 +70,7 @@ Recent completed phases:
 * F43.5 — Completed: cleaned stale collaboration docs without weakening strategy guardrails.
 * F44 — Completed: Update Workflow surfaces Daily Check partial data freshness warnings as action-required health status.
 * F45 — Completed: Signal alerts include outcome-specific action hints for PM review.
+* F46 — Completed: OHLCV backfill retries first-pass skipped codes in the same run and verified no recoverable partial stale data remained.
 
 ## Next Phase Candidates
 
@@ -111,7 +113,9 @@ Recent verification:
 * F40 frontend focused/all structure tests and build passed: `node --test frontend/tests/primary-action-card-payload.test.mjs`, `node --test frontend/tests/*.test.mjs`, `npm run build`
 * F41 Daily Check, PM Worklist, and Update Workflow tests passed: `/Library/Frameworks/Python.framework/Versions/3.11/bin/python3 -m pytest backend/tests/test_daily_check.py -q`, `/Library/Frameworks/Python.framework/Versions/3.11/bin/python3 -m pytest backend/tests/test_pm_worklist.py -q`, `/Library/Frameworks/Python.framework/Versions/3.11/bin/python3 -m pytest backend/tests/test_update_workflow.py -q`
 * F42 Daily Check, PM Worklist, and Update Workflow tests passed: `/Library/Frameworks/Python.framework/Versions/3.11/bin/python3 -m pytest backend/tests/test_daily_check.py -q`, `/Library/Frameworks/Python.framework/Versions/3.11/bin/python3 -m pytest backend/tests/test_pm_worklist.py -q`, `/Library/Frameworks/Python.framework/Versions/3.11/bin/python3 -m pytest backend/tests/test_update_workflow.py -q`
+* F46 focused tests passed: `/Library/Frameworks/Python.framework/Versions/3.11/bin/python3 -m pytest backend/tests/test_backfill_tpex.py backend/tests/test_backfill_market_indices.py backend/tests/test_daily_check.py backend/tests/test_update_workflow.py -q`
+* F46 full backend tests passed: `/Library/Frameworks/Python.framework/Versions/3.11/bin/python3 -m pytest backend/tests -q` (`775 passed`)
 
 ## Last Stop Reason
 
-F45 completed. Continue proactively by selecting the next safe small productization phase from the F21 operating contract when no active phase exists.
+F46 completed. Continue proactively by selecting the next safe small productization phase from the F21 operating contract when no active phase exists.

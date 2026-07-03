@@ -187,6 +187,30 @@ def test_fetch_stock_unknown_when_both_empty(monkeypatch):
     assert name is None
 
 
+def test_retry_skipped_stocks_recovers_transient_empty_twse(monkeypatch):
+    """第一輪 skipped 的代碼應在同次流程重試；重試成功後不可留在 skipped。"""
+    calls: list[str] = []
+
+    def mock_fetch_stock(code, months_back, include_current_month=False):
+        calls.append(code)
+        if code == "2412":
+            return ([{**_TWSE_ROW, "code": "2412"}], "TWSE", "中華電")
+        return ([], "UNKNOWN", None)
+
+    monkeypatch.setattr(bf, "fetch_stock", mock_fetch_stock)
+    monkeypatch.setattr(bf.time, "sleep", lambda _: None)
+
+    result = bf.retry_skipped_stocks(["2412", "9999"], months_back=1, include_current_month=True)
+
+    assert calls == ["2412", "9999"]
+    assert result["skipped"] == ["9999"]
+    assert result["rows"] == [{**_TWSE_ROW, "code": "2412"}]
+    assert result["names"] == {"2412": "中華電"}
+    assert result["markets"] == {"2412": "TWSE"}
+    assert result["twse_count"] == 1
+    assert result["tpex_count"] == 0
+
+
 def test_fetch_stock_multi_month_aggregation(monkeypatch):
     """多個月份的 rows 應被合併回傳。"""
     call_count = {"n": 0}

@@ -42,6 +42,7 @@
 - `daily_update.py` / `update_all_data.py` 若在 backfill、基本面同步或 signals 重算途中被中斷，必須把 `update_status.json.last_run_status` 寫成 `failed` 並附中斷原因，避免 Dashboard 長期誤顯示 running。
 - `daily_update.py` / `update_all_data.py` 由 CLI 執行時，應串流顯示 backfill / chips 子程序進度，避免長時間無輸出被誤判為卡死；API 背景更新可保留安靜模式。
 - `daily_update.py` / `update_all_data.py` CLI 收到使用者中斷時應乾淨回傳 exit code `130`、釋放 PID lock 並寫入中斷 log，不應噴出長 traceback。
+- `backfill_ohlcv_twse.py` 第一輪若有股票因 TWSE / TPEX 均無資料而 skipped，必須在同次流程寫入 `ohlcv.csv` 前進行低頻第二輪 retry；若官方端點短暫不一致但稍後已可查到資料，該代碼不得留在 partial stale。第二輪仍無資料時才保留 SKIP 清單與原因。
 - `update_status.json.last_run_status="running"` 若超過 2 小時或缺少開始時間，API 應視為 `stalled`，Dashboard 應提示可重新啟動每日更新，不得永久擋住手動更新。
 - 舊版 `GET /api/system/workflow-status` 的 `next_actions[*]` 與 `decision_guardrails` 也需提供完整 copy command；`command` / `required_action` 保留短版供閱讀，`copy_command` / `required_action_copy_command` 供貼上執行。
 - 舊版 `GET /api/system/workflow-status` 的 `next_actions[*]` 也應提供 `action_payload`；command 類 payload 包含 `copy_command` / `expected_outputs`，API 類 payload 包含 `method` / `endpoint`，讓前端不必為新舊工作流入口各寫一套操作解析。
