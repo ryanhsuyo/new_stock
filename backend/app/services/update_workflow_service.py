@@ -83,6 +83,43 @@ def _daily_check_blocker_action(daily_check: dict[str, Any] | None) -> dict[str,
     )
 
 
+def _daily_check_action_by_key(daily_check: dict[str, Any] | None, key: str) -> dict[str, Any] | None:
+    for action in (daily_check or {}).get("top_actions") or []:
+        if action.get("key") == key:
+            return action
+    return None
+
+
+def _data_freshness_issue(action: dict[str, Any] | None) -> dict[str, Any]:
+    details = action.get("details") if isinstance((action or {}).get("details"), dict) else {}
+    stale_count = int(details.get("stale_count") or 0)
+    missing_count = int(details.get("missing_date_count") or 0)
+    items = details.get("top_stale_items")
+    if not isinstance(items, list):
+        items = []
+    return {
+        "stale_count": stale_count,
+        "missing_date_count": missing_count,
+        "items": items,
+        "has_issue": stale_count + missing_count > 0,
+    }
+
+
+def _daily_check_data_freshness_action(action: dict[str, Any]) -> dict[str, Any]:
+    payload = action.get("action_payload") if isinstance(action.get("action_payload"), dict) else {}
+    command = str(payload.get("command") or action.get("next_action") or DAILY_UPDATE_COMMAND)
+    expected_outputs = payload.get("expected_outputs")
+    return _action(
+        str(action.get("key") or "data_freshness"),
+        str(action.get("title") or "追蹤股票資料日落後"),
+        str(action.get("message") or "追蹤清單有股票資料日落後，建議先補齊再做候選判斷。"),
+        command,
+        list(expected_outputs) if isinstance(expected_outputs, list) else DAILY_UPDATE_OUTPUTS,
+        copy_command=str(payload.get("copy_command") or "") or None,
+        action_payload=payload,
+    )
+
+
 def get_update_workflow_status() -> dict[str, Any]:
     """回傳 PM 視角的每日資料更新流程狀態。"""
     data_status = get_data_status()
@@ -94,6 +131,9 @@ def get_update_workflow_status() -> dict[str, Any]:
     coverage_report_path = data_status.get("coverage_report_path")
     data_coverage_pct = data_status.get("data_coverage_pct")
     last_run_status = data_status.get("last_run_status")
+    schedule_health_status = data_status.get("schedule_health_status")
+    schedule_is_overdue = bool(data_status.get("schedule_is_overdue"))
+    schedule_health_message = data_status.get("schedule_health_message")
     data_is_stale = bool(data_status.get("is_stale"))
     outputs_lag_raw_data = bool(data_status.get("outputs_lag_raw_data"))
     coverage_too_low = (
@@ -103,6 +143,8 @@ def get_update_workflow_status() -> dict[str, Any]:
     daily_check_missing = daily_check is None
     daily_check_stale = bool((daily_check or {}).get("snapshot_is_stale"))
     daily_check_can_trade = bool((daily_check or {}).get("can_use_trade_outputs", True))
+    data_freshness_action = _daily_check_action_by_key(daily_check, "data_freshness")
+    partial_data_freshness = _data_freshness_issue(data_freshness_action)
 
     if last_run_status == "running":
         next_action = _action(
@@ -188,6 +230,15 @@ def get_update_workflow_status() -> dict[str, Any]:
         data_step_status = "done"
         signal_step_status = "done"
         daily_step_status = "blocked"
+    elif partial_data_freshness["has_issue"] and data_freshness_action:
+        next_action = _daily_check_data_freshness_action(data_freshness_action)
+        current_step = "repair_partial_data_freshness"
+        overall_status = "action_required"
+        headline = "追蹤清單有局部資料日落後，建議先補齊資料再做候選判斷。"
+        can_use_trade_outputs = daily_check_can_trade
+        data_step_status = "warning"
+        signal_step_status = "done"
+        daily_step_status = "done"
     else:
         next_action = None
         current_step = "ready"
@@ -206,6 +257,8 @@ def get_update_workflow_status() -> dict[str, Any]:
             (
                 f"資料日 {data_as_of or '尚無'}，原始日線 {raw_as_of or '尚無'}。"
                 if data_step_status == "done"
+                else f"追蹤清單有 {partial_data_freshness['stale_count'] + partial_data_freshness['missing_date_count']} 檔資料日落後，建議先補齊。"
+                if data_step_status == "warning"
                 else data_status.get("last_error_summary") or data_status.get("last_warning_summary") or "請先更新日線與訊號資料。"
             ),
             DAILY_UPDATE_COMMAND,
@@ -242,6 +295,9 @@ def get_update_workflow_status() -> dict[str, Any]:
             "data_as_of": data_as_of,
             "raw_ohlcv_as_of": raw_as_of,
             "last_run_status": last_run_status,
+            "schedule_health_status": schedule_health_status,
+            "schedule_is_overdue": schedule_is_overdue,
+            "schedule_health_message": schedule_health_message,
             "batch_id": batch_id,
             "coverage_report_path": coverage_report_path,
             "data_coverage_pct": data_coverage_pct,
@@ -249,5 +305,8 @@ def get_update_workflow_status() -> dict[str, Any]:
             "outputs_lag_raw_data": outputs_lag_raw_data,
             "daily_check_missing": daily_check_missing,
             "daily_check_is_stale": daily_check_stale,
+            "partial_stale_count": partial_data_freshness["stale_count"],
+            "partial_missing_date_count": partial_data_freshness["missing_date_count"],
+            "partial_data_freshness_items": partial_data_freshness["items"],
         },
     }

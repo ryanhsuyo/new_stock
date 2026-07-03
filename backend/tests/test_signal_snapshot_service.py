@@ -92,6 +92,24 @@ def test_review_compares_previous_plan_to_current_run(tmp_path):
     assert review["outcome_counts"]["risk_triggered"] == 1
 
 
+def test_review_reason_uses_snapshot_window_language(tmp_path):
+    from app.services.signal_snapshot_service import write_signal_snapshot, write_signal_snapshot_review
+
+    write_signal_snapshot(_summary("2026-06-26", [
+        {"code": "2408", "daily_action": "wait_pullback", "daily_action_label": "等回測"},
+    ]), tmp_path)
+
+    path = write_signal_snapshot_review(_summary("2026-06-30", [
+        {"code": "2408", "daily_action": "hold", "daily_action_label": "續抱"},
+    ]), tmp_path)
+
+    review = json.loads(path.read_text(encoding="utf-8"))
+    item = review["items"][0]
+    assert item["outcome"] == "action_changed"
+    assert "前次快照" in item["reason"]
+    assert "隔日" not in item["reason"]
+
+
 def test_write_snapshot_and_review_compares_before_writing_current_snapshot(tmp_path):
     from app.services.signal_snapshot_service import write_signal_snapshot, write_snapshot_and_review
 

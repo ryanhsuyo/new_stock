@@ -193,8 +193,8 @@ def _signal_alert_action(alerts: dict[str, Any] | None) -> dict[str, Any] | None
     return {
         "key": "signal_alerts",
         "status": status,
-        "title": "隔日訊號警示",
-        "message": str(alerts.get("message") or f"有 {alert_count} 筆隔日訊號變化警示。"),
+        "title": "訊號快照變化警示",
+        "message": str(alerts.get("message") or f"有 {alert_count} 筆訊號快照變化警示。"),
         "next_action": "查看 backend/out/signal_alerts.json 並先處理 block / warn 項目。",
         "details": {
             "as_of": alerts.get("as_of"),

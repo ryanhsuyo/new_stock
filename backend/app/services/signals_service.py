@@ -895,7 +895,8 @@ def _steady_momentum_indicator(
     elif ma20 is not None and ma20 > 0 and close > ma20 * 1.08:
         heat_part = min(heat_part, 7)
 
-    if fundamental_guard.get("fundamental_data_ok"):
+    fundamental_data_ok = bool(fundamental_guard.get("fundamental_data_ok"))
+    if fundamental_data_ok:
         available = [
             fundamental_guard.get("fundamental_quality_score"),
             fundamental_guard.get("fundamental_safety_score"),
@@ -905,6 +906,11 @@ def _steady_momentum_indicator(
         fundamental_part = round(sum(available) / len(available) * 0.10) if available else 6
     else:
         fundamental_part = 6
+    if fundamental_data_ok:
+        fundamental_part_label = f"基本面避雷{fundamental_part}/10"
+    else:
+        missing_reason = fundamental_guard.get("fundamental_data_missing_reason") or "缺少可評分基本面資料"
+        fundamental_part_label = f"基本面避雷：基本面資料不足，中性保留{fundamental_part}/10（{missing_reason}）"
 
     score = max(0, min(100, trend_part + rs_part + entry_part + rr_part + heat_part + fundamental_part))
     hard_block = (
@@ -921,7 +927,7 @@ def _steady_momentum_indicator(
         f"進場位置{entry_part}/20",
         f"風險報酬{rr_part}/15",
         f"過熱控制{heat_part}/10",
-        f"基本面避雷{fundamental_part}/10",
+        fundamental_part_label,
     ]
     if hard_block:
         parts.append("風險閘門未通過")
@@ -1813,6 +1819,7 @@ def _old_wang_flag(
     context: dict,
     previous_close: float | None = None,
     previous_high: dict | None = None,
+    signal_data_as_of: str | None = None,
 ) -> dict:
     """
     老王大盤籌碼輪動 tag。
@@ -1867,6 +1874,7 @@ def _old_wang_flag(
     trust = chip.get("investment_trust_net_buy")
     retail_change = chip.get("retail_pct_change")
     major_change = chip.get("major_pct_change")
+    chip_data_as_of = chip.get("data_as_of")
     chip_points = 0
     chip_reasons: list[str] = []
     if isinstance(foreign, (int, float)) and foreign > 0:
@@ -1893,6 +1901,19 @@ def _old_wang_flag(
     elif isinstance(major_change, (int, float)) and major_change < 0:
         chip_points -= 4
         chip_reasons.append(f"大戶比例下降 {abs(major_change):.2f}%")
+    if chip_reasons and isinstance(chip_data_as_of, str) and chip_data_as_of:
+        chip_reasons.append(f"籌碼資料日 {chip_data_as_of}")
+        try:
+            chip_date = datetime.strptime(chip_data_as_of, "%Y-%m-%d").date()
+            signal_date = (
+                datetime.strptime(signal_data_as_of, "%Y-%m-%d").date()
+                if isinstance(signal_data_as_of, str) and signal_data_as_of
+                else None
+            )
+        except ValueError:
+            signal_date = None
+        if signal_date is not None and (signal_date - chip_date).days >= 4:
+            chip_reasons.append("籌碼資料偏舊，僅作參考")
 
     if chip_points >= 8:
         chip_signal = "supportive"
@@ -2709,6 +2730,7 @@ def _compute_signal(
         context=context,
         previous_close=closes[-2] if len(closes) >= 2 else None,
         previous_high=previous_high,
+        signal_data_as_of=rows[-1]["date"] if rows else None,
     )
     fundamental_guard = evaluate_fundamental_guard(
         code,

@@ -18,11 +18,13 @@ Loop mode: waiting_for_next_safe_phase
 
 Last completed phase:
 
-* `F42_daily_check_manual_note_awareness.md` — Daily Check now surfaces stale manual market notes as a safe PM action.
+* `F44_update_workflow_partial_freshness.md` — Update Workflow now surfaces partial Daily Check data freshness issues as action-required product health.
 
 Current phase status:
 
-* No active phase. Use `backend/docs/ai_tasks/F21_heartbeat_development_operating_contract.md` to select the next low-risk productization slice.
+* F43 trust hardening is complete.
+* F44 completed: if Daily Check reports partial stale tracked stocks, Update Workflow returns `action_required` with a safe daily update action instead of `ready`.
+* Use `backend/docs/ai_tasks/F21_heartbeat_development_operating_contract.md` to select the next low-risk productization slice.
 
 ## Completed Phase History Summary
 
@@ -33,7 +35,7 @@ Large historical phase detail is intentionally summarized here. Use phase files 
 * Fundamentals priority import phases R9.0 through R9.2 are complete.
 * Daily Check / Today Scan observability phase D1.0 is complete.
 * Official fundamentals and Quality Momentum Lite phases F1 through F20 are complete.
-* Heartbeat/product-health phases F21 through F42 are complete.
+* Heartbeat/product-health phases F21 through F44 are complete.
 
 Recent completed phases:
 
@@ -59,6 +61,13 @@ Recent completed phases:
 * F40 — Rendered backend-owned Primary Action payload context on the Dashboard first screen.
 * F41 — Added safe copy command and expected outputs to Daily Check signal alert file actions.
 * F42 — Added Daily Check awareness for stale manual market notes.
+* F43 — Staged umbrella: harden decision trust around missing fundamentals, stale chips, snapshot wording, block recovery, schedule visibility, and stale docs.
+* F43.1 — Completed: missing fundamentals are explicit neutral fallback in Quality Momentum Lite reason text.
+* F43.2 — Completed: Old Wang chip reasons include chip date / stale wording when chip numbers are quoted.
+* F43.3 — Completed: signal alert wording matches `previous_as_of` -> `as_of` comparison windows.
+* F43.4 — Completed: Update Workflow exposes schedule health and block alert inspection remains actionable.
+* F43.5 — Completed: cleaned stale collaboration docs without weakening strategy guardrails.
+* F44 — Completed: Update Workflow surfaces Daily Check partial data freshness warnings as action-required health status.
 
 ## Next Phase Candidates
 
@@ -104,4 +113,4 @@ Recent verification:
 
 ## Last Stop Reason
 
-F42 completed. Continue proactively by selecting the next safe small productization phase from the F21 operating contract when no active phase exists.
+F44 completed. Continue proactively by selecting the next safe small productization phase from the F21 operating contract when no active phase exists.

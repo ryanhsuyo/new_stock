@@ -14,7 +14,7 @@ ALERTS_FILENAME = "signal_alerts.json"
 _OUTCOME_META = {
     "risk_triggered": ("block", "持股/候選轉風險"),
     "missing_current": ("warn", "前日計畫缺少本日資料"),
-    "action_changed": ("warn", "隔日動作變更"),
+    "action_changed": ("warn", "前次快照以來動作變更"),
     "risk_eased": ("info", "風險解除觀察"),
 }
 
@@ -50,6 +50,13 @@ def _alert_from_review_item(item: dict[str, Any]) -> dict[str, Any] | None:
 
 def build_signal_alerts(review: dict[str, Any]) -> dict[str, Any]:
     status = str(review.get("status") or "unknown")
+    as_of = review.get("as_of")
+    previous_as_of = review.get("previous_as_of")
+    window_label = (
+        f"{previous_as_of} 至 {as_of}"
+        if previous_as_of and as_of
+        else "前次快照以來"
+    )
     alerts = [
         alert
         for item in review.get("items") or []
@@ -57,15 +64,16 @@ def build_signal_alerts(review: dict[str, Any]) -> dict[str, Any]:
     ]
     severity_counts = Counter(str(alert.get("severity") or "unknown") for alert in alerts)
     if status == "no_previous_snapshot":
-        message = "尚無前一日 signal snapshot，今日不產生隔日變化警示。"
+        message = "尚無前次 signal snapshot，今日不產生快照變化警示。"
     elif alerts:
-        message = f"偵測到 {len(alerts)} 筆隔日訊號變化警示。"
+        message = f"偵測到 {len(alerts)} 筆訊號快照變化警示（{window_label}）。"
     else:
-        message = "隔日訊號無需處理的新警示。"
+        message = f"訊號快照無需處理的新警示（{window_label}）。"
 
     return {
-        "as_of": review.get("as_of"),
-        "previous_as_of": review.get("previous_as_of"),
+        "as_of": as_of,
+        "previous_as_of": previous_as_of,
+        "snapshot_window_label": window_label,
         "generated_at": review.get("generated_at"),
         "rules_version": review.get("rules_version"),
         "rules_metadata": review.get("rules_metadata") or {},

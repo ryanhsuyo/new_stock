@@ -98,6 +98,42 @@ def test_chip_against_is_risk_note_not_hard_block_for_strong_volume_high_breakou
     assert "籌碼逆風，降級觀察" in result["old_wang_reason"]
 
 
+def test_chip_reasons_show_data_date_and_stale_warning():
+    result = _old_wang_flag(
+        code="2330",
+        close=120,
+        ma5=110,
+        ma10=108,
+        ma20=105,
+        ma60=90,
+        rsi14=68,
+        vol_ratio=1.3,
+        long_trend="up",
+        market_filter="allow",
+        breakout=True,
+        breakdown=False,
+        strong_reversal=False,
+        holds_recent_low=True,
+        stage="stage_2",
+        rs_score=75,
+        reward_risk_ratio=2.0,
+        gap={"gap_type": "none", "bullish_gap_support": False, "bearish_gap_pressure": False},
+        volume_low={"support": False, "price": 100, "note": "爆大量低點 100 已守住"},
+        chip={
+            "data_as_of": "2026-06-25",
+            "foreign_net_buy": -10_000,
+            "investment_trust_net_buy": -1_000,
+        },
+        context=_hot_context(),
+        previous_close=118,
+        signal_data_as_of="2026-06-30",
+    )
+
+    assert "外資賣超 10,000 張" in result["old_wang_reason"]
+    assert "籌碼資料日 2026-06-25" in result["old_wang_reason"]
+    assert "籌碼資料偏舊" in result["old_wang_reason"]
+
+
 def test_close_within_ma10_tolerance_can_flag_strong_gap_reclaim_candidate():
     result = _old_wang_flag(
         code="2330",

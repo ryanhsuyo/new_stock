@@ -102,7 +102,7 @@ def find_previous_snapshot(as_of: str, out_dir: Path | None = None) -> dict[str,
 
 def _review_outcome(prev: dict[str, Any], current: dict[str, Any] | None) -> tuple[str, str]:
     if current is None:
-        return "missing_current", "前一日有計畫，但本次訊號清單缺少此股票。"
+        return "missing_current", "前次快照有計畫，但本次訊號清單缺少此股票。"
 
     prev_action = str(prev.get("daily_action") or "")
     current_action = str(current.get("daily_action") or "")
@@ -113,15 +113,15 @@ def _review_outcome(prev: dict[str, Any], current: dict[str, Any] | None) -> tup
     if prev_action in {"enter", "wait_pullback", "hold", "long_watch"} and (
         current_action in risk_actions or current_signal in {"exit_warning", "invalidated", "DATA_MISSING"}
     ):
-        return "risk_triggered", "前一日計畫轉為風險或暫不進場，需復盤失效條件。"
+        return "risk_triggered", "前次快照計畫轉為風險或暫不進場，需復盤失效條件。"
 
     if prev_action in {"reduce", "exit"} and current_action in constructive_actions:
-        return "risk_eased", "前一日風險計畫已轉為較健康狀態，可重新評估。"
+        return "risk_eased", "前次快照風險計畫已轉為較健康狀態，可重新評估。"
 
     if prev_action != current_action:
-        return "action_changed", f"隔日動作由 {prev_action or '未知'} 變為 {current_action or '未知'}。"
+        return "action_changed", f"前次快照動作由 {prev_action or '未知'} 變為 {current_action or '未知'}。"
 
-    return "unchanged", "隔日動作未改變，依原計畫追蹤。"
+    return "unchanged", "前次快照動作未改變，依原計畫追蹤。"
 
 
 def build_signal_snapshot_review(summary: dict[str, Any], previous_snapshot: dict[str, Any] | None) -> dict[str, Any]:

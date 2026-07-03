@@ -84,7 +84,7 @@ def test_run_signals_summary_lists_all_primary_outputs(capsys):
     assert "signal_snapshot_review.json" in out
     assert "signal_alerts.json" in out
     assert "signal_snapshots" in out
-    assert "隔日警示" in out
+    assert "快照警示" in out
 
 
 def test_run_signals_summary_prints_timeout_codes(capsys):

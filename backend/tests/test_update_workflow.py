@@ -364,6 +364,94 @@ def test_update_workflow_converts_daily_check_file_blocker_to_safe_copy_command(
     assert report["next_action"]["action_payload"]["file_path"] == "backend/out/signal_alerts.json"
 
 
+def test_update_workflow_exposes_schedule_health_in_checks(monkeypatch):
+    import app.services.update_workflow_service as svc
+
+    monkeypatch.setattr(svc, "get_data_status", lambda: {
+        "last_run_status": "success",
+        "last_data_as_of": "2026-06-07",
+        "raw_ohlcv_as_of": "2026-06-07",
+        "outputs_lag_raw_data": False,
+        "is_stale": False,
+        "stale_days": 0,
+        "schedule_health_status": "overdue",
+        "schedule_is_overdue": True,
+        "schedule_health_message": "自最近一次完成後已錯過 1 個平日更新。",
+    })
+    monkeypatch.setattr(svc, "get_daily_check_report", lambda: {
+        "generated_at": "2026-06-07",
+        "data_as_of": "2026-06-07",
+        "snapshot_is_stale": False,
+        "can_use_trade_outputs": True,
+    })
+
+    report = svc.get_update_workflow_status()
+
+    assert report["checks"]["schedule_health_status"] == "overdue"
+    assert report["checks"]["schedule_is_overdue"] is True
+    assert "錯過 1 個平日更新" in report["checks"]["schedule_health_message"]
+
+
+def test_update_workflow_surfaces_partial_data_freshness_warning(monkeypatch):
+    import app.services.update_workflow_service as svc
+    from app.services.workflow_outputs import DAILY_UPDATE_OUTPUTS
+
+    monkeypatch.setattr(svc, "get_data_status", lambda: {
+        "last_run_status": "success",
+        "last_data_as_of": "2026-06-30",
+        "raw_ohlcv_as_of": "2026-06-30",
+        "outputs_lag_raw_data": False,
+        "is_stale": False,
+        "stale_days": 0,
+        "schedule_health_status": "ok",
+        "schedule_is_overdue": False,
+        "schedule_health_message": "最近一次更新正常完成。",
+    })
+    monkeypatch.setattr(svc, "get_daily_check_report", lambda: {
+        "generated_at": "2026-07-01",
+        "data_as_of": "2026-06-30",
+        "snapshot_is_stale": False,
+        "can_use_trade_outputs": True,
+        "top_actions": [
+            {
+                "key": "data_freshness",
+                "status": "warn",
+                "title": "追蹤股票資料日落後",
+                "message": "有 9 檔股票資料日落後，目標資料日為 2026-06-30。",
+                "next_action": "python3 scripts/daily_update.py --months 1",
+                "details": {
+                    "expected_as_of": "2026-06-30",
+                    "stale_count": 9,
+                    "missing_date_count": 0,
+                    "top_stale_items": [
+                        {"code": "2492", "name": "華新科", "data_as_of": "2026-06-26"},
+                    ],
+                },
+                "action_payload": {
+                    "kind": "command",
+                    "command": "python3 scripts/daily_update.py --months 1",
+                    "copy_command": "cd /Users/ryan/Desktop/code/new_stock/backend\npython3 scripts/daily_update.py --months 1",
+                    "expected_outputs": DAILY_UPDATE_OUTPUTS,
+                    "preview_items": ["2492 華新科 仍停在 2026-06-26"],
+                },
+            }
+        ],
+    })
+
+    report = svc.get_update_workflow_status()
+
+    assert report["overall_status"] == "action_required"
+    assert report["can_use_trade_outputs"] is True
+    assert report["current_step"] == "repair_partial_data_freshness"
+    assert report["next_action"]["key"] == "data_freshness"
+    assert report["next_action"]["command"] == "python3 scripts/daily_update.py --months 1"
+    assert report["next_action"]["expected_outputs"] == DAILY_UPDATE_OUTPUTS
+    assert report["steps"][0]["status"] == "warning"
+    assert report["checks"]["partial_stale_count"] == 9
+    assert report["checks"]["partial_missing_date_count"] == 0
+    assert report["checks"]["partial_data_freshness_items"][0]["code"] == "2492"
+
+
 def test_update_workflow_api_returns_schema(client, monkeypatch):
     import app.routers.system as router
 

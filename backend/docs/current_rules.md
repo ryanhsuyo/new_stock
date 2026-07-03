@@ -38,6 +38,7 @@
 - Update Workflow 沿用 Daily Check `action_payload.kind="file"` blocker 時，複製指令必須轉成安全可執行的檔案查看命令（例如 `cat backend/out/signal_alerts.json`），不得把自然語言 `next_action` 包成 shell 指令。
 - Update Workflow 的 `next_action.command` 可保留短指令供畫面閱讀；若要提供複製按鈕，應優先使用 `next_action.copy_command`，內含 `cd backend` 所需工作目錄，避免使用者在錯誤目錄執行失敗。
 - Update Workflow 的 `next_action.expected_outputs` 必須列出跑完指令後應檢查的主要產物；`daily_update.py` 流程至少包含 `ohlcv.csv`、`update_status.json`、`data_coverage_report.json`、`summary.json`、`universe_report.csv`、`daily_brief.json` 與 `daily_check.json`。
+- 若 Daily Check 今日快照回報 `data_freshness` 局部資料日落後，但 `can_use_trade_outputs=true`，Update Workflow 不得顯示純 `ready`；必須回傳 `overall_status=action_required`、`current_step=repair_partial_data_freshness`，沿用 Daily Check 的安全更新 payload，並在 `checks` 提供 `partial_stale_count`、`partial_missing_date_count` 與 `partial_data_freshness_items`。
 - `daily_update.py` / `update_all_data.py` 若在 backfill、基本面同步或 signals 重算途中被中斷，必須把 `update_status.json.last_run_status` 寫成 `failed` 並附中斷原因，避免 Dashboard 長期誤顯示 running。
 - `daily_update.py` / `update_all_data.py` 由 CLI 執行時，應串流顯示 backfill / chips 子程序進度，避免長時間無輸出被誤判為卡死；API 背景更新可保留安靜模式。
 - `daily_update.py` / `update_all_data.py` CLI 收到使用者中斷時應乾淨回傳 exit code `130`、釋放 PID lock 並寫入中斷 log，不應噴出長 traceback。
@@ -281,6 +282,7 @@
 
 - 不看單一 K 線。
 - 量能不足時不可只因紅 K 觸發強買。
+- `old_wang_reason` 若引用外資 / 投信 / 散戶 / 大戶籌碼數字，必須同段顯示籌碼資料日；若和訊號資料日相差至少 4 個 calendar days，必須標示資料偏舊、僅作參考。
 - 前高突破後不因漲幅大就自動視為頭部，要看 MA5 / MA10 / MA20 / MA60、爆大量低點、缺口與量能。
 - 短線噴出且遠離 MA20 時，支撐改看 MA10。
 - 5 / 10 / 20 / 60 全破，前高 / 頭部風險升高。
@@ -367,6 +369,7 @@ Dashboard 補資料流程：
 - `fundamental_flag=true` 代表 Quality Momentum Lite 的輕量基本面避雷成立，可作為 `steady_momentum` 的輔助加分參考。
 - 此資料不產生獨立候選股推薦桶，不覆蓋老王或穩健動能的風控結論。
 - 缺少 `fundamentals.json` 時，必須回傳 `fundamental_data_ok=false` 與缺資料原因。
+- `steady_momentum_reason` 若因 `fundamental_data_ok=false` 使用中性 6/10 fallback，必須明確標示「基本面資料不足，中性保留」，不得呈現成已通過避雷的 `基本面避雷6/10`。
 - 若單檔已有任一 lite guard 欄位即可先評分，缺資料不直接淘汰第二策略，只降低信心或顯示 `lite_guard_partial`。
 - 部分資料評分必須輸出 `fundamental_data_completeness_pct`、`fundamental_missing_fields`、`fundamental_scored_groups`，但完整度以 lite guard 欄位計算，不以 11 欄進階資料計算。
 - 完全沒有 lite guard 欄位時維持 `fundamental_data_ok=false`，並在缺資料原因說明缺少哪些 lite guard 欄位。
@@ -401,7 +404,8 @@ Dashboard 補資料流程：
 - 資料 stale 判斷使用交易日邏輯：預設排除週末，並可透過 `backend/data/trading_calendar.json` 設定 `holidays` 與 `makeup_trading_days`。本地日曆缺失或格式錯誤時退回週一至週五邏輯。
 - 每次完整更新應產生 `backend/out/data_coverage_report.json`，列出追蹤股票覆蓋率、每檔 `ok` / `missing` / `insufficient` / `lagging` 狀態、原因、預期交易日與 raw OHLCV 最新日。覆蓋率低於 80% 時 Update Workflow / Daily Check 應視為交易輸出 blocked。
 - `update_status.json`、`summary.json` 與 `data_coverage_report.json` 應共享同一個 `batch_id` / `lineage`，讓訊號可追溯到本次資料批次；手動 `run_signals.py` 也需產生 signal-only lineage。
-- 每次 `run_signals.py` 應保存 `backend/out/signal_snapshots/signal_snapshot_YYYY-MM-DD.json`，並產生 `backend/out/signal_snapshot_review.json`；review 只比較前一份計畫與本次訊號的 action 變化，作為隔日復盤稽核，不得當成績效證明或新交易訊號。
+- `workflow-status` / Update Workflow 必須保留 `schedule_health_status`、`schedule_is_overdue` 與 `schedule_health_message`，讓 Dashboard / 心跳能看出排程是否逾期、從未執行或狀態異常；不得自動安裝 launchd / cron。
+- 每次 `run_signals.py` 應保存 `backend/out/signal_snapshots/signal_snapshot_YYYY-MM-DD.json`，並產生 `backend/out/signal_snapshot_review.json`；review 只比較前一份快照與本次訊號的 action 變化，必須顯示 `previous_as_of` 到 `as_of` 的比較區間，不得把跨多日差異稱為單日 / 隔日變化，也不得當成績效證明或新交易訊號。
 - 每次 `run_signals.py` 應由 `signal_snapshot_review.json` 產生 `backend/out/signal_alerts.json`；alerts 只整理 `risk_triggered`、`action_changed`、`risk_eased`、`missing_current` 等變化，作為 Daily Check 待辦提示，不代表外部通知已送出。
 - `summary.json`、`daily_brief.json`、signal snapshot、snapshot review 與 `signal_alerts.json` 都必須保留同一份 `rules_version` / `rules_metadata`，避免日後無法解釋舊輸出。
 - `python3 scripts/today_scan.py` 是盤後規則掃描入口，只能讀取既有 `summary.json` / `daily_brief.json` / `universe_report.csv`，分出正式可小試、老王觀察、穩健動能與風險處理；不得重算策略、放寬濾網或新增推薦桶。

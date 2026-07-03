@@ -22,7 +22,8 @@ def test_build_signal_alerts_reports_no_previous_snapshot():
     assert alerts["rules_metadata"]["strategy_profile"] == "two_strategy_daily_v1"
     assert alerts["severity_counts"] == {}
     assert alerts["alerts"] == []
-    assert "尚無前一日" in alerts["message"]
+    assert "尚無前次" in alerts["message"]
+    assert "快照變化" in alerts["message"]
 
 
 def test_build_signal_alerts_filters_unchanged_items():
@@ -40,7 +41,7 @@ def test_build_signal_alerts_filters_unchanged_items():
 
     assert alerts["alert_count"] == 0
     assert alerts["alerts"] == []
-    assert alerts["message"] == "隔日訊號無需處理的新警示。"
+    assert alerts["message"] == "訊號快照無需處理的新警示（2026-06-23 至 2026-06-24）。"
 
 
 def test_build_signal_alerts_maps_mixed_outcomes_to_severity():
@@ -95,6 +96,31 @@ def test_build_signal_alerts_maps_mixed_outcomes_to_severity():
     assert by_code["2303"]["severity"] == "info"
     assert by_code["2408"]["severity"] == "warn"
     assert by_code["9999"]["title"] == "前日計畫缺少本日資料"
+
+
+def test_build_signal_alerts_labels_multi_day_snapshot_window():
+    from app.services.signal_alert_service import build_signal_alerts
+
+    alerts = build_signal_alerts({
+        "as_of": "2026-06-30",
+        "previous_as_of": "2026-06-26",
+        "generated_at": "2026-06-30T15:00:00",
+        "status": "reviewed",
+        "items": [
+            {
+                "code": "2408",
+                "name": "南亞科",
+                "outcome": "action_changed",
+                "reason": "動作改變",
+                "previous_action": "wait_pullback",
+                "current_action": "hold",
+            },
+        ],
+    })
+
+    assert "2026-06-26 至 2026-06-30" in alerts["message"]
+    assert "隔日" not in alerts["message"]
+    assert alerts["alerts"][0]["title"] == "前次快照以來動作變更"
 
 
 def test_write_and_load_signal_alerts_round_trip(tmp_path):

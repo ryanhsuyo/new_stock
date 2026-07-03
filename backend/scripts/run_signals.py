@@ -147,7 +147,7 @@ def print_summary(result: dict) -> None:
             alert_count = json.loads(alerts_path.read_text(encoding="utf-8")).get("alert_count", 0)
         except Exception:
             alert_count = 0
-    print(f"  隔日警示  : {alert_count} 筆")
+    print(f"  快照警示  : {alert_count} 筆")
 
     _out = _BACKEND / "out"
     print(f"  輸出目錄  : {_out}")

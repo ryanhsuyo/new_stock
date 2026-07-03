@@ -24,9 +24,9 @@
 - `backend/tests/**`
 - `backend/data/**`（僅在需要新增 leaders / positions / 測試資料等檔案時）
 - `backend/out/**`（輸出檔案由程式產生，不手動編輯）
+- `frontend/**`（僅限使用者或 active phase 明確允許的產品化呈現 / 狀態可讀性改善；不得在前端重算策略、分數、推薦桶或基本面規則）
 
 ❌ 不要修改：
-- `frontend/**`（除非我明確要求）
 - 專案資料夾結構（不要重命名 / 搬移大量檔案）
 - 不要把檔案拆太多層造成維護困難
 
@@ -56,10 +56,11 @@
 
 策略輸出檔一律放在 `backend/out/`：
 - `backend/out/summary.json`
-- `backend/out/buy_list.json`
-- `backend/out/sell_list.json`
-- `backend/out/hold_list.json`
 - `backend/out/universe_report.csv`
+- `backend/out/daily_brief.json`
+- `backend/out/daily_check.json`
+- `backend/out/today_scan.json`
+- `backend/out/signal_alerts.json`
 
 請在程式中使用「以 backend 為基準」的穩定路徑（建議用 `Path(__file__).resolve()` 推導根目錄），不要依賴使用者在哪個資料夾執行命令。
 
@@ -156,7 +157,7 @@ pytest -q
 
 - 不要在 `router` 寫商業邏輯
 - 不要直接讀寫 CSV / JSON 於 `router`
-- 不要先改 `frontend/**`，除非我明確要求
+- 不要在 `frontend/**` 重算策略、分數、推薦桶、PM priority 或基本面規則；前端只能消費後端 API / out 契約做呈現
 - 不要引入資料庫，除非我明確要求
 - 不要為了「看起來專業」加入大量難維護指標
 - 不要把規則散落在 `script` / `router` / `storage` 多處重複實作
