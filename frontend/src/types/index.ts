@@ -261,6 +261,15 @@ export interface WorkflowStatus {
   checks: Record<string, Record<string, unknown>>
 }
 
+export interface SignalAlertPreview {
+  severity: 'block' | 'warn' | 'info' | string
+  code: string
+  name: string
+  title: string
+  action_label: string
+  review_focus: string[]
+}
+
 export interface PmWorklistItem {
   key: string
   title: string
@@ -285,6 +294,7 @@ export interface PmWorklistItem {
     copy_text?: string
     copy_command?: string
     preview_items?: string[]
+    preview_alerts?: SignalAlertPreview[]
     file_path?: string
     focus_limit?: number
     dry_run?: boolean
@@ -351,6 +361,7 @@ export interface DailyCheckAction {
     dry_run?: boolean
     confirm_message?: string
     preview_items?: string[]
+    preview_alerts?: SignalAlertPreview[]
     expected_outputs?: string[]
   }
 }

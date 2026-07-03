@@ -18,11 +18,13 @@ Loop mode: waiting_for_next_safe_phase
 
 Last completed phase:
 
+* `F51_pm_worklist_signal_alert_preview_ui.md` — PM Worklist now renders backend-owned `signal_alerts.preview_alerts` cards without frontend sorting or blocker recomputation.
 * `F50_signal_alerts_review_contract.md` — Daily Check signal-alert action payload now includes block-first structured `preview_alerts` for PM review while preserving text `preview_items`.
 * `F49_update_workflow_signal_alert_headline.md` — Update Workflow headline now summarizes signal-alert blockers with alert, block, and warn counts.
 
 Current phase status:
 
+* F51 completed: PM Worklist renders backend-owned `preview_alerts` cards and falls back to `preview_items` / `focus_codes`; frontend structure tests and build passed.
 * F50 completed: Daily Check `signal_alerts` payload exposes structured `preview_alerts` with severity, code, name, title, action label, and review focus; `daily_check.json` refreshed for 2026-07-03.
 * F44 completed: if Daily Check reports partial stale tracked stocks, Update Workflow returns `action_required` with a safe daily update action instead of `ready`.
 * F45 completed: `signal_alerts.json.alerts[*]` now includes `action_label`, `next_action`, and `review_focus`.

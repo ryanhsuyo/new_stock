@@ -2835,6 +2835,45 @@ body {
   font-size: 11px;
   font-weight: 800;
 }
+.pm-worklist-alert-preview {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
+  gap: 8px;
+  margin-top: 10px;
+}
+.pm-worklist-alert-chip {
+  display: grid;
+  gap: 3px;
+  border: 1px solid rgba(148, 163, 184, 0.24);
+  background: rgba(255,255,255,0.7);
+  border-radius: 12px;
+  padding: 8px 9px;
+}
+.pm-worklist-alert-chip.block,
+.pm-worklist-alert-chip.danger {
+  border-color: rgba(239, 68, 68, 0.38);
+  background: rgba(254, 226, 226, 0.82);
+}
+.pm-worklist-alert-chip.warn,
+.pm-worklist-alert-chip.warning {
+  border-color: rgba(245, 158, 11, 0.4);
+  background: rgba(254, 243, 199, 0.82);
+}
+.pm-worklist-alert-chip strong {
+  color: #111827;
+  font-size: 12px;
+}
+.pm-worklist-alert-chip span {
+  color: #4b5563;
+  font-size: 11px;
+  line-height: 1.35;
+}
+.pm-worklist-alert-chip em {
+  color: #92400e;
+  font-size: 11px;
+  font-style: normal;
+  font-weight: 800;
+}
 .pm-worklist-item-action {
   display: flex;
   align-items: center;

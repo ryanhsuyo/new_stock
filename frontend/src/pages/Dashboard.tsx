@@ -1153,6 +1153,22 @@ function PmWorklistBox({
     return { key: 'maintenance', label: '維護' }
   }
 
+  const renderPreviewAlerts = (item: WorklistItem, limit: number) => {
+    const alerts = item.action_payload?.preview_alerts
+    if (!alerts?.length) return null
+    return (
+      <div className="pm-worklist-alert-preview">
+        {alerts.slice(0, limit).map(alert => (
+          <div className={`pm-worklist-alert-chip ${alert.severity}`} key={`${alert.code}-${alert.title}`}>
+            <strong>{alert.code} {alert.name}</strong>
+            <span>{alert.title}</span>
+            {alert.action_label && <em>{alert.action_label}</em>}
+          </div>
+        ))}
+      </div>
+    )
+  }
+
   const primaryAction = worklist.primary_action ?? worklist.items[0] ?? null
   const secondaryItems = worklist.items
     .filter(item => item.key !== primaryAction?.key)
@@ -1198,7 +1214,8 @@ function PmWorklistBox({
                 ))}
               </ul>
             )}
-            {primaryAction.focus_codes.length > 0 && (
+            {renderPreviewAlerts(primaryAction, 5)}
+            {!primaryAction.action_payload?.preview_alerts?.length && primaryAction.focus_codes.length > 0 && (
               <div className="pm-worklist-codes">
                 {primaryAction.focus_codes.slice(0, 6).map(code => <span key={code}>{code}</span>)}
               </div>
@@ -1233,7 +1250,8 @@ function PmWorklistBox({
                             {item.action_payload.preview_items.slice(0, 5).map(label => <span key={label}>{label}</span>)}
                           </div>
                         )}
-                        {!item.action_payload?.preview_items?.length && item.focus_codes.length > 0 && (
+                        {renderPreviewAlerts(item, 5)}
+                        {!item.action_payload?.preview_alerts?.length && !item.action_payload?.preview_items?.length && item.focus_codes.length > 0 && (
                           <div className="pm-worklist-codes">
                             {item.focus_codes.slice(0, 5).map(code => <span key={code}>{code}</span>)}
                           </div>
