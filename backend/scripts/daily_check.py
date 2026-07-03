@@ -204,6 +204,17 @@ def _signal_alert_action(alerts: dict[str, Any] | None) -> dict[str, Any] | None
         action_label = str(item.get("action_label") or "").strip()
         return f"{base}｜{action_label}" if action_label else base
 
+    def _preview_alert(item: dict[str, Any]) -> dict[str, Any]:
+        return {
+            "severity": str(item.get("severity") or ""),
+            "code": str(item.get("code") or ""),
+            "name": str(item.get("name") or ""),
+            "title": str(item.get("title") or ""),
+            "action_label": str(item.get("action_label") or ""),
+            "review_focus": list(item.get("review_focus") or []),
+        }
+
+    preview_alerts = sorted_alerts[:5]
     return {
         "key": "signal_alerts",
         "status": status,
@@ -224,7 +235,8 @@ def _signal_alert_action(alerts: dict[str, Any] | None) -> dict[str, Any] | None
             "file_path": _SIGNAL_ALERTS_FILE,
             "copy_command": _copy_command(_SIGNAL_ALERTS_COMMAND),
             "expected_outputs": [_SIGNAL_ALERTS_FILE],
-            "preview_items": [_preview_item(item) for item in sorted_alerts[:5]],
+            "preview_items": [_preview_item(item) for item in preview_alerts],
+            "preview_alerts": [_preview_alert(item) for item in preview_alerts],
         },
     }
 

@@ -18,10 +18,12 @@ Loop mode: waiting_for_next_safe_phase
 
 Last completed phase:
 
+* `F50_signal_alerts_review_contract.md` — Daily Check signal-alert action payload now includes block-first structured `preview_alerts` for PM review while preserving text `preview_items`.
 * `F49_update_workflow_signal_alert_headline.md` — Update Workflow headline now summarizes signal-alert blockers with alert, block, and warn counts.
 
 Current phase status:
 
+* F50 completed: Daily Check `signal_alerts` payload exposes structured `preview_alerts` with severity, code, name, title, action label, and review focus; `daily_check.json` refreshed for 2026-07-03.
 * F44 completed: if Daily Check reports partial stale tracked stocks, Update Workflow returns `action_required` with a safe daily update action instead of `ready`.
 * F45 completed: `signal_alerts.json.alerts[*]` now includes `action_label`, `next_action`, and `review_focus`.
 * F46 completed: backfill now retries first-pass skipped OHLCV codes during the same daily update run; `daily_update.py --months 1` verified 2408 / 2412 / 2882 / 2330 at `2026-07-03` with skip count 0.

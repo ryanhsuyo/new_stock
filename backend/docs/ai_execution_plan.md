@@ -6,6 +6,8 @@ This file is the AI execution control file.
 
 Agents must read this file first, then read the active phase file, then continue from the first task with `Status: todo`.
 
+Active phase: none
+
 The goal is to keep AI work continuous, ordered, verifiable, and small enough to load reliably.
 
 ## 2. Global Rules

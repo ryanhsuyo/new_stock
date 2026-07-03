@@ -25,6 +25,7 @@
 - `daily_check.json` 必須納入資料修復摘要（缺日線 / 資料不足數量、Top 待修復股票與修復指令），並把該摘要列入 PM Top actions；此檢查只讀取 universe 狀態，不直接啟動長時間回補。
 - `daily_check.json.top_actions[*].action_payload` 可提供複製清單、複製指令、檔案路徑或既有 API 導引；command 類 payload 應提供 `copy_command` 作為完整可貼上指令，並提供 `expected_outputs` 說明執行後應檢查的產物。Dashboard 只能呈現或複製此 payload，不得在前端新增交易或策略判斷。
 - `daily_check.json.top_actions[*].action_payload.kind="file"` 若代表需要人工查看的阻塞檔案，也應提供安全 `copy_command` 與 `expected_outputs`；例如 `signal_alerts` 應提供 `cat backend/out/signal_alerts.json` 與檢查 `backend/out/signal_alerts.json`，讓 Dashboard / PM Worklist 不必自行猜檔案操作。
+- `signal_alerts` 的 Daily Check file payload 必須保留文字版 `preview_items`，並提供結構化 `preview_alerts`（`severity`、`code`、`name`、`title`、`action_label`、`review_focus`），排序以 block -> warn -> info 為準；前端只能呈現此後端契約，不得重新解析 `signal_alerts.json` 或自建阻塞判斷。
 - `expected_outputs` 的指令對應必須集中維護在後端共用契約，避免 `doctor.py`、`daily_check.py`、PM Worklist 與 workflow service 對同一指令列出不同產物；目前 `run_signals.py` 也會刷新 `daily_check.json`。
 - `daily_check.json.top_actions[*].action_payload.kind="copy_text"` 時，後端應附 `preview_items`，列出前幾個可直接呈現的股票 / 待辦項目；前端或文字報告不應自行解析大段 `copy_text` 才能顯示摘要。
 - `daily_check.py` 文字輸出必須把 action payload 的重點印出來：command 的預期產物、copy_text 的預覽清單、file 的目標路徑、api 的方法與端點、以及候選股復盤缺少的代碼，避免 PM 摘要只剩「請去 Dashboard 看」。

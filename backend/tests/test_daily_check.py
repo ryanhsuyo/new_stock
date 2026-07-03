@@ -299,6 +299,68 @@ def test_daily_check_signal_alert_preview_prioritizes_block_items():
     ]
 
 
+def test_daily_check_signal_alert_payload_includes_structured_preview_alerts():
+    import daily_check
+
+    report = {
+        "overall_status": "ok",
+        "exit_code": 0,
+        "generated_at": "2026-06-24",
+        "checks": [],
+    }
+    alerts = {
+        "as_of": "2026-06-24",
+        "previous_as_of": "2026-06-23",
+        "alert_count": 2,
+        "severity_counts": {"block": 1, "warn": 1},
+        "message": "偵測到 2 筆訊號快照變化警示。",
+        "alerts": [
+            {
+                "code": "2408",
+                "name": "南亞科",
+                "severity": "warn",
+                "title": "前次快照以來動作變更",
+                "action_label": "比對動作",
+                "review_focus": ["previous_action", "current_action"],
+            },
+            {
+                "code": "2330",
+                "name": "台積電",
+                "severity": "block",
+                "title": "持股/候選轉風險",
+                "action_label": "先復盤風險",
+                "review_focus": ["previous_key_price", "current_signal"],
+            },
+        ],
+    }
+
+    summary = daily_check.build_daily_summary(report, limit=3, signal_alerts=alerts)
+
+    payload = summary["top_actions"][0]["action_payload"]
+    assert payload["preview_alerts"] == [
+        {
+            "severity": "block",
+            "code": "2330",
+            "name": "台積電",
+            "title": "持股/候選轉風險",
+            "action_label": "先復盤風險",
+            "review_focus": ["previous_key_price", "current_signal"],
+        },
+        {
+            "severity": "warn",
+            "code": "2408",
+            "name": "南亞科",
+            "title": "前次快照以來動作變更",
+            "action_label": "比對動作",
+            "review_focus": ["previous_action", "current_action"],
+        },
+    ]
+    assert payload["preview_items"] == [
+        "2330 台積電：持股/候選轉風險｜先復盤風險",
+        "2408 南亞科：前次快照以來動作變更｜比對動作",
+    ]
+
+
 def test_daily_check_keeps_zero_signal_alerts_out_of_top_actions():
     import daily_check
 
