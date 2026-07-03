@@ -211,7 +211,7 @@ def test_universe_report_has_calculation_columns(tmp_path, monkeypatch):
     assert "calculation_error" in header.split(",")
 
 
-def test_run_daily_signals_uses_batch_and_reports_timeouts(tmp_path, monkeypatch):
+def test_run_daily_signals_uses_batch_and_reports_timeouts(tmp_path, tmp_out, monkeypatch):
     monkeypatch.setattr(svc, "_stock_name", lambda code: code)
     rows = _rows()
     reason = "訊號計算逾時（超過 2 秒）"
@@ -263,3 +263,5 @@ def test_run_daily_signals_uses_batch_and_reports_timeouts(tmp_path, monkeypatch
     assert result["calculation_timeout_seconds"] == 2.0
     assert result["calculation_timeout_count"] == 1
     assert result["calculation_timeout_codes"] == ["1111"]
+    assert (tmp_out / "signal_alerts.json").exists()
+    assert (tmp_out / "signal_snapshot_review.json").exists()
