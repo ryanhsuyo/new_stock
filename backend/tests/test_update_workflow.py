@@ -364,6 +364,62 @@ def test_update_workflow_converts_daily_check_file_blocker_to_safe_copy_command(
     assert report["next_action"]["action_payload"]["file_path"] == "backend/out/signal_alerts.json"
 
 
+def test_update_workflow_headline_summarizes_signal_alert_blocker(monkeypatch):
+    import app.services.update_workflow_service as svc
+
+    class FakeDate(date):
+        @classmethod
+        def today(cls):
+            return cls(2026, 6, 7)
+
+    monkeypatch.setattr(svc, "date", FakeDate)
+    monkeypatch.setattr(svc, "get_data_status", lambda: {
+        "last_run_status": "success",
+        "last_data_as_of": "2026-06-07",
+        "raw_ohlcv_as_of": "2026-06-07",
+        "outputs_lag_raw_data": False,
+        "is_stale": False,
+        "stale_days": 0,
+    })
+    monkeypatch.setattr(svc, "get_daily_check_report", lambda: {
+        "generated_at": "2026-06-07",
+        "data_as_of": "2026-06-07",
+        "snapshot_is_stale": False,
+        "can_use_trade_outputs": False,
+        "top_actions": [
+            {
+                "key": "signal_alerts",
+                "status": "block",
+                "title": "訊號快照變化警示",
+                "message": "偵測到 26 筆訊號快照變化警示。",
+                "details": {
+                    "alert_count": 26,
+                    "block_count": 10,
+                    "warn_count": 15,
+                    "info_count": 1,
+                },
+                "action_payload": {
+                    "kind": "file",
+                    "file_path": "backend/out/signal_alerts.json",
+                    "preview_items": ["2301 光寶科：持股/候選轉風險｜先復盤風險"],
+                },
+            }
+        ],
+    })
+
+    report = svc.get_update_workflow_status()
+
+    assert report["overall_status"] == "blocked"
+    assert report["current_step"] == "resolve_daily_check_blocker"
+    assert "訊號快照變化警示" in report["headline"]
+    assert "26 筆" in report["headline"]
+    assert "10 block" in report["headline"]
+    assert "15 warn" in report["headline"]
+    assert report["next_action"]["action_payload"]["preview_items"] == [
+        "2301 光寶科：持股/候選轉風險｜先復盤風險"
+    ]
+
+
 def test_update_workflow_exposes_schedule_health_in_checks(monkeypatch):
     import app.services.update_workflow_service as svc
 

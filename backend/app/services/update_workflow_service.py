@@ -83,6 +83,24 @@ def _daily_check_blocker_action(daily_check: dict[str, Any] | None) -> dict[str,
     )
 
 
+def _daily_check_blocker_headline(daily_check: dict[str, Any] | None) -> str:
+    actions = list((daily_check or {}).get("top_actions") or [])
+    top = next((item for item in actions if item.get("status") == "block"), None) or (actions[0] if actions else {})
+    key = str(top.get("key") or "")
+    title = str(top.get("title") or "").strip()
+    details = top.get("details") if isinstance(top.get("details"), dict) else {}
+    if key == "signal_alerts":
+        alert_count = int(details.get("alert_count") or 0)
+        block_count = int(details.get("block_count") or 0)
+        warn_count = int(details.get("warn_count") or 0)
+        if alert_count:
+            label = title or "訊號快照變化警示"
+            return f"{label}：{alert_count} 筆警示（{block_count} block / {warn_count} warn），需先處理阻塞。"
+    if title:
+        return f"{title} 阻塞交易輸出，需先處理。"
+    return "Daily Check 判斷交易輸出不可使用，需先處理阻塞。"
+
+
 def _daily_check_action_by_key(daily_check: dict[str, Any] | None, key: str) -> dict[str, Any] | None:
     for action in (daily_check or {}).get("top_actions") or []:
         if action.get("key") == key:
@@ -225,7 +243,7 @@ def get_update_workflow_status() -> dict[str, Any]:
         next_action = _daily_check_blocker_action(daily_check)
         current_step = "resolve_daily_check_blocker"
         overall_status = "blocked"
-        headline = "Daily Check 判斷交易輸出不可使用，需先處理阻塞。"
+        headline = _daily_check_blocker_headline(daily_check)
         can_use_trade_outputs = False
         data_step_status = "done"
         signal_step_status = "done"
