@@ -264,6 +264,41 @@ def test_daily_check_adds_signal_alert_action_before_warnings():
     assert action["action_payload"]["preview_items"] == ["2330 台積電：持股/候選轉風險"]
 
 
+def test_daily_check_signal_alert_preview_prioritizes_block_items():
+    import daily_check
+
+    report = {
+        "overall_status": "ok",
+        "exit_code": 0,
+        "generated_at": "2026-06-24",
+        "checks": [],
+    }
+    alerts = {
+        "as_of": "2026-06-24",
+        "previous_as_of": "2026-06-23",
+        "alert_count": 3,
+        "severity_counts": {"block": 1, "warn": 1, "info": 1},
+        "message": "偵測到 3 筆訊號快照變化警示。",
+        "alerts": [
+            {"code": "6669", "name": "緯穎", "severity": "info", "title": "風險解除觀察", "action_label": "重新評估"},
+            {"code": "2408", "name": "南亞科", "severity": "warn", "title": "前次快照以來動作變更", "action_label": "比對動作"},
+            {"code": "2330", "name": "台積電", "severity": "block", "title": "持股/候選轉風險", "action_label": "先復盤風險"},
+        ],
+    }
+
+    summary = daily_check.build_daily_summary(report, limit=3, signal_alerts=alerts)
+
+    action = summary["top_actions"][0]
+    assert action["details"]["block_count"] == 1
+    assert action["details"]["warn_count"] == 1
+    assert action["details"]["info_count"] == 1
+    assert action["action_payload"]["preview_items"] == [
+        "2330 台積電：持股/候選轉風險｜先復盤風險",
+        "2408 南亞科：前次快照以來動作變更｜比對動作",
+        "6669 緯穎：風險解除觀察｜重新評估",
+    ]
+
+
 def test_daily_check_keeps_zero_signal_alerts_out_of_top_actions():
     import daily_check
 

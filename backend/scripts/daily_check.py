@@ -190,6 +190,20 @@ def _signal_alert_action(alerts: dict[str, Any] | None) -> dict[str, Any] | None
     severity_counts = alerts.get("severity_counts") or {}
     status = "block" if int(severity_counts.get("block") or 0) > 0 else "warn"
     alert_count = int(alerts.get("alert_count") or 0)
+    severity_rank = {"block": 0, "warn": 1, "info": 2}
+    sorted_alerts = sorted(
+        alerts.get("alerts") or [],
+        key=lambda item: (
+            severity_rank.get(str(item.get("severity") or ""), 9),
+            str(item.get("code") or ""),
+        ),
+    )
+
+    def _preview_item(item: dict[str, Any]) -> str:
+        base = f"{item.get('code')} {item.get('name')}：{item.get('title')}"
+        action_label = str(item.get("action_label") or "").strip()
+        return f"{base}｜{action_label}" if action_label else base
+
     return {
         "key": "signal_alerts",
         "status": status,
@@ -201,16 +215,16 @@ def _signal_alert_action(alerts: dict[str, Any] | None) -> dict[str, Any] | None
             "previous_as_of": alerts.get("previous_as_of"),
             "alert_count": alert_count,
             "severity_counts": severity_counts,
+            "block_count": int(severity_counts.get("block") or 0),
+            "warn_count": int(severity_counts.get("warn") or 0),
+            "info_count": int(severity_counts.get("info") or 0),
         },
         "action_payload": {
             "kind": "file",
             "file_path": _SIGNAL_ALERTS_FILE,
             "copy_command": _copy_command(_SIGNAL_ALERTS_COMMAND),
             "expected_outputs": [_SIGNAL_ALERTS_FILE],
-            "preview_items": [
-                f"{item.get('code')} {item.get('name')}：{item.get('title')}"
-                for item in (alerts.get("alerts") or [])[:5]
-            ],
+            "preview_items": [_preview_item(item) for item in sorted_alerts[:5]],
         },
     }
 

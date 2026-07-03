@@ -18,7 +18,7 @@ Loop mode: waiting_for_next_safe_phase
 
 Last completed phase:
 
-* `F47_prevent_signal_test_output_pollution.md` — Signal timeout tests now use isolated `tmp_out`, preventing full backend tests from overwriting product signal alert outputs with fixture dates.
+* `F48_signal_alert_block_first_preview.md` — Daily Check signal alert previews now sort block alerts first and include backend-owned action labels.
 
 Current phase status:
 
@@ -26,6 +26,7 @@ Current phase status:
 * F45 completed: `signal_alerts.json.alerts[*]` now includes `action_label`, `next_action`, and `review_focus`.
 * F46 completed: backfill now retries first-pass skipped OHLCV codes during the same daily update run; `daily_update.py --months 1` verified 2408 / 2412 / 2882 / 2330 at `2026-07-03` with skip count 0.
 * F47 completed: full backend tests no longer pollute `backend/out/signal_alerts.json`; after `775 passed`, summary / snapshot review / alerts all remained `2026-07-03`.
+* F48 completed: Daily Check `signal_alerts` top action now exposes severity counts and block-first preview items with action labels.
 * Use `backend/docs/ai_tasks/F21_heartbeat_development_operating_contract.md` to select the next low-risk productization slice.
 
 ## Completed Phase History Summary
@@ -73,6 +74,7 @@ Recent completed phases:
 * F45 — Completed: Signal alerts include outcome-specific action hints for PM review.
 * F46 — Completed: OHLCV backfill retries first-pass skipped codes in the same run and verified no recoverable partial stale data remained.
 * F47 — Completed: Prevented signal timeout tests from writing fixed-date signal snapshot / alert outputs to product `backend/out`.
+* F48 — Completed: Daily Check signal alert previews prioritize block items and show action labels.
 
 ## Next Phase Candidates
 
@@ -119,7 +121,9 @@ Recent verification:
 * F46 full backend tests passed: `/Library/Frameworks/Python.framework/Versions/3.11/bin/python3 -m pytest backend/tests -q` (`775 passed`)
 * F47 focused tests passed: `/Library/Frameworks/Python.framework/Versions/3.11/bin/python3 -m pytest backend/tests/test_signal_timeout.py backend/tests/test_signals_api.py::TestSignalsOutput::test_signal_snapshot_outputs_are_written -q`
 * F47 full backend tests passed: `/Library/Frameworks/Python.framework/Versions/3.11/bin/python3 -m pytest backend/tests -q` (`775 passed`)
+* F48 Daily Check tests passed: `/Library/Frameworks/Python.framework/Versions/3.11/bin/python3 -m pytest backend/tests/test_daily_check.py -q`
+* F48 full backend tests passed: `/Library/Frameworks/Python.framework/Versions/3.11/bin/python3 -m pytest backend/tests -q` (`776 passed`)
 
 ## Last Stop Reason
 
-F47 completed. Continue proactively by selecting the next safe small productization phase from the F21 operating contract when no active phase exists.
+F48 completed. Continue proactively by selecting the next safe small productization phase from the F21 operating contract when no active phase exists.
