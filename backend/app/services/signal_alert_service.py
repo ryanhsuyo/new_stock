@@ -18,6 +18,35 @@ _OUTCOME_META = {
     "risk_eased": ("info", "風險解除觀察"),
 }
 
+_OUTCOME_ACTIONS = {
+    "risk_triggered": {
+        "action_label": "先復盤風險",
+        "next_action": "檢查前次進場/持股失效條件、目前訊號與停損價，必要時列入今日風險處理。",
+        "review_focus": [
+            "previous_action",
+            "current_action",
+            "previous_key_price",
+            "previous_invalidation",
+            "current_signal",
+        ],
+    },
+    "missing_current": {
+        "action_label": "補資料",
+        "next_action": "確認本日 universe_report 是否缺少該股票；若是資料缺口，先補日線後重跑訊號。",
+        "review_focus": ["previous_action", "previous_key_price", "previous_invalidation"],
+    },
+    "action_changed": {
+        "action_label": "比對動作",
+        "next_action": "比對前次與本次 daily_action，確認是否只是正常狀態切換，或需要補決策日誌。",
+        "review_focus": ["previous_action", "current_action", "previous_label", "current_label"],
+    },
+    "risk_eased": {
+        "action_label": "重新評估",
+        "next_action": "風險已緩和；重新檢查進場區間、量能與大盤濾網，不直接視為買進訊號。",
+        "review_focus": ["previous_action", "current_action", "current_signal"],
+    },
+}
+
 
 def _alert_from_review_item(item: dict[str, Any]) -> dict[str, Any] | None:
     outcome = str(item.get("outcome") or "")
@@ -29,6 +58,7 @@ def _alert_from_review_item(item: dict[str, Any]) -> dict[str, Any] | None:
     severity, title = meta
     code = str(item.get("code") or "")
     name = str(item.get("name") or code)
+    action = _OUTCOME_ACTIONS.get(outcome, {})
     return {
         "code": code,
         "name": name,
@@ -36,6 +66,9 @@ def _alert_from_review_item(item: dict[str, Any]) -> dict[str, Any] | None:
         "outcome": outcome,
         "title": title,
         "message": item.get("reason") or title,
+        "action_label": action.get("action_label") or "查看警示",
+        "next_action": action.get("next_action") or "查看前次與本次訊號差異，再決定是否需要復盤。",
+        "review_focus": list(action.get("review_focus") or []),
         "previous_action": item.get("previous_action"),
         "previous_label": item.get("previous_label"),
         "previous_close": item.get("previous_close"),

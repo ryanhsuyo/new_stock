@@ -93,9 +93,21 @@ def test_build_signal_alerts_maps_mixed_outcomes_to_severity():
     assert alerts["severity_counts"] == {"block": 1, "info": 1, "warn": 2}
     assert by_code["2330"]["severity"] == "block"
     assert by_code["2330"]["title"] == "持股/候選轉風險"
+    assert by_code["2330"]["action_label"] == "先復盤風險"
+    assert "失效條件" in by_code["2330"]["next_action"]
+    assert by_code["2330"]["review_focus"] == [
+        "previous_action",
+        "current_action",
+        "previous_key_price",
+        "previous_invalidation",
+        "current_signal",
+    ]
     assert by_code["2303"]["severity"] == "info"
+    assert by_code["2303"]["action_label"] == "重新評估"
     assert by_code["2408"]["severity"] == "warn"
+    assert by_code["2408"]["action_label"] == "比對動作"
     assert by_code["9999"]["title"] == "前日計畫缺少本日資料"
+    assert by_code["9999"]["action_label"] == "補資料"
 
 
 def test_build_signal_alerts_labels_multi_day_snapshot_window():

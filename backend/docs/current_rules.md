@@ -407,6 +407,7 @@ Dashboard 補資料流程：
 - `workflow-status` / Update Workflow 必須保留 `schedule_health_status`、`schedule_is_overdue` 與 `schedule_health_message`，讓 Dashboard / 心跳能看出排程是否逾期、從未執行或狀態異常；不得自動安裝 launchd / cron。
 - 每次 `run_signals.py` 應保存 `backend/out/signal_snapshots/signal_snapshot_YYYY-MM-DD.json`，並產生 `backend/out/signal_snapshot_review.json`；review 只比較前一份快照與本次訊號的 action 變化，必須顯示 `previous_as_of` 到 `as_of` 的比較區間，不得把跨多日差異稱為單日 / 隔日變化，也不得當成績效證明或新交易訊號。
 - 每次 `run_signals.py` 應由 `signal_snapshot_review.json` 產生 `backend/out/signal_alerts.json`；alerts 只整理 `risk_triggered`、`action_changed`、`risk_eased`、`missing_current` 等變化，作為 Daily Check 待辦提示，不代表外部通知已送出。
+- `signal_alerts.json.alerts[*]` 必須包含後端產生的 `action_label`、`next_action` 與 `review_focus`；前端 / PM Worklist 只能呈現這些提示，不得自行推導解除警示或交易動作。
 - `summary.json`、`daily_brief.json`、signal snapshot、snapshot review 與 `signal_alerts.json` 都必須保留同一份 `rules_version` / `rules_metadata`，避免日後無法解釋舊輸出。
 - `python3 scripts/today_scan.py` 是盤後規則掃描入口，只能讀取既有 `summary.json` / `daily_brief.json` / `universe_report.csv`，分出正式可小試、老王觀察、穩健動能與風險處理；不得重算策略、放寬濾網或新增推薦桶。
 - UI 上應區分「本週推薦」與「每日盤後掃描」：推薦頁是每週主要觀察 / 可執行清單，Today Scan / Daily Check 是每日候選、風險與提醒；不得把每日掃描文案包裝成每天正式換單。

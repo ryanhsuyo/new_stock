@@ -18,12 +18,12 @@ Loop mode: waiting_for_next_safe_phase
 
 Last completed phase:
 
-* `F44_update_workflow_partial_freshness.md` — Update Workflow now surfaces partial Daily Check data freshness issues as action-required product health.
+* `F45_signal_alert_action_hints.md` — Signal alerts now include backend-owned action hints per alert.
 
 Current phase status:
 
-* F43 trust hardening is complete.
 * F44 completed: if Daily Check reports partial stale tracked stocks, Update Workflow returns `action_required` with a safe daily update action instead of `ready`.
+* F45 completed: `signal_alerts.json.alerts[*]` now includes `action_label`, `next_action`, and `review_focus`.
 * Use `backend/docs/ai_tasks/F21_heartbeat_development_operating_contract.md` to select the next low-risk productization slice.
 
 ## Completed Phase History Summary
@@ -35,7 +35,7 @@ Large historical phase detail is intentionally summarized here. Use phase files 
 * Fundamentals priority import phases R9.0 through R9.2 are complete.
 * Daily Check / Today Scan observability phase D1.0 is complete.
 * Official fundamentals and Quality Momentum Lite phases F1 through F20 are complete.
-* Heartbeat/product-health phases F21 through F44 are complete.
+* Heartbeat/product-health phases F21 through F45 are complete.
 
 Recent completed phases:
 
@@ -68,6 +68,7 @@ Recent completed phases:
 * F43.4 — Completed: Update Workflow exposes schedule health and block alert inspection remains actionable.
 * F43.5 — Completed: cleaned stale collaboration docs without weakening strategy guardrails.
 * F44 — Completed: Update Workflow surfaces Daily Check partial data freshness warnings as action-required health status.
+* F45 — Completed: Signal alerts include outcome-specific action hints for PM review.
 
 ## Next Phase Candidates
 
@@ -113,4 +114,4 @@ Recent verification:
 
 ## Last Stop Reason
 
-F44 completed. Continue proactively by selecting the next safe small productization phase from the F21 operating contract when no active phase exists.
+F45 completed. Continue proactively by selecting the next safe small productization phase from the F21 operating contract when no active phase exists.
