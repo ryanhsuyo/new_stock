@@ -18,6 +18,7 @@ Loop mode: waiting_for_next_safe_phase
 
 Last completed phase:
 
+* `F60_heartbeat_backlog_state_refresh.md` — Heartbeat backlog state now reflects F52-F59 completion and the signal-alert acknowledgement approval guard.
 * `F59_weekend_daily_check_freshness.md` — Daily Check snapshot freshness is now trading-day aware, avoiding weekend-only refresh noise.
 * `F58_two_strategy_contract_regression.md` — User-facing aligned strategies now exclude internal `core` and remain limited to `old_wang` / `steady_momentum`.
 * `F57_update_scheduler_health_readiness.md` — Data Status and Update Workflow now expose a backend-owned manual daily update fallback action without installing schedulers.
@@ -28,6 +29,8 @@ Last completed phase:
 
 Current phase status:
 
+* No active phase. Use F21 backlog order for the next safe heartbeat slice.
+* F60 completed: refreshed F52 backlog baseline / recommendation after F59 so future idle heartbeats start from current state.
 * F59 completed: weekend / non-trading-day Daily Check freshness now uses the latest expected trading day instead of raw calendar date.
 * F58 completed: strategy alignment no longer exposes internal `core` as a product strategy.
 * F57 completed: exposed manual daily update fallback action in data-status and Update Workflow checks; no scheduler installation was attempted.
@@ -151,7 +154,8 @@ Recent verification:
 * F57 frontend update action test/build passed: `node --test frontend/tests/daily-update-button.test.mjs` (`2 passed`), `npm run build`
 * F58 strategy contract tests passed: `/Library/Frameworks/Python.framework/Versions/3.11/bin/python3 -m pytest backend/tests/test_strategy_alignment.py -q` (`4 passed`), focused signals contract tests (`2 passed`), `node --test frontend/tests/two-strategy-ui.test.mjs` (`4 passed`)
 * F59 Daily Check / Update Workflow freshness tests passed: focused Daily Check service tests (`3 passed`), focused Update Workflow stale snapshot test (`1 passed`), real service check kept weekend workflow on `signal_alerts` blocker.
+* F60 docs sanity passed: confirmed F52 no longer references the stale F50/F51 latest-completed baseline, execution state has no active F60 phase, and `git diff --check` passed.
 
 ## Last Stop Reason
 
-F59 completed. Continue proactively by selecting the next safe small productization phase from the F21 operating contract when no active phase exists; signal-alert acknowledgement implementation still needs explicit user approval.
+F60 completed as a docs-only state refresh. Signal-alert acknowledgement / unblock behavior remains blocked until explicit user approval.

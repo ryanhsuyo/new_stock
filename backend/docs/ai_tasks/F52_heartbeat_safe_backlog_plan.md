@@ -1,20 +1,24 @@
 # F52 Heartbeat Safe Backlog Plan
 
-Status: planning
+Status: completed
 
 Purpose:
 
 Give scheduled heartbeat development a concrete queue of safe, product-like slices after F51, so it does not repeatedly conclude that there is nothing to do while the system is healthy but still has user-facing blockers.
 
+This backlog has now served as the launch point for F52-F59. Keep it as a historical queue and current-state guardrail, not as an active instruction to redo completed phases.
+
 ## Current Baseline
 
-As of 2026-07-04:
+As of 2026-07-05, after F59:
 
 * Active phase: none.
-* Latest completed phases: F50 / F51, covering structured `signal_alerts.preview_alerts` and PM Worklist rendering.
-* Data outputs are fresh for `2026-07-03`; `today_scan.data_freshness.stale_count = 0` and `missing_date_count = 0`.
+* Latest completed phases: F52-F59, covering signal-alert review payloads, manual market note clarity, fundamentals truthfulness, Today Scan blocked-state clarity, update fallback actions, two-strategy contract checks, and weekend-aware Daily Check freshness.
+* Data outputs are fresh for `2026-07-03`; `today_scan.data_freshness.stale_count = 0`, `missing_date_count = 0`, and schedule health is healthy.
+* Weekend / non-trading-day Daily Check freshness is handled by F59 and should not be treated as stale only because the calendar date advanced.
 * `daily_check.can_use_trade_outputs = false` because `signal_alerts` remains a block-level manual review item.
-* Additional warnings remain: stale manual market note and incomplete fundamentals coverage.
+* Signal-alert acknowledgement / unblock write behavior requires explicit user approval per F55. Do not implement it from heartbeat alone.
+* Additional warnings remain: incomplete fundamentals coverage and review-only Today Scan output while Daily Check is blocked.
 
 ## Operating Rule
 
@@ -31,6 +35,8 @@ Do not pick tasks that require:
 ## Recommended Phase Queue
 
 ### F52 — Signal Alerts Review Usability
+
+Status: completed by `F52_signal_alert_review_usability.md`.
 
 Goal:
 
@@ -55,6 +61,8 @@ Suggested verification:
 
 ### F53 — Manual Market Note Action Clarity
 
+Status: completed by `F53_manual_market_note_action_clarity.md`.
+
 Goal:
 
 The stale manual market note warning should be clear enough that the user knows what to write next.
@@ -77,6 +85,8 @@ Suggested verification:
 * frontend structure tests if Dashboard changes.
 
 ### F54 — Fundamentals Warning Truthfulness
+
+Status: completed by `F54_fundamentals_warning_truthfulness.md`.
 
 Goal:
 
@@ -194,14 +204,47 @@ Suggested verification:
 * backend strategy/catalog tests.
 * `node --test frontend/tests/two-strategy-ui.test.mjs`
 
+### F59 — Weekend Daily Check Freshness
+
+Status: completed in `F59_weekend_daily_check_freshness.md`.
+
+Goal:
+
+Keep Daily Check snapshot freshness trading-day aware so weekend / non-trading-day heartbeats do not create false stale-data work.
+
+Safe slices:
+
+* Compare Daily Check output date with the latest expected trading day, not raw calendar date.
+* Keep trade-output blocking tied to real blockers like `signal_alerts`, not weekend date drift.
+
+Stop conditions:
+
+* Do not generate new outputs only to make freshness look current.
+* Do not clear `signal_alerts` blockers.
+
+### F60 — Heartbeat Backlog State Refresh
+
+Status: completed in `F60_heartbeat_backlog_state_refresh.md`.
+
+Goal:
+
+Refresh this backlog so future heartbeats start from the current F59 state instead of the stale F50/F51 baseline.
+
+Stop conditions:
+
+* Do not implement signal-alert acknowledgement without explicit user approval.
+* Do not modify generated outputs or trading records.
+
 ## Priority Recommendation
 
-Next safe implementation phase should be:
+F52-F59 are complete. The current hard blocker remains `signal_alerts`, but F55 explicitly limits acknowledgement / unblock implementation until the user approves a write path and audit behavior.
 
-1. F52 Signal Alerts Review Usability, because it addresses the current hard blocker without changing trading state.
-2. F53 Manual Market Note Action Clarity, because it addresses the next warning without inventing market commentary.
-3. F54 Fundamentals Warning Truthfulness, because it protects user trust in Quality Momentum Lite.
+Next heartbeat phases should therefore return to the F21 backlog order:
 
-If the user wants heartbeats to keep actively developing, start with F52 and keep each slice small enough to complete, verify, and commit in one heartbeat turn.
+1. Product health and freshness if a real stale-data, scheduler, update, or generated-output issue appears.
+2. Daily Check / PM Worklist noise reduction that makes existing blockers easier to understand without clearing them.
+3. Today Scan / Universe Report scanability and two-strategy score clarity.
+4. Official fundamentals report-only observability and PE-only apply guardrails.
+5. Documentation consistency when product state and heartbeat plans drift.
 
-After F58, the next safest implementation phase should return to the F21 backlog order: product health/freshness first, then Daily Check / PM Worklist noise reduction, unless signal-alert acknowledgement receives explicit user approval for implementation.
+Do not start a signal-alert acknowledgement ledger, review write endpoint, or unblock action from heartbeat alone. That is the next useful product direction only after explicit user approval.
