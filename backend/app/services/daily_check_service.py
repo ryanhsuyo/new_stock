@@ -7,6 +7,8 @@ from datetime import date
 from pathlib import Path
 from typing import Any
 
+from app.services.trading_calendar_service import is_trading_day, previous_trading_day
+
 _BACKEND = Path(__file__).resolve().parent.parent.parent
 _OUT = _BACKEND / "out"
 _REFRESH_COMMAND = "python3 scripts/daily_check.py --write-report"
@@ -23,7 +25,9 @@ def _refresh_payload() -> dict[str, Any]:
 
 def _snapshot_freshness(data: dict[str, Any]) -> dict[str, Any]:
     generated_at = str(data.get("generated_at") or "")
-    today = date.today().isoformat()
+    today = date.today()
+    expected_snapshot_day = today if is_trading_day(today) else previous_trading_day(today)
+    expected_snapshot_date = expected_snapshot_day.isoformat()
     if not generated_at:
         return {
             "snapshot_is_stale": True,
@@ -40,10 +44,13 @@ def _snapshot_freshness(data: dict[str, Any]) -> dict[str, Any]:
             **_refresh_payload(),
         }
 
-    if generated_date < today:
+    if generated_date < expected_snapshot_date:
         return {
             "snapshot_is_stale": True,
-            "snapshot_stale_reason": f"Daily Check 快照產生於 {generated_date}，今天是 {today}，請重新產生每日摘要。",
+            "snapshot_stale_reason": (
+                f"Daily Check 快照產生於 {generated_date}，"
+                f"最新應覆蓋日期是 {expected_snapshot_date}，請重新產生每日摘要。"
+            ),
             **_refresh_payload(),
         }
 

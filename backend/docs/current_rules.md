@@ -34,7 +34,7 @@
 - `daily_check.json.top_actions[*]` 必須提供穩定 `action_type`，由後端依 `key` 映射為 `signal_alerts`、`data_freshness`、`today_scan`、`data_repair`、`fundamentals`、`decision_journal` 或 fallback `daily_check`；前端不得自行推導分類。
 - `summary.json.manual_market_note.update_required=true` 或 `is_stale=true` 時，Daily Check 應把「更新人工盤後筆記」列入 top actions，`action_payload.kind="api"` 指向 `POST /api/stocks/market-notes`；此待辦只提醒使用者更新筆記，不自動儲存、不重算正式訊號、不修改交易紀錄 / 持倉 / 現金。
 - `manual_market_note` 的 Daily Check API payload 必須提供 `required_fields`、`writing_checklist` 與安全的空白 `example_payload`；範例只能填資料日與 `source=manual`，不得由系統捏造 headline、risk_level 或盤勢內容。
-- `GET /api/system/daily-check` 讀取舊的 `daily_check.json` 時，後端必須補上 `snapshot_is_stale`、`snapshot_stale_reason`、`snapshot_refresh_command`、`snapshot_refresh_copy_command` 與 `snapshot_refresh_expected_outputs`；Dashboard 必須把非今日產生的快照標示為需刷新，並提供可複製刷新指令，避免隔天誤用昨日 PM 摘要。
+- `GET /api/system/daily-check` 讀取舊的 `daily_check.json` 時，後端必須補上 `snapshot_is_stale`、`snapshot_stale_reason`、`snapshot_refresh_command`、`snapshot_refresh_copy_command` 與 `snapshot_refresh_expected_outputs`；交易日以當日快照為準，週末 / 非交易日以最近一個已完成交易日為準，避免週末凌晨把最新交易日摘要誤判為需刷新。
 - `GET /api/system/update-workflow` 是每日更新流程的單一狀態入口，負責彙整資料是否過期、交易輸出是否落後、Daily Check 是否需刷新，以及下一個可複製指令；此 API 不新增交易訊號，也不直接執行長時間回補。
 - 若 Daily Check 快照是今日版本但 `can_use_trade_outputs=false`，Update Workflow 必須視為 `blocked`，並沿用 Daily Check 的第一個 blocker / top action 作為 `next_action`，不得顯示 ready。
 - `daily_check.json.can_use_trade_outputs` 必須同時考慮 doctor report block 與 Daily Check extra actions 的 `status=block`；例如 `signal_alerts` 若為 block，Daily Check 不得仍標示交易輸出可用。

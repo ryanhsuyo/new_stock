@@ -1028,6 +1028,39 @@ def test_daily_check_service_keeps_current_snapshot_fresh(monkeypatch, tmp_path)
     assert report["snapshot_refresh_expected_outputs"] == ["backend/out/daily_check.json"]
 
 
+def test_daily_check_service_keeps_latest_trading_day_snapshot_fresh_on_weekend(monkeypatch, tmp_path):
+    import app.services.daily_check_service as svc
+
+    class FakeDate(date):
+        @classmethod
+        def today(cls):
+            return cls(2026, 6, 7)  # Sunday; latest completed trading day is Friday 2026-06-05.
+
+    out = tmp_path / "out"
+    out.mkdir()
+    monkeypatch.setattr(svc, "_OUT", out)
+    monkeypatch.setattr(svc, "date", FakeDate, raising=False)
+    (out / "daily_check.json").write_text(
+        json.dumps(
+            {
+                "overall_status": "ok",
+                "exit_code": 0,
+                "generated_at": "2026-06-05T18:00:00",
+                "data_as_of": "2026-06-05",
+                "can_use_trade_outputs": True,
+                "top_actions": [],
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    report = svc.get_daily_check_report()
+
+    assert report is not None
+    assert report["snapshot_is_stale"] is False
+    assert report["snapshot_stale_reason"] == ""
+
+
 def test_daily_check_help_exits_0():
     result = subprocess.run(
         [sys.executable, str(_SCRIPTS / "daily_check.py"), "--help"],

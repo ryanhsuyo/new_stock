@@ -18,6 +18,7 @@ Loop mode: waiting_for_next_safe_phase
 
 Last completed phase:
 
+* `F59_weekend_daily_check_freshness.md` — Daily Check snapshot freshness is now trading-day aware, avoiding weekend-only refresh noise.
 * `F58_two_strategy_contract_regression.md` — User-facing aligned strategies now exclude internal `core` and remain limited to `old_wang` / `steady_momentum`.
 * `F57_update_scheduler_health_readiness.md` — Data Status and Update Workflow now expose a backend-owned manual daily update fallback action without installing schedulers.
 * `F56_today_scan_usage_status.md` — Today Scan now includes backend-owned usage status and Dashboard shows when candidates are review-only because Daily Check blocks trade outputs.
@@ -27,6 +28,7 @@ Last completed phase:
 
 Current phase status:
 
+* F59 completed: weekend / non-trading-day Daily Check freshness now uses the latest expected trading day instead of raw calendar date.
 * F58 completed: strategy alignment no longer exposes internal `core` as a product strategy.
 * F57 completed: exposed manual daily update fallback action in data-status and Update Workflow checks; no scheduler installation was attempted.
 * F56 completed: Today Scan usage status distinguishes review-only candidates from trade-usable outputs when Daily Check blocks trading outputs.
@@ -148,7 +150,8 @@ Recent verification:
 * F57 backend update health tests passed: `/Library/Frameworks/Python.framework/Versions/3.11/bin/python3 -m pytest backend/tests/test_update_status.py backend/tests/test_update_workflow.py backend/tests/test_schedule_health.py -q` (`86 passed`)
 * F57 frontend update action test/build passed: `node --test frontend/tests/daily-update-button.test.mjs` (`2 passed`), `npm run build`
 * F58 strategy contract tests passed: `/Library/Frameworks/Python.framework/Versions/3.11/bin/python3 -m pytest backend/tests/test_strategy_alignment.py -q` (`4 passed`), focused signals contract tests (`2 passed`), `node --test frontend/tests/two-strategy-ui.test.mjs` (`4 passed`)
+* F59 Daily Check / Update Workflow freshness tests passed: focused Daily Check service tests (`3 passed`), focused Update Workflow stale snapshot test (`1 passed`), real service check kept weekend workflow on `signal_alerts` blocker.
 
 ## Last Stop Reason
 
-F58 completed. Continue proactively by selecting the next safe small productization phase from the F21 operating contract when no active phase exists; signal-alert acknowledgement implementation still needs explicit user approval.
+F59 completed. Continue proactively by selecting the next safe small productization phase from the F21 operating contract when no active phase exists; signal-alert acknowledgement implementation still needs explicit user approval.
