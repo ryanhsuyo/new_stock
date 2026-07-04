@@ -1486,6 +1486,7 @@ function TodayScanQuickCard({
   const missingDateCount = todayScan.data_freshness?.missing_date_count ?? 0
   const topStaleItem = todayScan.data_freshness?.top_stale_items?.[0]
   const hasFreshnessWarning = staleCount > 0 || missingDateCount > 0
+  const usageStatus = todayScan.usage_status
 
   return (
     <div className="decision-console-card today-scan-quick-card">
@@ -1507,6 +1508,13 @@ function TodayScanQuickCard({
           {topStaleItem && (
             <small>最舊：{topStaleItem.code} {topStaleItem.name} {topStaleItem.data_as_of || '日期待確認'}</small>
           )}
+        </div>
+      )}
+      {usageStatus && (
+        <div className={`today-scan-usage-status ${usageStatus.can_use_trade_outputs ? 'ready' : 'blocked'}`} aria-label="Today Scan 使用狀態">
+          <b>{usageStatus.headline}</b>
+          <span>{usageStatus.reason}</span>
+          {usageStatus.next_action && <small>{usageStatus.next_action}</small>}
         </div>
       )}
       {firstEntry ? (

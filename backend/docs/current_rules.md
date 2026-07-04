@@ -62,6 +62,7 @@
 - `/api/system/pm-worklist` 必須回傳 `today_focus`，代表 Dashboard 第一屏的今日焦點契約；每筆至少包含 `category`、`code`、`name`、`label`、`reason`、`next_action`、`severity`、`source`、`price_basis`、`as_of`。分類順序固定為 `portfolio_risk`、`entry_candidate`、`review_needed`，每類最多 3 筆；持股風險永遠優先於候選股。若交易輸出 blocked 或資料過期，`today_focus` 不得把候選股包裝成可交易進場訊號，只能提示先解除阻塞。
 - Dashboard 第一屏應以 Decision Console 呈現資料日、交易輸出可用性、價格基準、Primary Action、大盤姿態與今日焦點；完整 Update Workflow、Daily Check、PM Worklist 明細與檔案狀態應放在下方，避免第一屏資訊過載。
 - Dashboard 的 Today Scan 卡片可呈現後端 `today_scan.json.data_freshness` 的 stale / missing-date 摘要與最舊資料項；前端只顯示後端欄位，不得自行重算資料新鮮度、候選桶、分數或策略判斷。
+- `today_scan.json.usage_status` 是 Today Scan 是否可作交易輸出使用的後端契約；若 Daily Check block 交易輸出，Today Scan 仍可顯示候選供復盤，但 Dashboard 必須呈現後端 `usage_status.headline/reason/next_action`，不得把候選包裝成可直接交易。
 - 單檔訊號計算必須有 timeout 保護；逾時股票只可輸出 `DATA_MISSING` / `data_ok=false`，並提供 `calculation_status=timeout`、`calculation_error`、`no_buy_reason` 與 `risk_note`。逾時不得中止其他股票，但非 timeout 的未知例外仍應中止並回報，避免默默吞錯。
 - `summary.json` 必須回報單檔 timeout 秒數、數量與股票代碼；`universe_report.csv` 必須保留 `calculation_status` / `calculation_error`，讓空推薦或缺資料結果可追溯。
 - Dashboard PM Worklist 明細應分組呈現，至少區分阻塞 / 資料修復、候選復盤、基本面與 Daily Check / 維護；動作按鈕需共用 action handler，依 `action_payload.kind` 處理 command、copy_text 與安全 API 導引，不得在各卡片重複分散實作。

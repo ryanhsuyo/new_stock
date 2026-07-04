@@ -18,13 +18,14 @@ Loop mode: waiting_for_next_safe_phase
 
 Last completed phase:
 
+* `F56_today_scan_usage_status.md` — Today Scan now includes backend-owned usage status and Dashboard shows when candidates are review-only because Daily Check blocks trade outputs.
 * `F55_signal_alert_acknowledgement_decision.md` — Documented safe signal-alert acknowledgement options and a strict future unblock rule without implementing writes.
 * `F54_fundamentals_warning_truthfulness.md` — Quality Momentum Lite missing fundamentals now say incomplete / cannot score instead of exposing a neutral `/10` fallback as if fundamentals were evaluated.
 * `F53_manual_market_note_action_clarity.md` — Daily Check manual market note action now includes required fields, writing checklist, and safe empty example payload without inventing market content.
-* `F52_signal_alerts_review_usability.md` — Daily Check signal-alert payload now includes backend-owned review focus counts, checklist items, and copyable review checklist text without auto-unblocking alerts.
 
 Current phase status:
 
+* F56 completed: Today Scan usage status distinguishes review-only candidates from trade-usable outputs when Daily Check blocks trading outputs.
 * F55 completed: signal-alert acknowledgement should use a separate review ledger if approved later; no acknowledgement write behavior was implemented in this phase.
 * F54 completed: missing fundamentals user-facing wording now says incomplete / cannot score, without changing strategy weights or fabricating data.
 * F53 completed: manual market note action payload includes required fields, writing checklist, and safe empty example payload; Daily Check and PM Worklist tests passed.
@@ -138,7 +139,9 @@ Recent verification:
 * F49 full backend tests passed: `/Library/Frameworks/Python.framework/Versions/3.11/bin/python3 -m pytest backend/tests -q` (`777 passed`)
 * F54 focused tests passed: `/Library/Frameworks/Python.framework/Versions/3.11/bin/python3 -m pytest backend/tests/test_steady_momentum_service.py backend/tests/test_signals_api.py::TestSignalsOutput::test_signal_snapshot_outputs_are_written backend/tests/test_daily_brief.py -q`
 * F55 docs sanity passed: `rg -n "TODO|TBD" backend/docs/ai_tasks/F55_signal_alert_acknowledgement_decision.md` returned no matches.
+* F56 backend Today Scan tests passed: `/Library/Frameworks/Python.framework/Versions/3.11/bin/python3 -m pytest backend/tests/test_today_scan_service.py backend/tests/test_today_scan_api.py backend/tests/test_today_scan_cli.py -q` (`10 passed`)
+* F56 frontend tests/build passed: `node --test frontend/tests/today-scan-dashboard.test.mjs frontend/tests/today-scan-api-contract.test.mjs` (`2 passed`), `npm run build`
 
 ## Last Stop Reason
 
-F55 completed. Continue proactively by selecting the next safe small productization phase from the F21 operating contract when no active phase exists; signal-alert acknowledgement implementation needs explicit user approval.
+F56 completed. Continue proactively by selecting the next safe small productization phase from the F21 operating contract when no active phase exists; signal-alert acknowledgement implementation still needs explicit user approval.

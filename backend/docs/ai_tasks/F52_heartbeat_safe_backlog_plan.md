@@ -124,6 +124,8 @@ Suggested verification:
 
 ### F56 — Today Scan Empty-State Explainability
 
+Status: completed in `F56_today_scan_usage_status.md`.
+
 Goal:
 
 When Today Scan has no candidates or is blocked by Daily Check, the UI should explain whether the reason is "no setup" or "outputs blocked".
@@ -198,4 +200,4 @@ Next safe implementation phase should be:
 
 If the user wants heartbeats to keep actively developing, start with F52 and keep each slice small enough to complete, verify, and commit in one heartbeat turn.
 
-After F55, the next safest implementation phase is F56 Today Scan Empty-State Explainability, unless signal-alert acknowledgement receives explicit user approval for implementation.
+After F56, the next safest implementation phase is F57 Update / Scheduler Health Readiness, unless signal-alert acknowledgement receives explicit user approval for implementation.

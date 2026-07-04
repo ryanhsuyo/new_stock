@@ -1237,6 +1237,16 @@ export interface TodayScanDataFreshness {
   top_stale_items?: TodayScanFreshnessItem[]
 }
 
+export interface TodayScanUsageStatus {
+  can_use_trade_outputs: boolean
+  status: 'ready' | 'no_candidates' | 'blocked_by_daily_check' | string
+  headline: string
+  reason: string
+  next_action?: string | null
+  blocking_action_key?: string | null
+  blocking_action_status?: string | null
+}
+
 export interface TodayScanReport {
   as_of: string | null
   generated_at?: string | null
@@ -1249,6 +1259,7 @@ export interface TodayScanReport {
   old_wang_candidates: TodayScanItem[]
   steady_momentum_candidates: TodayScanItem[]
   risk_items: TodayScanItem[]
+  usage_status?: TodayScanUsageStatus
   bucket_notes?: Record<string, string>
   data_freshness?: TodayScanDataFreshness
   notes?: string[]

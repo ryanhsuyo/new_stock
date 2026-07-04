@@ -255,6 +255,56 @@ def test_today_scan_report_includes_bucket_notes(tmp_path):
     assert "先處理風險" in report["bucket_notes"]["risk_items"]
 
 
+def test_today_scan_report_includes_blocked_usage_status_from_daily_check(tmp_path):
+    from app.services.today_scan_service import build_today_scan_report
+
+    out = tmp_path / "out"
+    _write_json(out / "summary.json", {"as_of": "2026-06-25", "generated_at": "now"})
+    _write_json(out / "daily_brief.json", {"as_of": "2026-06-25"})
+    _write_json(out / "daily_check.json", {
+        "as_of": "2026-06-25",
+        "can_use_trade_outputs": False,
+        "top_actions": [
+            {
+                "key": "signal_alerts",
+                "status": "block",
+                "title": "訊號快照變化警示",
+                "message": "偵測到 2 筆 block 警示。",
+                "next_action": "先查看 signal_alerts.json。",
+            }
+        ],
+    })
+    _write_universe(out / "universe_report.csv", [
+        {
+            "code": "2337",
+            "name": "旺宏",
+            "internal_signal": "ready_to_enter",
+            "daily_action": "enter",
+            "daily_action_label": "可小試",
+            "old_wang_flag": "False",
+            "steady_momentum_flag": "True",
+            "steady_momentum_score": "95",
+            "entry_score": "95",
+            "risk_score": "35",
+            "close": "161.5",
+            "data_as_of": "2026-06-25",
+        },
+    ])
+
+    report = build_today_scan_report(out)
+
+    assert report["formal_entries"][0]["code"] == "2337"
+    assert report["usage_status"] == {
+        "can_use_trade_outputs": False,
+        "status": "blocked_by_daily_check",
+        "headline": "Today Scan 可供復盤，但交易輸出暫不可用",
+        "reason": "訊號快照變化警示：偵測到 2 筆 block 警示。",
+        "next_action": "先查看 signal_alerts.json。",
+        "blocking_action_key": "signal_alerts",
+        "blocking_action_status": "block",
+    }
+
+
 def test_write_and_load_today_scan_round_trip(tmp_path):
     from app.services.today_scan_service import load_today_scan_report, write_today_scan_report
 

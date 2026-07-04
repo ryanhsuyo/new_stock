@@ -224,6 +224,50 @@ def _bucket_notes() -> dict[str, str]:
     }
 
 
+def _usage_status(out_dir: Path, *, has_candidates: bool) -> dict[str, Any]:
+    daily_check = _read_json(out_dir / "daily_check.json")
+    top_actions = daily_check.get("top_actions") if isinstance(daily_check.get("top_actions"), list) else []
+    blocker = next(
+        (
+            action
+            for action in top_actions
+            if isinstance(action, dict) and str(action.get("status") or "").lower() == "block"
+        ),
+        None,
+    )
+    if daily_check.get("can_use_trade_outputs") is False or blocker:
+        title = str((blocker or {}).get("title") or "Daily Check 阻塞")
+        message = str((blocker or {}).get("message") or "Daily Check 尚未允許交易輸出。")
+        return {
+            "can_use_trade_outputs": False,
+            "status": "blocked_by_daily_check",
+            "headline": "Today Scan 可供復盤，但交易輸出暫不可用",
+            "reason": f"{title}：{message}",
+            "next_action": str((blocker or {}).get("next_action") or "先處理 Daily Check block 項目。"),
+            "blocking_action_key": (blocker or {}).get("key"),
+            "blocking_action_status": (blocker or {}).get("status"),
+        }
+    if not has_candidates:
+        return {
+            "can_use_trade_outputs": True,
+            "status": "no_candidates",
+            "headline": "Today Scan 目前沒有候選",
+            "reason": "掃描已完成，但沒有可小試、策略候選或風險項目。",
+            "next_action": "維持觀察，等待下一次盤後更新或訊號轉強。",
+            "blocking_action_key": None,
+            "blocking_action_status": None,
+        }
+    return {
+        "can_use_trade_outputs": True,
+        "status": "ready",
+        "headline": "Today Scan 可供盤後復盤",
+        "reason": "Daily Check 未封鎖交易輸出；仍需依價格計畫、停損與風險報酬檢查候選。",
+        "next_action": "先看可小試與風險分桶，再逐檔確認價格計畫。",
+        "blocking_action_key": None,
+        "blocking_action_status": None,
+    }
+
+
 def _sort(items: list[dict[str, Any]], *keys: str) -> list[dict[str, Any]]:
     return sorted(items, key=lambda item: tuple(-_as_int(item.get(key)) for key in keys) + (item.get("code") or "",))
 
@@ -259,6 +303,7 @@ def build_today_scan_report(out_dir: Path | None = None, *, limit: int = DEFAULT
     old_wang_candidates = _sort(old_wang_candidates, "old_wang_score", "entry_score")[:limit]
     steady_momentum_candidates = _sort(steady_momentum_candidates, "steady_momentum_score", "entry_score")[:limit]
     risk_items = _sort(risk_items, "risk_score")[:limit]
+    has_candidates = any((formal_entries, old_wang_candidates, steady_momentum_candidates, risk_items))
 
     return {
         "as_of": summary.get("as_of") or daily_brief.get("as_of"),
@@ -276,6 +321,7 @@ def build_today_scan_report(out_dir: Path | None = None, *, limit: int = DEFAULT
         "old_wang_candidates": old_wang_candidates,
         "steady_momentum_candidates": steady_momentum_candidates,
         "risk_items": risk_items,
+        "usage_status": _usage_status(out_dir, has_candidates=has_candidates),
         "bucket_notes": _bucket_notes(),
         "data_freshness": data_freshness,
         "notes": _notes(summary, market_context, universe_rows, data_freshness),
