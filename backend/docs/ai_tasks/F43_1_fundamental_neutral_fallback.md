@@ -48,4 +48,4 @@ Use the smallest relevant commands first:
 
 Status: completed.
 
-Missing fundamentals now render as `基本面避雷：基本面資料不足，中性保留6/10 (...)`, preserving score breakdown context without presenting the fallback as a real evaluated pass.
+Superseded by F54: missing fundamentals now render as `基本面避雷：基本面資料不足，未完成，無法評分 (...)`. The internal fallback may still preserve score continuity, but user-facing wording must not expose `中性保留6/10` as if the fundamentals guard had been evaluated.

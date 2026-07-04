@@ -1,7 +1,7 @@
 from app.services.signals_service import _steady_momentum_indicator
 
 
-def test_missing_fundamentals_are_labeled_as_neutral_fallback():
+def test_missing_fundamentals_are_labeled_as_incomplete_not_scored():
     result = _steady_momentum_indicator(
         close=100,
         ma20=95,
@@ -23,6 +23,6 @@ def test_missing_fundamentals_are_labeled_as_neutral_fallback():
 
     reason = result["steady_momentum_reason"]
     assert "基本面避雷6/10" not in reason
+    assert "中性保留6/10" not in reason
     assert "基本面資料不足" in reason
-    assert "中性保留6/10" in reason
-
+    assert "未完成，無法評分" in reason

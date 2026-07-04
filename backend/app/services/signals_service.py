@@ -910,7 +910,7 @@ def _steady_momentum_indicator(
         fundamental_part_label = f"基本面避雷{fundamental_part}/10"
     else:
         missing_reason = fundamental_guard.get("fundamental_data_missing_reason") or "缺少可評分基本面資料"
-        fundamental_part_label = f"基本面避雷：基本面資料不足，中性保留{fundamental_part}/10（{missing_reason}）"
+        fundamental_part_label = f"基本面避雷：基本面資料不足，未完成，無法評分（{missing_reason}）"
 
     score = max(0, min(100, trend_part + rs_part + entry_part + rr_part + heat_part + fundamental_part))
     hard_block = (

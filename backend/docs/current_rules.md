@@ -85,6 +85,7 @@
 - 外部整理好的基本面數字應先用 `python3 scripts/prepare_fundamentals_priority_import.py /path/to/source.csv` dry-run 匯入預覽，再用 `--apply` 寫入 `backend/out/fundamentals_priority_fill.csv`；正式合併仍需走 `merge_priority_fundamentals.py --apply --confirm MERGE_PRIORITY_FUNDAMENTALS`，不得直接偽造或跳過驗證寫入 `fundamentals.json`。
 - 官方基本面暫存報告可用 `GET /api/system/fundamentals-official/status` 查狀態，並可用 `POST /api/system/fundamentals-official/reports` 產生 report-only CSV；此 API 僅寫 `backend/out/official_fundamentals_*.csv`，不得直接 apply 至 priority CSV 或策略輸入。
 - 官方 API 目前只穩定接入可直接取得的參考欄位：TWSE BWIBBU 的 PE / PB / 殖利率、TWSE 月營收 YoY / 累計營收 YoY、TPEx PE / PB / 殖利率、TWSE/TPEx 營益分析 report-only 參考欄位，以及 TWSE/TPEx 一般業資產負債表 report-only 參考欄位。正式自動寫入 priority CSV 目前僅允許 TWSE/TPEx 官方 PE 直接映射到 `pe`；ROE、EPS、FCF、interest coverage 等財報推導欄位仍需穩定官方財報來源與公式確認，未確認前不得偽造。
+- Quality Momentum Lite 若 `fundamental_data_ok=false`，對外 reason 必須明確寫成 `基本面資料不足` / `未完成，無法評分`，不得顯示 `基本面避雷6/10` 或 `中性保留6/10` 讓使用者誤以為基本面已完成評分；內部為了分數連續性保留的 fallback 不可直接暴露成已評分子項。
 
 推薦策略固定維持 `old_wang` 與 `steady_momentum`；若需要混合判斷，應在單檔說明裡呈現「共振」，不要另開 `combined` 推薦桶。
 

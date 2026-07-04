@@ -18,14 +18,14 @@ Loop mode: waiting_for_next_safe_phase
 
 Last completed phase:
 
+* `F54_fundamentals_warning_truthfulness.md` — Quality Momentum Lite missing fundamentals now say incomplete / cannot score instead of exposing a neutral `/10` fallback as if fundamentals were evaluated.
 * `F53_manual_market_note_action_clarity.md` — Daily Check manual market note action now includes required fields, writing checklist, and safe empty example payload without inventing market content.
 * `F52_signal_alerts_review_usability.md` — Daily Check signal-alert payload now includes backend-owned review focus counts, checklist items, and copyable review checklist text without auto-unblocking alerts.
 * `F51_pm_worklist_signal_alert_preview_ui.md` — PM Worklist now renders backend-owned `signal_alerts.preview_alerts` cards without frontend sorting or blocker recomputation.
-* `F50_signal_alerts_review_contract.md` — Daily Check signal-alert action payload now includes block-first structured `preview_alerts` for PM review while preserving text `preview_items`.
-* `F49_update_workflow_signal_alert_headline.md` — Update Workflow headline now summarizes signal-alert blockers with alert, block, and warn counts.
 
 Current phase status:
 
+* F54 completed: missing fundamentals user-facing wording now says incomplete / cannot score, without changing strategy weights or fabricating data.
 * F53 completed: manual market note action payload includes required fields, writing checklist, and safe empty example payload; Daily Check and PM Worklist tests passed.
 * F52 completed: signal-alert payload includes `review_focus_counts`, `review_checklist`, and `review_checklist_copy_text`; Daily Check and PM Worklist tests passed.
 * F51 completed: PM Worklist renders backend-owned `preview_alerts` cards and falls back to `preview_items` / `focus_codes`; frontend structure tests and build passed.
@@ -74,7 +74,7 @@ Recent completed phases:
 * F41 — Added safe copy command and expected outputs to Daily Check signal alert file actions.
 * F42 — Added Daily Check awareness for stale manual market notes.
 * F43 — Staged umbrella: harden decision trust around missing fundamentals, stale chips, snapshot wording, block recovery, schedule visibility, and stale docs.
-* F43.1 — Completed: missing fundamentals are explicit neutral fallback in Quality Momentum Lite reason text.
+* F43.1 — Completed: missing fundamentals were first made explicit as a neutral fallback; superseded by F54 for user-facing wording.
 * F43.2 — Completed: Old Wang chip reasons include chip date / stale wording when chip numbers are quoted.
 * F43.3 — Completed: signal alert wording matches `previous_as_of` -> `as_of` comparison windows.
 * F43.4 — Completed: Update Workflow exposes schedule health and block alert inspection remains actionable.
@@ -135,7 +135,8 @@ Recent verification:
 * F48 full backend tests passed: `/Library/Frameworks/Python.framework/Versions/3.11/bin/python3 -m pytest backend/tests -q` (`776 passed`)
 * F49 Update Workflow tests passed: `/Library/Frameworks/Python.framework/Versions/3.11/bin/python3 -m pytest backend/tests/test_update_workflow.py -q`
 * F49 full backend tests passed: `/Library/Frameworks/Python.framework/Versions/3.11/bin/python3 -m pytest backend/tests -q` (`777 passed`)
+* F54 focused tests passed: `/Library/Frameworks/Python.framework/Versions/3.11/bin/python3 -m pytest backend/tests/test_steady_momentum_service.py backend/tests/test_signals_api.py::TestSignalsOutput::test_signal_snapshot_outputs_are_written backend/tests/test_daily_brief.py -q`
 
 ## Last Stop Reason
 
-F49 completed. Continue proactively by selecting the next safe small productization phase from the F21 operating contract when no active phase exists.
+F54 completed. Continue proactively by selecting the next safe small productization phase from the F21 operating contract when no active phase exists.
