@@ -40,6 +40,8 @@ When no active phase exists, choose the first clearly applicable item:
 5. Official fundamentals observability: improve report-only status, coverage, and PE-only apply guard visibility without applying blocked fields.
 6. Documentation consistency: reconcile `ai_execution_plan.md`, `loop_state.md`, `current_rules.md`, and active phase files when they drift.
 
+After F51, use `backend/docs/ai_tasks/F52_heartbeat_safe_backlog_plan.md` as the concrete phase queue for the next safe productization slice. Prefer F52 signal-alert review usability first, then F53 manual market note action clarity, then F54 fundamentals warning truthfulness, unless current output state makes an earlier health/freshness issue urgent.
+
 ## Slice Limits
 
 Each heartbeat slice should normally stay within:
