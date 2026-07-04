@@ -952,8 +952,6 @@ def _strategy_alignment(
     aligned: list[str] = []
     notes: list[str] = []
 
-    if internal_signal in core_positive:
-        aligned.append("core")
     if old_wang_flag:
         aligned.append("old_wang")
     if steady_momentum_flag:

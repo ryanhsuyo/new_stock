@@ -9,8 +9,21 @@ def test_strategy_alignment_marks_core_old_wang_steady_momentum_alignment():
     )
 
     assert result["strategy_alignment"] == "strong_alignment"
-    assert result["aligned_strategies"] == ["core", "old_wang", "steady_momentum"]
+    assert result["aligned_strategies"] == ["old_wang", "steady_momentum"]
     assert result["strategy_conflict_notes"] == []
+
+
+def test_strategy_alignment_never_exposes_internal_core_as_product_strategy():
+    product_strategies = {"old_wang", "steady_momentum"}
+
+    for internal_signal in ("entry_confirmed", "ready_to_enter", "hold", "watchlist"):
+        result = _strategy_alignment(
+            internal_signal=internal_signal,
+            old_wang_flag=True,
+            steady_momentum_flag=True,
+        )
+
+        assert set(result["aligned_strategies"]).issubset(product_strategies)
 
 
 def test_strategy_alignment_marks_core_risk_conflict():

@@ -172,6 +172,8 @@ Suggested verification:
 
 ### F58 — Two-Strategy Contract Regression
 
+Status: completed in `F58_two_strategy_contract_regression.md`.
+
 Goal:
 
 Keep old_wang and steady_momentum as the only product strategy buckets.
@@ -202,4 +204,4 @@ Next safe implementation phase should be:
 
 If the user wants heartbeats to keep actively developing, start with F52 and keep each slice small enough to complete, verify, and commit in one heartbeat turn.
 
-After F57, the next safest implementation phase is F58 Two-Strategy Contract Regression, unless signal-alert acknowledgement receives explicit user approval for implementation.
+After F58, the next safest implementation phase should return to the F21 backlog order: product health/freshness first, then Daily Check / PM Worklist noise reduction, unless signal-alert acknowledgement receives explicit user approval for implementation.

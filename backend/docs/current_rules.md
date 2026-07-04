@@ -93,7 +93,7 @@
 策略共振欄位：
 
 - `strategy_alignment`：`strong_alignment` / `single_strategy` / `conflict` / `no_alignment`
-- `aligned_strategies`：列出同向支持的推薦策略，例如 `old_wang`、`steady_momentum`
+- `aligned_strategies`：列出同向支持的推薦策略，只能包含 `old_wang`、`steady_momentum`；內部 `core_technical_v2` 不得出現在此使用者面向清單。
 - `strategy_conflict_notes`：列出衝突原因；內部技術訊號若已出場或失效，老王 / 穩健動能不得覆蓋風控結論。
 - 共振只做排序、解釋與觀察輔助，不新增第四套推薦桶，也不改寫各策略原始判斷。
 
