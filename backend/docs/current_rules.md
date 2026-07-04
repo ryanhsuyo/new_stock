@@ -26,6 +26,7 @@
 - `daily_check.json.top_actions[*].action_payload` 可提供複製清單、複製指令、檔案路徑或既有 API 導引；command 類 payload 應提供 `copy_command` 作為完整可貼上指令，並提供 `expected_outputs` 說明執行後應檢查的產物。Dashboard 只能呈現或複製此 payload，不得在前端新增交易或策略判斷。
 - `daily_check.json.top_actions[*].action_payload.kind="file"` 若代表需要人工查看的阻塞檔案，也應提供安全 `copy_command` 與 `expected_outputs`；例如 `signal_alerts` 應提供 `cat backend/out/signal_alerts.json` 與檢查 `backend/out/signal_alerts.json`，讓 Dashboard / PM Worklist 不必自行猜檔案操作。
 - `signal_alerts` 的 Daily Check file payload 必須保留文字版 `preview_items`，並提供結構化 `preview_alerts`（`severity`、`code`、`name`、`title`、`action_label`、`review_focus`），排序以 block -> warn -> info 為準；前端只能呈現此後端契約，不得重新解析 `signal_alerts.json` 或自建阻塞判斷。
+- `signal_alerts` 的 Daily Check payload 也應提供後端產生的 `review_focus_counts`、`review_checklist` 與 `review_checklist_copy_text`，讓 PM 能直接看到前幾筆 block / warn 應比較哪些欄位；此清單只做復盤導引，不得代表警示已解除。
 - PM Worklist / Dashboard 若收到 `action_payload.preview_alerts`，應優先呈現這些後端已排序的復盤卡片，再 fallback 到 `preview_items` 或 `focus_codes`；前端不得對 `preview_alerts` 重新排序或重新判定 blocker。
 - `expected_outputs` 的指令對應必須集中維護在後端共用契約，避免 `doctor.py`、`daily_check.py`、PM Worklist 與 workflow service 對同一指令列出不同產物；目前 `run_signals.py` 也會刷新 `daily_check.json`。
 - `daily_check.json.top_actions[*].action_payload.kind="copy_text"` 時，後端應附 `preview_items`，列出前幾個可直接呈現的股票 / 待辦項目；前端或文字報告不應自行解析大段 `copy_text` 才能顯示摘要。

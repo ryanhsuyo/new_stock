@@ -214,7 +214,25 @@ def _signal_alert_action(alerts: dict[str, Any] | None) -> dict[str, Any] | None
             "review_focus": list(item.get("review_focus") or []),
         }
 
+    def _review_focus_counts(items: list[dict[str, Any]]) -> dict[str, int]:
+        counts: dict[str, int] = {}
+        for item in items:
+            for focus in item.get("review_focus") or []:
+                key = str(focus or "").strip()
+                if key:
+                    counts[key] = counts.get(key, 0) + 1
+        return dict(sorted(counts.items()))
+
+    def _review_checklist_item(item: dict[str, Any]) -> str:
+        code = str(item.get("code") or "")
+        name = str(item.get("name") or "")
+        action_label = str(item.get("action_label") or "復盤").strip()
+        focus_items = [str(focus) for focus in item.get("review_focus") or [] if str(focus).strip()]
+        focus_text = " / ".join(focus_items) if focus_items else "訊號變化原因"
+        return f"{code} {name}：{action_label}；檢查 {focus_text}。"
+
     preview_alerts = sorted_alerts[:5]
+    review_checklist = [_review_checklist_item(item) for item in preview_alerts]
     return {
         "key": "signal_alerts",
         "status": status,
@@ -237,6 +255,12 @@ def _signal_alert_action(alerts: dict[str, Any] | None) -> dict[str, Any] | None
             "expected_outputs": [_SIGNAL_ALERTS_FILE],
             "preview_items": [_preview_item(item) for item in preview_alerts],
             "preview_alerts": [_preview_alert(item) for item in preview_alerts],
+            "review_focus_counts": _review_focus_counts(preview_alerts),
+            "review_checklist": review_checklist,
+            "review_checklist_copy_text": "\n".join(
+                ["訊號快照復盤清單"]
+                + [f"{index}. {item}" for index, item in enumerate(review_checklist, start=1)]
+            ),
         },
     }
 
