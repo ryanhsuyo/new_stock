@@ -46,7 +46,7 @@ from app.services.notify_service import notify_update_failure, notify_update_suc
 from app.services.signal_alert_service import load_signal_alerts  # noqa: E402
 from app.services.today_scan_service import load_today_scan_report  # noqa: E402
 from app.services.update_service import run_full_update  # noqa: E402
-from daily_check import build_daily_summary, write_daily_summary  # noqa: E402
+from daily_check import build_daily_summary, load_summary_for_daily_check, write_daily_summary  # noqa: E402
 
 # 模組層級路徑常數：測試時可 monkeypatch
 _DEFAULT_LOG = _BACKEND / "out" / "update.log"
@@ -126,6 +126,7 @@ def write_daily_check_report(backend: Path = _BACKEND) -> Path:
         limit=3,
         signal_alerts=load_signal_alerts(backend / "out"),
         today_scan=load_today_scan_report(backend / "out"),
+        signals_summary=load_summary_for_daily_check(backend),
     )
     return write_daily_summary(summary, backend)
 

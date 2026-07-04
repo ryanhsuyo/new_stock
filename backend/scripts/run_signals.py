@@ -32,7 +32,7 @@ sys.path.insert(0, str(_BACKEND))
 from app.services.signals_service import run_daily_signals
 from app.services.signal_alert_service import load_signal_alerts
 from app.services.today_scan_service import load_today_scan_report
-from daily_check import build_daily_summary, write_daily_summary
+from daily_check import build_daily_summary, load_summary_for_daily_check, write_daily_summary
 from doctor import build_doctor_report
 
 # 訊號中文標籤
@@ -166,6 +166,7 @@ def write_daily_check_report() -> Path:
         limit=3,
         signal_alerts=load_signal_alerts(_BACKEND / "out"),
         today_scan=load_today_scan_report(_BACKEND / "out"),
+        signals_summary=load_summary_for_daily_check(_BACKEND),
     )
     return write_daily_summary(summary, _BACKEND)
 

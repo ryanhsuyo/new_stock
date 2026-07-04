@@ -59,6 +59,34 @@ def test_run_signals_daily_check_refresh_includes_today_scan_and_alerts(monkeypa
     assert captured["kwargs"]["today_scan"] == {"as_of": "2026-06-26"}
 
 
+def test_run_signals_daily_check_refresh_includes_manual_market_note_summary(monkeypatch):
+    import run_signals
+
+    captured = {}
+    signals_summary = {
+        "manual_market_note": {
+            "date": "2026-05-27",
+            "is_stale": True,
+            "update_required": True,
+        }
+    }
+
+    monkeypatch.setattr(run_signals, "build_doctor_report", lambda backend: {"overall_status": "ok"})
+    monkeypatch.setattr(run_signals, "load_signal_alerts", lambda out_dir: None)
+    monkeypatch.setattr(run_signals, "load_today_scan_report", lambda out_dir: None)
+    monkeypatch.setattr(run_signals, "load_summary_for_daily_check", lambda backend: signals_summary, raising=False)
+    monkeypatch.setattr(
+        run_signals,
+        "build_daily_summary",
+        lambda report, **kwargs: captured.setdefault("kwargs", kwargs) or {"overall_status": "ok"},
+    )
+    monkeypatch.setattr(run_signals, "write_daily_summary", lambda summary, backend: backend / "out" / "daily_check.json")
+
+    run_signals.write_daily_check_report()
+
+    assert captured["kwargs"]["signals_summary"] == signals_summary
+
+
 def test_run_signals_summary_lists_all_primary_outputs(capsys):
     import run_signals
 
