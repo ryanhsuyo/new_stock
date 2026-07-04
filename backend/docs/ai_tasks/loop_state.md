@@ -18,6 +18,7 @@ Loop mode: waiting_for_next_safe_phase
 
 Last completed phase:
 
+* `F53_manual_market_note_action_clarity.md` — Daily Check manual market note action now includes required fields, writing checklist, and safe empty example payload without inventing market content.
 * `F52_signal_alerts_review_usability.md` — Daily Check signal-alert payload now includes backend-owned review focus counts, checklist items, and copyable review checklist text without auto-unblocking alerts.
 * `F51_pm_worklist_signal_alert_preview_ui.md` — PM Worklist now renders backend-owned `signal_alerts.preview_alerts` cards without frontend sorting or blocker recomputation.
 * `F50_signal_alerts_review_contract.md` — Daily Check signal-alert action payload now includes block-first structured `preview_alerts` for PM review while preserving text `preview_items`.
@@ -25,6 +26,7 @@ Last completed phase:
 
 Current phase status:
 
+* F53 completed: manual market note action payload includes required fields, writing checklist, and safe empty example payload; Daily Check and PM Worklist tests passed.
 * F52 completed: signal-alert payload includes `review_focus_counts`, `review_checklist`, and `review_checklist_copy_text`; Daily Check and PM Worklist tests passed.
 * F51 completed: PM Worklist renders backend-owned `preview_alerts` cards and falls back to `preview_items` / `focus_codes`; frontend structure tests and build passed.
 * F50 completed: Daily Check `signal_alerts` payload exposes structured `preview_alerts` with severity, code, name, title, action label, and review focus; `daily_check.json` refreshed for 2026-07-03.

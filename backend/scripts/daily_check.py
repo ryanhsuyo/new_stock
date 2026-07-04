@@ -265,7 +265,7 @@ def _signal_alert_action(alerts: dict[str, Any] | None) -> dict[str, Any] | None
     }
 
 
-def _manual_market_note_action(signals_summary: dict[str, Any] | None) -> dict[str, Any] | None:
+def _manual_market_note_action(signals_summary: dict[str, Any] | None, data_as_of: str | None = None) -> dict[str, Any] | None:
     note = (signals_summary or {}).get("manual_market_note") or {}
     if not note.get("update_required") and not note.get("is_stale"):
         return None
@@ -291,6 +291,32 @@ def _manual_market_note_action(signals_summary: dict[str, Any] | None) -> dict[s
             "endpoint": "/api/stocks/market-notes",
             "confirm_message": "只更新盤後筆記，不改交易紀錄。",
             "preview_items": [preview],
+            "required_fields": [
+                "date",
+                "title",
+                "risk_level",
+                "headline",
+                "market_actions",
+                "index_notes",
+                "stock_notes",
+                "rules",
+            ],
+            "writing_checklist": [
+                "填入這次盤後筆記適用日期。",
+                "用你自己的盤後觀察填 headline / market_actions / index_notes。",
+                "只送出盤後筆記，不會修改交易紀錄、持倉或現金。",
+            ],
+            "example_payload": {
+                "date": str(data_as_of or ""),
+                "title": "",
+                "risk_level": "",
+                "headline": "",
+                "source": "manual",
+                "market_actions": [],
+                "index_notes": [],
+                "stock_notes": [],
+                "rules": [],
+            },
         },
         "action_type": "market_note",
     }
@@ -573,12 +599,13 @@ def build_daily_summary(
     data_repair = _data_repair_summary(universe)
     can_use_trade_outputs = _can_use_trade_outputs(report)
     today_scan_summary = _today_scan_summary(today_scan)
+    data_as_of = _data_as_of_from_report(report)
     extra_actions = [
         action
         for action in [
             _signal_alert_action(signal_alerts),
             _data_freshness_action(today_scan_summary, can_use_trade_outputs),
-            _manual_market_note_action(signals_summary),
+            _manual_market_note_action(signals_summary, data_as_of),
             _today_scan_action(today_scan_summary, can_use_trade_outputs),
             _data_repair_action(data_repair),
             _official_coverage_action() if include_official_coverage else None,
@@ -593,7 +620,7 @@ def build_daily_summary(
         "exit_code": int(report.get("exit_code") or 0),
         "generated_at": generated_at,
         "source_report_generated_at": generated_at,
-        "data_as_of": _data_as_of_from_report(report),
+        "data_as_of": data_as_of,
         "can_use_trade_outputs": effective_can_use_trade_outputs,
         "status_reason": _status_reason(report, top_actions, blockers),
         "trade_outputs_note": _trade_outputs_note(effective_can_use_trade_outputs, top_actions),

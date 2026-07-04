@@ -484,12 +484,37 @@ def test_daily_check_surfaces_stale_manual_market_note():
     assert action["message"] == "距離訊號基準日 24 個交易日，請更新人工盤後筆記"
     assert action["details"]["note_date"] == "2026-05-27"
     assert action["details"]["stale_trading_days"] == 24
-    assert action["action_payload"] == {
-        "kind": "api",
-        "method": "POST",
-        "endpoint": "/api/stocks/market-notes",
-        "confirm_message": "只更新盤後筆記，不改交易紀錄。",
-        "preview_items": ["舊筆記 2026-05-27：舊盤後筆記"],
+    payload = action["action_payload"]
+    assert payload["kind"] == "api"
+    assert payload["method"] == "POST"
+    assert payload["endpoint"] == "/api/stocks/market-notes"
+    assert payload["confirm_message"] == "只更新盤後筆記，不改交易紀錄。"
+    assert payload["preview_items"] == ["舊筆記 2026-05-27：舊盤後筆記"]
+    assert payload["required_fields"] == [
+        "date",
+        "title",
+        "risk_level",
+        "headline",
+        "market_actions",
+        "index_notes",
+        "stock_notes",
+        "rules",
+    ]
+    assert payload["writing_checklist"] == [
+        "填入這次盤後筆記適用日期。",
+        "用你自己的盤後觀察填 headline / market_actions / index_notes。",
+        "只送出盤後筆記，不會修改交易紀錄、持倉或現金。",
+    ]
+    assert payload["example_payload"] == {
+        "date": "2026-06-30",
+        "title": "",
+        "risk_level": "",
+        "headline": "",
+        "source": "manual",
+        "market_actions": [],
+        "index_notes": [],
+        "stock_notes": [],
+        "rules": [],
     }
 
 
