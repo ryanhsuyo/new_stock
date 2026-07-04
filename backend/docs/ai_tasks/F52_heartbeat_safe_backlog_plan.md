@@ -101,6 +101,8 @@ Suggested verification:
 
 ### F55 — Signal Alerts Acknowledgement Decision Spec
 
+Status: completed in `F55_signal_alert_acknowledgement_decision.md`.
+
 Goal:
 
 Plan, but do not yet implement, a safe way for the user to mark signal alerts as reviewed.
@@ -195,3 +197,5 @@ Next safe implementation phase should be:
 3. F54 Fundamentals Warning Truthfulness, because it protects user trust in Quality Momentum Lite.
 
 If the user wants heartbeats to keep actively developing, start with F52 and keep each slice small enough to complete, verify, and commit in one heartbeat turn.
+
+After F55, the next safest implementation phase is F56 Today Scan Empty-State Explainability, unless signal-alert acknowledgement receives explicit user approval for implementation.
