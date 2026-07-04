@@ -26,6 +26,7 @@ import app.storage.update_store as update_store
 from app.services.data_coverage_service import build_data_coverage_report, write_data_coverage_report
 from app.services.fundamental_service import _load_leader_codes
 from app.services.signals_service import OHLCV_PATH, get_summary, run_daily_signals
+from app.services.workflow_outputs import DAILY_UPDATE_OUTPUTS
 from app.storage.fundamental_store import (
     FUNDAMENTALS_CSV_PATH,
     format_csv_validation_error,
@@ -45,6 +46,7 @@ _BACKFILL_SCRIPT = _BACKEND / "scripts" / "backfill_ohlcv_twse.py"
 _CHIPS_SCRIPT = _BACKEND / "scripts" / "update_chips.py"
 _SCRIPTS = _BACKEND / "scripts"
 RUNNING_STALLED_AFTER_SECONDS = 2 * 60 * 60
+DAILY_UPDATE_COMMAND = "python3 scripts/daily_update.py --months 1"
 
 
 # ---------------------------------------------------------------------------
@@ -306,6 +308,17 @@ def _compute_schedule_health(
     )
 
 
+def _manual_update_action() -> dict:
+    return {
+        "action_type": "copy_command",
+        "command": DAILY_UPDATE_COMMAND,
+        "copy_command": f"cd {_BACKEND}\n{DAILY_UPDATE_COMMAND}",
+        "expected_outputs": list(DAILY_UPDATE_OUTPUTS),
+        "label": "手動執行每日更新",
+        "description": "安全 fallback：補 OHLCV、更新籌碼、重算策略輸出並刷新 Daily Check。",
+    }
+
+
 def _choose_last_data_as_of(
     status_as_of: str | None,
     summary_as_of: str | None,
@@ -444,6 +457,7 @@ def get_data_status() -> dict:
     return {
         **status,
         **schedule_health,
+        "manual_update_action": _manual_update_action(),
         "last_data_as_of": last_data_as_of,
         "raw_ohlcv_as_of": raw_ohlcv_as_of,
         "outputs_lag_raw_data": outputs_lag_raw_data,

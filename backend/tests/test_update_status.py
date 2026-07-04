@@ -86,6 +86,7 @@ class TestDataStatusAPI:
             "schedule_health_status",
             "schedule_is_overdue",
             "schedule_health_message",
+            "manual_update_action",
             "price_basis",
             "price_basis_label",
             "price_basis_note",
@@ -113,6 +114,18 @@ class TestDataStatusAPI:
         assert body["schedule_health_status"] == "never_run"
         assert body["schedule_is_overdue"] is False
         assert body["schedule_health_message"]
+
+    def test_data_status_includes_manual_update_fallback_action(self, client, tmp_update):
+        body = client.get("/api/system/data-status").json()
+
+        action = body["manual_update_action"]
+        assert action["action_type"] == "copy_command"
+        assert action["command"] == "python3 scripts/daily_update.py --months 1"
+        assert action["copy_command"].endswith(
+            "cd /Users/ryan/Desktop/code/new_stock/backend\npython3 scripts/daily_update.py --months 1"
+        )
+        assert "backend/out/update_status.json" in action["expected_outputs"]
+        assert "backend/out/daily_check.json" in action["expected_outputs"]
 
     def test_is_stale_field_is_bool(self, client, tmp_update):
         body = client.get("/api/system/data-status").json()

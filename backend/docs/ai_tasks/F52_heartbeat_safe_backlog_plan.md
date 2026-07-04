@@ -148,6 +148,8 @@ Suggested verification:
 
 ### F57 — Update / Scheduler Health Readiness
 
+Status: completed in `F57_update_scheduler_health_readiness.md`.
+
 Goal:
 
 Make it obvious whether daily update is automated, stale, failed, or manual-only.
@@ -200,4 +202,4 @@ Next safe implementation phase should be:
 
 If the user wants heartbeats to keep actively developing, start with F52 and keep each slice small enough to complete, verify, and commit in one heartbeat turn.
 
-After F56, the next safest implementation phase is F57 Update / Scheduler Health Readiness, unless signal-alert acknowledgement receives explicit user approval for implementation.
+After F57, the next safest implementation phase is F58 Two-Strategy Contract Regression, unless signal-alert acknowledgement receives explicit user approval for implementation.

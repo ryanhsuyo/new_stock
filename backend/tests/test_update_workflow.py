@@ -433,6 +433,12 @@ def test_update_workflow_exposes_schedule_health_in_checks(monkeypatch):
         "schedule_health_status": "overdue",
         "schedule_is_overdue": True,
         "schedule_health_message": "自最近一次完成後已錯過 1 個平日更新。",
+        "manual_update_action": {
+            "action_type": "copy_command",
+            "command": "python3 scripts/daily_update.py --months 1",
+            "copy_command": "cd /Users/ryan/Desktop/code/new_stock/backend\npython3 scripts/daily_update.py --months 1",
+            "expected_outputs": ["backend/out/update_status.json"],
+        },
     })
     monkeypatch.setattr(svc, "get_daily_check_report", lambda: {
         "generated_at": "2026-06-07",
@@ -446,6 +452,7 @@ def test_update_workflow_exposes_schedule_health_in_checks(monkeypatch):
     assert report["checks"]["schedule_health_status"] == "overdue"
     assert report["checks"]["schedule_is_overdue"] is True
     assert "錯過 1 個平日更新" in report["checks"]["schedule_health_message"]
+    assert report["checks"]["manual_update_action"]["command"] == "python3 scripts/daily_update.py --months 1"
 
 
 def test_update_workflow_surfaces_partial_data_freshness_warning(monkeypatch):

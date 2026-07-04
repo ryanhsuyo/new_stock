@@ -15,6 +15,7 @@ export default function UpdateWorkflowBox({
   running = false,
 }: UpdateWorkflowBoxProps) {
   const [copied, setCopied] = useState(false)
+  const [manualCopied, setManualCopied] = useState(false)
   const statusText: Record<string, string> = {
     ready: '完成',
     action_required: '待處理',
@@ -27,8 +28,13 @@ export default function UpdateWorkflowBox({
     running: '執行中',
   }
 
-  const copyCommand = async () => {
-    const command = workflow?.next_action?.copy_command || workflow?.next_action?.command
+  const manualUpdateAction = workflow?.checks?.manual_update_action as {
+    copy_command?: string | null
+    command?: string | null
+    expected_outputs?: string[]
+  } | undefined
+
+  const copyText = async (command: string | null | undefined, onCopied: () => void) => {
     if (!command) return
     try {
       if (navigator.clipboard?.writeText) {
@@ -44,11 +50,24 @@ export default function UpdateWorkflowBox({
         document.execCommand('copy')
         document.body.removeChild(textarea)
       }
-      setCopied(true)
-      window.setTimeout(() => setCopied(false), 1600)
+      onCopied()
     } catch (error) {
       console.error('copy update workflow command failed', error)
     }
+  }
+  const copyCommand = async () => {
+    const command = workflow?.next_action?.copy_command || workflow?.next_action?.command
+    await copyText(command, () => {
+      setCopied(true)
+      window.setTimeout(() => setCopied(false), 1600)
+    })
+  }
+  const copyManualUpdateCommand = async () => {
+    const command = manualUpdateAction?.copy_command || manualUpdateAction?.command
+    await copyText(command, () => {
+      setManualCopied(true)
+      window.setTimeout(() => setManualCopied(false), 1600)
+    })
   }
 
   if (!workflow) {
@@ -166,6 +185,21 @@ export default function UpdateWorkflowBox({
             >
               {running ? '更新中…' : '盤後一鍵更新'}
             </button>
+            {manualUpdateAction?.command && (
+              <>
+                <small>{manualUpdateAction.command}</small>
+                {manualUpdateAction.expected_outputs && manualUpdateAction.expected_outputs.length > 0 && (
+                  <ul className="workflow-outputs">
+                    {manualUpdateAction.expected_outputs.slice(0, 6).map(output => (
+                      <li key={output}>{output}</li>
+                    ))}
+                  </ul>
+                )}
+                <button className="btn btn-ghost btn-xs" onClick={copyManualUpdateCommand}>
+                  {manualCopied ? '已複製' : '複製手動指令'}
+                </button>
+              </>
+            )}
           </div>
         </div>
       )}

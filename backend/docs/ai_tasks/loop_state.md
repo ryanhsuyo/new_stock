@@ -18,6 +18,7 @@ Loop mode: waiting_for_next_safe_phase
 
 Last completed phase:
 
+* `F57_update_scheduler_health_readiness.md` — Data Status and Update Workflow now expose a backend-owned manual daily update fallback action without installing schedulers.
 * `F56_today_scan_usage_status.md` — Today Scan now includes backend-owned usage status and Dashboard shows when candidates are review-only because Daily Check blocks trade outputs.
 * `F55_signal_alert_acknowledgement_decision.md` — Documented safe signal-alert acknowledgement options and a strict future unblock rule without implementing writes.
 * `F54_fundamentals_warning_truthfulness.md` — Quality Momentum Lite missing fundamentals now say incomplete / cannot score instead of exposing a neutral `/10` fallback as if fundamentals were evaluated.
@@ -25,6 +26,7 @@ Last completed phase:
 
 Current phase status:
 
+* F57 completed: exposed manual daily update fallback action in data-status and Update Workflow checks; no scheduler installation was attempted.
 * F56 completed: Today Scan usage status distinguishes review-only candidates from trade-usable outputs when Daily Check blocks trading outputs.
 * F55 completed: signal-alert acknowledgement should use a separate review ledger if approved later; no acknowledgement write behavior was implemented in this phase.
 * F54 completed: missing fundamentals user-facing wording now says incomplete / cannot score, without changing strategy weights or fabricating data.
@@ -141,7 +143,9 @@ Recent verification:
 * F55 docs sanity passed: `rg -n "TODO|TBD" backend/docs/ai_tasks/F55_signal_alert_acknowledgement_decision.md` returned no matches.
 * F56 backend Today Scan tests passed: `/Library/Frameworks/Python.framework/Versions/3.11/bin/python3 -m pytest backend/tests/test_today_scan_service.py backend/tests/test_today_scan_api.py backend/tests/test_today_scan_cli.py -q` (`10 passed`)
 * F56 frontend tests/build passed: `node --test frontend/tests/today-scan-dashboard.test.mjs frontend/tests/today-scan-api-contract.test.mjs` (`2 passed`), `npm run build`
+* F57 backend update health tests passed: `/Library/Frameworks/Python.framework/Versions/3.11/bin/python3 -m pytest backend/tests/test_update_status.py backend/tests/test_update_workflow.py backend/tests/test_schedule_health.py -q` (`86 passed`)
+* F57 frontend update action test/build passed: `node --test frontend/tests/daily-update-button.test.mjs` (`2 passed`), `npm run build`
 
 ## Last Stop Reason
 
-F56 completed. Continue proactively by selecting the next safe small productization phase from the F21 operating contract when no active phase exists; signal-alert acknowledgement implementation still needs explicit user approval.
+F57 completed. Continue proactively by selecting the next safe small productization phase from the F21 operating contract when no active phase exists; signal-alert acknowledgement implementation still needs explicit user approval.

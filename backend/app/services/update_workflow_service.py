@@ -152,6 +152,7 @@ def get_update_workflow_status() -> dict[str, Any]:
     schedule_health_status = data_status.get("schedule_health_status")
     schedule_is_overdue = bool(data_status.get("schedule_is_overdue"))
     schedule_health_message = data_status.get("schedule_health_message")
+    manual_update_action = data_status.get("manual_update_action") or {}
     data_is_stale = bool(data_status.get("is_stale"))
     outputs_lag_raw_data = bool(data_status.get("outputs_lag_raw_data"))
     coverage_too_low = (
@@ -316,6 +317,7 @@ def get_update_workflow_status() -> dict[str, Any]:
             "schedule_health_status": schedule_health_status,
             "schedule_is_overdue": schedule_is_overdue,
             "schedule_health_message": schedule_health_message,
+            "manual_update_action": manual_update_action,
             "batch_id": batch_id,
             "coverage_report_path": coverage_report_path,
             "data_coverage_pct": data_coverage_pct,

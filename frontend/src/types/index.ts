@@ -855,6 +855,10 @@ export interface DataStatus {
   raw_ohlcv_as_of?: string | null
   outputs_lag_raw_data?: boolean
   raw_data_warning?: string | null
+  schedule_health_status?: string
+  schedule_is_overdue?: boolean
+  schedule_health_message?: string
+  manual_update_action?: UpdateWorkflowAction
   price_basis?: string
   price_basis_label?: string
   price_basis_note?: string

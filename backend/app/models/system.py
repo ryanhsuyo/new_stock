@@ -15,6 +15,7 @@ class DataStatus(BaseModel):
     schedule_health_status: str = "never_run"
     schedule_is_overdue: bool = False
     schedule_health_message: str = "尚無自動更新完成紀錄。"
+    manual_update_action: dict = Field(default_factory=dict)
     raw_ohlcv_as_of: str | None = None       # ohlcv.csv 原始資料最新日
     outputs_lag_raw_data: bool = False       # True 表示回補後尚未重算交易輸出
     raw_data_warning: str | None = None
