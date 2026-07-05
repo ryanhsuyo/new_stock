@@ -260,8 +260,104 @@ def test_daily_check_adds_signal_alert_action_before_warnings():
     assert action["action_payload"]["kind"] == "file"
     assert action["action_payload"]["file_path"] == "backend/out/signal_alerts.json"
     assert action["action_payload"]["copy_command"].endswith("backend\ncat backend/out/signal_alerts.json")
-    assert action["action_payload"]["expected_outputs"] == ["backend/out/signal_alerts.json"]
+    assert action["action_payload"]["method"] == "POST"
+    assert action["action_payload"]["endpoint"] == "/api/system/signal-alert-reviews/current"
+    assert action["action_payload"]["expected_outputs"] == [
+        "backend/out/signal_alerts.json",
+        "backend/data/signal_alert_reviews.json",
+        "backend/out/daily_check.json",
+    ]
     assert action["action_payload"]["preview_items"] == ["2330 台積電：持股/候選轉風險"]
+
+
+def test_daily_check_allows_trade_outputs_when_current_signal_alerts_are_reviewed():
+    import daily_check
+    from app.services.signal_alert_review_service import signal_alert_fingerprint
+
+    report = {
+        "overall_status": "ok",
+        "exit_code": 0,
+        "generated_at": "2026-06-24",
+        "checks": [],
+    }
+    alerts = {
+        "as_of": "2026-06-24",
+        "previous_as_of": "2026-06-23",
+        "alert_count": 1,
+        "severity_counts": {"block": 1},
+        "message": "偵測到 1 筆訊號快照變化警示。",
+        "alerts": [
+            {
+                "code": "2330",
+                "name": "台積電",
+                "severity": "block",
+                "title": "持股/候選轉風險",
+                "action_label": "先復盤風險",
+            },
+        ],
+    }
+    review_status = {
+        "reviewed": True,
+        "current_fingerprint": signal_alert_fingerprint(alerts),
+        "reviewed_at": "2026-06-24T20:00:00",
+        "reviewer": "manual",
+    }
+
+    summary = daily_check.build_daily_summary(
+        report,
+        limit=3,
+        signal_alerts=alerts,
+        signal_alert_review=review_status,
+    )
+
+    assert summary["can_use_trade_outputs"] is True
+    assert summary["blocked_by"] == []
+    assert summary["top_actions"] == []
+    assert summary["signal_alerts"]["review_status"]["reviewed"] is True
+
+
+def test_daily_check_keeps_signal_alert_block_when_review_fingerprint_is_stale():
+    import daily_check
+
+    report = {
+        "overall_status": "ok",
+        "exit_code": 0,
+        "generated_at": "2026-06-24",
+        "checks": [],
+    }
+    alerts = {
+        "as_of": "2026-06-24",
+        "previous_as_of": "2026-06-23",
+        "alert_count": 1,
+        "severity_counts": {"block": 1},
+        "message": "偵測到 1 筆訊號快照變化警示。",
+        "alerts": [
+            {
+                "code": "2330",
+                "name": "台積電",
+                "severity": "block",
+                "title": "持股/候選轉風險",
+                "action_label": "先復盤風險",
+            },
+        ],
+    }
+    review_status = {
+        "reviewed": False,
+        "current_fingerprint": "new-alerts",
+        "latest_reviewed_fingerprint": "old-alerts",
+    }
+
+    summary = daily_check.build_daily_summary(
+        report,
+        limit=3,
+        signal_alerts=alerts,
+        signal_alert_review=review_status,
+    )
+
+    assert summary["can_use_trade_outputs"] is False
+    assert summary["blocked_by"][0]["key"] == "signal_alerts"
+    assert summary["top_actions"][0]["key"] == "signal_alerts"
+    assert summary["signal_alerts"]["review_status"]["reviewed"] is False
 
 
 def test_daily_check_signal_alert_preview_prioritizes_block_items():

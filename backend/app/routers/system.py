@@ -17,6 +17,8 @@ from app.models.system import (
     PersonalRestoreResult,
     PmWorklist,
     QualityMomentumLiteGuardCoverage,
+    SignalAlertReviewRequest,
+    SignalAlertReviewStatus,
     TradingSettings,
     UpdateWorkflowStatus,
     WorkflowStatus,
@@ -37,6 +39,10 @@ from app.services.personal_backup_service import (
 )
 from app.services.pm_worklist_service import get_pm_worklist
 from app.services.settings_service import get_trading_settings
+from app.services.signal_alert_review_service import (
+    acknowledge_current_signal_alerts,
+    get_signal_alert_review_status,
+)
 from app.services.today_scan_service import load_today_scan_report
 from app.services.update_service import get_data_status, trigger_background_update
 from app.services.update_workflow_service import get_update_workflow_status
@@ -73,6 +79,21 @@ def daily_check() -> dict:
     if report is None:
         raise HTTPException(status_code=404, detail="尚無 daily_check.json，請先執行 python3 scripts/daily_check.py --write-report")
     return report
+
+
+@router.get("/system/signal-alert-reviews", response_model=SignalAlertReviewStatus)
+def signal_alert_review_status() -> SignalAlertReviewStatus:
+    """讀取目前 signal_alerts.json 是否已被人工檢視；不修改任何檔案。"""
+    return SignalAlertReviewStatus(**get_signal_alert_review_status())
+
+
+@router.post("/system/signal-alert-reviews/current", response_model=SignalAlertReviewStatus)
+def acknowledge_signal_alert_review(payload: SignalAlertReviewRequest) -> SignalAlertReviewStatus:
+    """標記目前 signal_alerts.json fingerprint 已檢視；只寫 review ledger，不改交易紀錄。"""
+    return SignalAlertReviewStatus(**acknowledge_current_signal_alerts(
+        reviewer=payload.reviewer,
+        note=payload.note,
+    ))
 
 
 @router.get("/system/today-scan")

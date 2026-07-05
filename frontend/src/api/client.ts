@@ -1,4 +1,4 @@
-import type { BuyRequest, DailyBrief, DailyCheckReport, DataStatus, DecisionJournalBulkCreateResult, DecisionJournalCreate, DecisionJournalEntry, DecisionJournalSummary, FundamentalsPriorityMergeResult, FundamentalsStatus, HoldingAnalysis, IntradayMonitor, ManualWatchlistReview, MarketNoteInput, MarketNoteSaveResult, OfficialFundamentalsCoverageAudit, OfficialFundamentalsReportsResult, OfficialFundamentalsStatus, PmWorklist, PortfolioSummary, Position, RecommendationStrategy, SellRequest, SignalsSummary, SignalsStatus, Stats, StockAnalysis, StockRecommendation, StockTrackingResult, StockUniverseItem, TodayScanReport, TradeRecord, TradingSettings, UniverseReportItem, UniverseReportReviewWorkflow, UpdateWorkflowStatus, WatchlistGroup, WorkflowStatus } from '../types'
+import type { BuyRequest, DailyBrief, DailyCheckReport, DataStatus, DecisionJournalBulkCreateResult, DecisionJournalCreate, DecisionJournalEntry, DecisionJournalSummary, FundamentalsPriorityMergeResult, FundamentalsStatus, HoldingAnalysis, IntradayMonitor, ManualWatchlistReview, MarketNoteInput, MarketNoteSaveResult, OfficialFundamentalsCoverageAudit, OfficialFundamentalsReportsResult, OfficialFundamentalsStatus, PmWorklist, PortfolioSummary, Position, RecommendationStrategy, SellRequest, SignalAlertReviewStatus, SignalsSummary, SignalsStatus, Stats, StockAnalysis, StockRecommendation, StockTrackingResult, StockUniverseItem, TodayScanReport, TradeRecord, TradingSettings, UniverseReportItem, UniverseReportReviewWorkflow, UpdateWorkflowStatus, WatchlistGroup, WorkflowStatus } from '../types'
 
 const BASE = '/api'
 
@@ -165,6 +165,15 @@ export const api = {
 
   triggerUpdateNow: () =>
     request<{ message: string; status: string }>('/system/update-now', { method: 'POST' }),
+
+  acknowledgeSignalAlerts: (payload: { reviewer?: string; note?: string } = {}) =>
+    request<SignalAlertReviewStatus>('/system/signal-alert-reviews/current', {
+      method: 'POST',
+      ...json({
+        reviewer: payload.reviewer ?? 'dashboard',
+        note: payload.note ?? null,
+      }),
+    }),
 
   // 讀取最近一次訊號 summary；若尚未產生（404）靜默回傳 null
   getSummaryOrNull: () =>

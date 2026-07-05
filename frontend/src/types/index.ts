@@ -328,6 +328,22 @@ export interface PmWorklist {
   items: PmWorklistItem[]
 }
 
+export interface SignalAlertReviewStatus {
+  alerts_file: string
+  reviews_file: string
+  review_required: boolean
+  reviewed: boolean
+  current_fingerprint?: string | null
+  latest_reviewed_fingerprint?: string | null
+  alert_count: number
+  as_of?: string | null
+  previous_as_of?: string | null
+  severity_counts: Record<string, number>
+  reviewed_at?: string | null
+  reviewer?: string | null
+  note?: string | null
+}
+
 export interface DailyCheckAction {
   key: string
   status: 'ok' | 'warn' | 'block' | 'info' | string

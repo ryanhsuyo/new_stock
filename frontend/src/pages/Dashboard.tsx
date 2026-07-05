@@ -1011,6 +1011,7 @@ function PmWorklistBox({
   onFocusDecisionJournal,
   onFocusDailyCheck,
   onRunUniverseReviewBatch,
+  onAcknowledgeSignalAlerts,
 }: {
   worklist: PmWorklist | null
   busy: boolean
@@ -1019,6 +1020,7 @@ function PmWorklistBox({
   onFocusDecisionJournal: () => void
   onFocusDailyCheck: () => void
   onRunUniverseReviewBatch: (date?: string | null, limit?: number) => Promise<void>
+  onAcknowledgeSignalAlerts: () => Promise<void>
 }) {
   const [copiedKey, setCopiedKey] = useState<string | null>(null)
   const [runningKey, setRunningKey] = useState<string | null>(null)
@@ -1077,6 +1079,21 @@ function PmWorklistBox({
     const payload = item.action_payload
     const copyValue = copyValueForItem(item)
 
+    if (payload?.endpoint === '/api/system/signal-alert-reviews/current') {
+      const ok = window.confirm(
+        payload.confirm_message
+          || '確認你已檢視這批 signal alerts？這只會標記已檢視，不會修改交易紀錄、持倉、現金或策略分數。',
+      )
+      if (!ok) return
+      setRunningKey(item.key)
+      try {
+        await onAcknowledgeSignalAlerts()
+      } finally {
+        setRunningKey(null)
+      }
+      return
+    }
+
     if (payload?.kind === 'api' && payload.endpoint === '/api/decision-journal/from-universe-report') {
       await runUniverseReviewBatch(item)
       return
@@ -1112,6 +1129,7 @@ function PmWorklistBox({
   const actionButton = (item: WorklistItem) => {
     const hasDirectAction = Boolean(
       copyValueForItem(item)
+      || item.action_payload?.endpoint === '/api/system/signal-alert-reviews/current'
       || item.action_type === 'fundamentals'
       || item.action_type === 'decision_journal'
       || item.action_type === 'daily_check'
@@ -1289,6 +1307,7 @@ function DecisionConsole({
   onFocusDailyCheck,
   onFocusMarketNote,
   onNavigateAnalysis,
+  onAcknowledgeSignalAlerts,
 }: {
   dataStatus: DataStatus | null
   updateWorkflow: UpdateWorkflowStatus | null
@@ -1303,6 +1322,7 @@ function DecisionConsole({
   onFocusDailyCheck: () => void
   onFocusMarketNote: () => void
   onNavigateAnalysis?: (code: string) => void
+  onAcknowledgeSignalAlerts: () => Promise<void>
 }) {
   const [copied, setCopied] = useState(false)
   const primaryAction = worklist?.primary_action ?? worklist?.items?.[0] ?? null
@@ -1371,6 +1391,15 @@ function DecisionConsole({
   const runPrimaryAction = () => {
     if (!primaryAction) return
     const payload = primaryAction.action_payload
+    if (payload?.endpoint === '/api/system/signal-alert-reviews/current') {
+      const ok = window.confirm(
+        payload.confirm_message
+          || '確認你已檢視這批 signal alerts？這只會標記已檢視，不會修改交易紀錄、持倉、現金或策略分數。',
+      )
+      if (!ok) return
+      void onAcknowledgeSignalAlerts()
+      return
+    }
     const command = payload?.copy_command || payload?.copy_text || primaryAction.command
     if (payload?.kind === 'command' || payload?.kind === 'copy_text' || command) {
       void copyText(command || '')
@@ -2547,6 +2576,33 @@ export default function Dashboard({ onNavigateAnalysis, onNavigateUniverseReport
     }
   }
 
+  const handleAcknowledgeSignalAlerts = async () => {
+    setError('')
+    setRunMsg('')
+    try {
+      const result = await api.acknowledgeSignalAlerts({
+        reviewer: 'dashboard',
+        note: 'Reviewed from Dashboard PM Worklist',
+      })
+      const [workflow, updateFlow, pm, dc, scan] = await Promise.all([
+        api.getWorkflowStatus(),
+        api.getUpdateWorkflow(),
+        api.getPmWorklist(),
+        api.getDailyCheckOrNull(),
+        api.getTodayScanOrNull(),
+      ])
+      setWorkflowStatus(workflow)
+      setUpdateWorkflow(updateFlow)
+      setPmWorklist(pm)
+      setDailyCheck(dc)
+      setTodayScan(scan)
+      setRunMsg(result.reviewed ? 'Signal alerts 已標記檢視，Daily Check 已刷新' : '目前沒有可標記的 signal alerts')
+    } catch (e: unknown) {
+      setError(e instanceof Error ? e.message : '標記 signal alerts 已檢視失敗')
+      throw e
+    }
+  }
+
   const handleDeleteDecisionJournal = async (id: string) => {
     setError('')
     setRunMsg('')
@@ -2733,6 +2789,7 @@ export default function Dashboard({ onNavigateAnalysis, onNavigateUniverseReport
         onFocusDailyCheck={() => focusSection(dailyCheckRef)}
         onFocusMarketNote={() => focusSection(marketNoteRef)}
         onNavigateAnalysis={onNavigateAnalysis}
+        onAcknowledgeSignalAlerts={handleAcknowledgeSignalAlerts}
       />
 
       {dataStatus?.outputs_lag_raw_data && !isDataRunning && (
@@ -2945,6 +3002,7 @@ export default function Dashboard({ onNavigateAnalysis, onNavigateUniverseReport
             onFocusDecisionJournal={() => focusSection(decisionJournalRef)}
             onFocusDailyCheck={() => focusSection(dailyCheckRef)}
             onRunUniverseReviewBatch={handleBulkCreateUniverseReviewJournal}
+            onAcknowledgeSignalAlerts={handleAcknowledgeSignalAlerts}
           />
           <UpdateWorkflowBox
             workflow={updateWorkflow}

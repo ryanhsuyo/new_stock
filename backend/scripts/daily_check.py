@@ -18,6 +18,7 @@ if str(_BACKEND) not in sys.path:
 
 from app.storage.atomic_write import atomic_write_text  # noqa: E402
 from app.services.signal_alert_service import load_signal_alerts  # noqa: E402
+from app.services.signal_alert_review_service import get_signal_alert_review_status  # noqa: E402
 from app.services.official_fundamentals_api_service import get_official_fundamentals_coverage_audit  # noqa: E402
 from app.services.signals_service import get_universe  # noqa: E402
 from app.services.today_scan_service import load_today_scan_report  # noqa: E402
@@ -184,8 +185,13 @@ def _official_coverage_action() -> dict[str, Any] | None:
     }
 
 
-def _signal_alert_action(alerts: dict[str, Any] | None) -> dict[str, Any] | None:
+def _signal_alert_action(
+    alerts: dict[str, Any] | None,
+    review_status: dict[str, Any] | None = None,
+) -> dict[str, Any] | None:
     if not alerts or int(alerts.get("alert_count") or 0) <= 0:
+        return None
+    if (review_status or {}).get("reviewed"):
         return None
     severity_counts = alerts.get("severity_counts") or {}
     status = "block" if int(severity_counts.get("block") or 0) > 0 else "warn"
@@ -251,8 +257,11 @@ def _signal_alert_action(alerts: dict[str, Any] | None) -> dict[str, Any] | None
         "action_payload": {
             "kind": "file",
             "file_path": _SIGNAL_ALERTS_FILE,
+            "method": "POST",
+            "endpoint": "/api/system/signal-alert-reviews/current",
+            "confirm_message": "確認你已檢視這批 signal alerts；只寫入 review ledger，不改交易紀錄、持倉、現金或策略分數。",
             "copy_command": _copy_command(_SIGNAL_ALERTS_COMMAND),
-            "expected_outputs": [_SIGNAL_ALERTS_FILE],
+            "expected_outputs": [_SIGNAL_ALERTS_FILE, "backend/data/signal_alert_reviews.json", "backend/out/daily_check.json"],
             "preview_items": [_preview_item(item) for item in preview_alerts],
             "preview_alerts": [_preview_alert(item) for item in preview_alerts],
             "review_focus_counts": _review_focus_counts(preview_alerts),
@@ -591,6 +600,7 @@ def build_daily_summary(
     limit: int = 3,
     universe: list[dict[str, Any]] | None = None,
     signal_alerts: dict[str, Any] | None = None,
+    signal_alert_review: dict[str, Any] | None = None,
     today_scan: dict[str, Any] | None = None,
     signals_summary: dict[str, Any] | None = None,
     include_official_coverage: bool = False,
@@ -598,12 +608,13 @@ def build_daily_summary(
     generated_at = report.get("generated_at")
     data_repair = _data_repair_summary(universe)
     can_use_trade_outputs = _can_use_trade_outputs(report)
+    signal_alert_review = signal_alert_review or get_signal_alert_review_status(signal_alerts, _BACKEND / "out")
     today_scan_summary = _today_scan_summary(today_scan)
     data_as_of = _data_as_of_from_report(report)
     extra_actions = [
         action
         for action in [
-            _signal_alert_action(signal_alerts),
+            _signal_alert_action(signal_alerts, signal_alert_review),
             _data_freshness_action(today_scan_summary, can_use_trade_outputs),
             _manual_market_note_action(signals_summary, data_as_of),
             _today_scan_action(today_scan_summary, can_use_trade_outputs),
@@ -627,11 +638,14 @@ def build_daily_summary(
         "blocked_by": blockers,
         "data_repair": data_repair,
         "today_scan": today_scan_summary,
-        "signal_alerts": signal_alerts or {
+        "signal_alerts": {
+            **(signal_alerts or {
             "alert_count": 0,
             "severity_counts": {},
             "alerts": [],
             "message": "尚未產生 signal_alerts.json，請先執行 run_signals.py。",
+            }),
+            "review_status": signal_alert_review,
         },
         "top_actions": top_actions,
     }
@@ -723,6 +737,7 @@ def run_daily_check(args: argparse.Namespace) -> int:
         limit=args.limit,
         universe=load_universe_for_daily_check(),
         signal_alerts=load_signal_alerts(args.backend / "out"),
+        signal_alert_review=get_signal_alert_review_status(out_dir=args.backend / "out"),
         today_scan=load_today_scan_report(args.backend / "out"),
         signals_summary=load_summary_for_daily_check(args.backend),
         include_official_coverage=args.backend.resolve() == _BACKEND.resolve(),

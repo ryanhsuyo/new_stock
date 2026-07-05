@@ -19,6 +19,7 @@ Loop mode: waiting_for_next_safe_phase
 Last completed phase:
 
 * `F61_manual_market_note_top_action_visibility.md` — Daily Check refresh wrappers now pass `summary.json` manual market note state so stale note guidance can surface.
+* `F62_signal_alert_acknowledgement.md` — Added a fingerprinted signal-alert review ledger and thin system API so reviewed current alerts can stop blocking Daily Check trade-output usability.
 * `F60_heartbeat_backlog_state_refresh.md` — Heartbeat backlog state now reflects F52-F59 completion and the signal-alert acknowledgement approval guard.
 * `F59_weekend_daily_check_freshness.md` — Daily Check snapshot freshness is now trading-day aware, avoiding weekend-only refresh noise.
 * `F58_two_strategy_contract_regression.md` — User-facing aligned strategies now exclude internal `core` and remain limited to `old_wang` / `steady_momentum`.
@@ -31,6 +32,7 @@ Last completed phase:
 Current phase status:
 
 * No active phase. Use F21 backlog order for the next safe heartbeat slice.
+* F62 completed: current `signal_alerts.json` can be acknowledged via backend API / PM Worklist and `backend/data/signal_alert_reviews.json`; acknowledgement refreshes Daily Check, while changed fingerprints still require review.
 * F61 completed: Daily Check refresh wrappers now include stale manual market note context from `summary.json`; signal-alert blockers remain unchanged.
 * F60 completed: refreshed F52 backlog baseline / recommendation after F59 so future idle heartbeats start from current state.
 * F59 completed: weekend / non-trading-day Daily Check freshness now uses the latest expected trading day instead of raw calendar date.
@@ -158,7 +160,8 @@ Recent verification:
 * F59 Daily Check / Update Workflow freshness tests passed: focused Daily Check service tests (`3 passed`), focused Update Workflow stale snapshot test (`1 passed`), real service check kept weekend workflow on `signal_alerts` blocker.
 * F60 docs sanity passed: confirmed F52 no longer references the stale F50/F51 latest-completed baseline, execution state has no active F60 phase, and `git diff --check` passed.
 * F61 focused tests passed: `/Library/Frameworks/Python.framework/Versions/3.11/bin/python3 -m pytest backend/tests/test_daily_check.py backend/tests/test_run_signals_cli.py backend/tests/test_schedule.py backend/tests/test_update_status.py -q` (`125 passed`)
+* F62 focused tests passed: signal-alert acknowledgement RED/GREEN tests (`4 passed`) and Daily Check / Update Status / Update Workflow / PM Worklist suite (`122 passed`); full backend tests passed (`789 passed`); frontend structure tests passed (`22 passed`); frontend build passed.
 
 ## Last Stop Reason
 
-F61 completed. Continue with F21 backlog order; signal-alert acknowledgement / unblock behavior still needs explicit user approval.
+F62 completed. Continue with F21 backlog order; signal-alert acknowledgement is available but must be triggered explicitly by the user/API.

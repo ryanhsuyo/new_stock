@@ -149,6 +149,11 @@ def _update_workflow_item() -> dict[str, Any] | None:
     action_payload.setdefault("copy_command", str(action.get("copy_command") or command))
     action_payload.setdefault("current_step", current_step)
     action_payload.setdefault("expected_outputs", list(action.get("expected_outputs") or []))
+    action_label = (
+        "標記已檢視"
+        if action_payload.get("endpoint") == "/api/system/signal-alert-reviews/current"
+        else "複製指令" if command else "查看流程"
+    )
     return _item(
         key="update_workflow",
         title=str(action.get("title") or "先處理每日更新流程"),
@@ -156,7 +161,7 @@ def _update_workflow_item() -> dict[str, Any] | None:
         priority=120,
         severity=severity,
         action_type="update_workflow",
-        action_label="複製指令" if command else "查看流程",
+        action_label=action_label,
         command=command,
         source="update_workflow",
         metric=str(workflow.get("headline") or current_step),
@@ -362,6 +367,21 @@ def _daily_check_items(existing_keys: set[str]) -> list[dict[str, Any]]:
                 source="daily_check",
                 metric=f"{total_issue_count} 檔資料日落後" if total_issue_count else str(action.get("status") or "warn"),
                 focus_codes=_focus_codes_from_preview_items(payload),
+                action_payload=payload,
+            ))
+            continue
+        if key == "signal_alerts":
+            mapped.append(_item(
+                key="daily_check_signal_alerts",
+                title=str(action.get("title") or "訊號快照變化警示"),
+                detail=str(action.get("message") or ""),
+                priority=98,
+                severity="danger" if action.get("status") == "block" else "warning",
+                action_type=str(action.get("action_type") or "signal_alerts"),
+                action_label="標記已檢視",
+                command=str(action.get("next_action") or ""),
+                source="daily_check",
+                metric=str(action.get("status") or "warn"),
                 action_payload=payload,
             ))
             continue

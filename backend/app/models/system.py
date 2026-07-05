@@ -211,6 +211,27 @@ class TradingSettings(BaseModel):
     sell_transaction_tax_rate: float
 
 
+class SignalAlertReviewRequest(BaseModel):
+    reviewer: str = "manual"
+    note: str | None = None
+
+
+class SignalAlertReviewStatus(BaseModel):
+    alerts_file: str
+    reviews_file: str
+    review_required: bool
+    reviewed: bool
+    current_fingerprint: str | None = None
+    latest_reviewed_fingerprint: str | None = None
+    alert_count: int
+    as_of: str | None = None
+    previous_as_of: str | None = None
+    severity_counts: dict = Field(default_factory=dict)
+    reviewed_at: str | None = None
+    reviewer: str | None = None
+    note: str | None = None
+
+
 class WorkflowAction(BaseModel):
     key: str
     title: str

@@ -294,6 +294,78 @@ class TestDailyCheckAPI:
         assert "daily_check.py --write-report" in response.json()["detail"]
 
 
+class TestSignalAlertReviewsAPI:
+
+    def test_get_signal_alert_review_status_reports_unreviewed_current_alerts(self, client, tmp_path, monkeypatch):
+        import app.services.signal_alert_review_service as svc
+        import app.routers.system as router
+
+        out = tmp_path / "out"
+        data = tmp_path / "data"
+        out.mkdir()
+        data.mkdir()
+        monkeypatch.setattr(svc, "_OUT", out)
+        monkeypatch.setattr(svc, "_DATA", data)
+        monkeypatch.setattr(router, "get_signal_alert_review_status", svc.get_signal_alert_review_status)
+        (out / "signal_alerts.json").write_text(
+            json.dumps({
+                "as_of": "2026-06-24",
+                "previous_as_of": "2026-06-23",
+                "alert_count": 1,
+                "severity_counts": {"block": 1},
+                "alerts": [{"code": "2330", "severity": "block", "title": "風險"}],
+            }, ensure_ascii=False),
+            encoding="utf-8",
+        )
+
+        response = client.get("/api/system/signal-alert-reviews")
+
+        assert response.status_code == 200
+        body = response.json()
+        assert body["review_required"] is True
+        assert body["reviewed"] is False
+        assert body["alert_count"] == 1
+        assert body["current_fingerprint"]
+
+    def test_post_signal_alert_review_marks_current_fingerprint_reviewed(self, client, tmp_path, monkeypatch):
+        import app.services.signal_alert_review_service as svc
+        import app.routers.system as router
+
+        calls = []
+        out = tmp_path / "out"
+        data = tmp_path / "data"
+        out.mkdir()
+        data.mkdir()
+        monkeypatch.setattr(svc, "_OUT", out)
+        monkeypatch.setattr(svc, "_DATA", data)
+        monkeypatch.setattr(svc, "_refresh_daily_check_safely", lambda: calls.append("daily_check"))
+        monkeypatch.setattr(router, "acknowledge_current_signal_alerts", svc.acknowledge_current_signal_alerts)
+        monkeypatch.setattr(router, "get_signal_alert_review_status", svc.get_signal_alert_review_status)
+        (out / "signal_alerts.json").write_text(
+            json.dumps({
+                "as_of": "2026-06-24",
+                "previous_as_of": "2026-06-23",
+                "alert_count": 1,
+                "severity_counts": {"block": 1},
+                "alerts": [{"code": "2330", "severity": "block", "title": "風險"}],
+            }, ensure_ascii=False),
+            encoding="utf-8",
+        )
+
+        response = client.post(
+            "/api/system/signal-alert-reviews/current",
+            json={"reviewer": "ryan", "note": "checked risk changes"},
+        )
+
+        assert response.status_code == 200
+        body = response.json()
+        assert body["reviewed"] is True
+        assert body["reviewer"] == "ryan"
+        assert (data / "signal_alert_reviews.json").exists()
+        assert client.get("/api/system/signal-alert-reviews").json()["reviewed"] is True
+        assert calls == ["daily_check"]
+
+
 class TestTradingSettingsAPI:
 
     def test_returns_trading_fee_settings(self, client, monkeypatch):
