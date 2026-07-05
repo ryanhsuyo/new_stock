@@ -116,7 +116,7 @@
 後端啟動：
 ```bash
 cd backend
-uvicorn app.main:app --reload
+uvicorn app.main:app --reload --port 19000
 ```
 
 執行回補 / 訊號（依現有 script 命名調整）：

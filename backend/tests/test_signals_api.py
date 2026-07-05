@@ -644,7 +644,8 @@ class TestRecommendations:
 
     def test_default_strategy_returns_steady_momentum_signals(self, client, signals_result, tmp_out):
         buy_codes = {
-            s["code"] for s in signals_result["signals"] if s.get("steady_momentum_flag")
+            s["code"] for s in signals_result["signals"]
+            if s.get("signal") == "BUY" and s.get("steady_momentum_flag")
         }
         rec_codes  = {r["stock_id"]
                       for r in client.get("/api/stocks/recommendations").json()}
@@ -653,7 +654,8 @@ class TestRecommendations:
 
     def test_old_wang_strategy_returns_tagged_signals(self, client, signals_result):
         old_wang_codes = {
-            s["code"] for s in signals_result["signals"] if s.get("old_wang_flag")
+            s["code"] for s in signals_result["signals"]
+            if s.get("signal") == "BUY" and s.get("old_wang_flag")
         }
         rec_codes = {
             r["stock_id"]
@@ -664,13 +666,51 @@ class TestRecommendations:
     def test_steady_momentum_strategy_returns_steady_momentum_flagged_signals(self, client, signals_result):
         expected = {
             s["code"] for s in signals_result["signals"]
-            if s.get("steady_momentum_flag")
+            if s.get("signal") == "BUY" and s.get("steady_momentum_flag")
         }
         rec_codes = {
             r["stock_id"]
             for r in client.get("/api/stocks/recommendations?strategy=steady_momentum").json()
         }
         assert rec_codes == expected
+
+    def test_recommendations_exclude_non_buy_strategy_flags(self, client, tmp_out):
+        summary = {
+            "signals": [
+                {
+                    "code": "1111",
+                    "signal": "BUY",
+                    "close": 10,
+                    "score": 80,
+                    "steady_momentum_score": 80,
+                    "old_wang_flag": True,
+                    "steady_momentum_flag": True,
+                    "reasons": ["正式買點成立"],
+                },
+                {
+                    "code": "2222",
+                    "signal": "HOLD",
+                    "close": 20,
+                    "score": 95,
+                    "steady_momentum_score": 95,
+                    "old_wang_flag": True,
+                    "steady_momentum_flag": True,
+                    "reasons": ["策略觀察成立，但正式訊號仍為 HOLD"],
+                },
+            ]
+        }
+        (tmp_out / "summary.json").write_text(json.dumps(summary), encoding="utf-8")
+
+        default_codes = {
+            r["stock_id"] for r in client.get("/api/stocks/recommendations").json()
+        }
+        old_wang_codes = {
+            r["stock_id"]
+            for r in client.get("/api/stocks/recommendations?strategy=old_wang").json()
+        }
+
+        assert default_codes == {"1111"}
+        assert old_wang_codes == {"1111"}
 
     def test_unknown_strategy_uses_default_recommendation_bucket(self, client, signals_result):
         steady_codes = {

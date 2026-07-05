@@ -83,6 +83,8 @@ class TestDataStatusAPI:
             "last_warning",
             "last_warning_summary",
             "last_data_as_of",
+            "coverage_report_path",
+            "data_coverage_pct",
             "schedule_health_status",
             "schedule_is_overdue",
             "schedule_health_message",

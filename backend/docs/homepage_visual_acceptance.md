@@ -6,7 +6,7 @@ Use this checklist after Dashboard or homepage CSS changes. It verifies that the
 
 ## Preconditions
 
-* Backend API is reachable on port 9000.
+* Backend API is reachable on port 19000.
 * Frontend dev server or production build is reachable.
 * Data may be ready, stale, or blocked; the checklist accepts all states if the UI explains the state clearly.
 

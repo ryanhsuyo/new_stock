@@ -5,7 +5,7 @@ const backendDir = new URL('backend/', rootDir)
 const frontendDir = new URL('frontend/', rootDir)
 
 const host = process.env.DEV_HOST || '127.0.0.1'
-const backendPort = process.env.BACKEND_PORT || '9000'
+const backendPort = process.env.BACKEND_PORT || '19000'
 const frontendPort = process.env.FRONTEND_PORT || '5173'
 const pythonBin = process.env.PYTHON_BIN || 'python3'
 const frontendRunner = process.env.FRONTEND_PM || 'pnpm'
@@ -23,7 +23,7 @@ if (process.argv.includes('--help') || process.argv.includes('-h')) {
     '',
     'Optional environment variables:',
     '  DEV_HOST=127.0.0.1',
-    '  BACKEND_PORT=9000',
+    '  BACKEND_PORT=19000',
     '  FRONTEND_PORT=5173',
     '  PYTHON_BIN=python3',
     '  FRONTEND_PM=pnpm',

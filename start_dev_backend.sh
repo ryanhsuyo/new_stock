@@ -115,10 +115,10 @@ fi
 
 # ── Step 2：啟動後端 ──────────────────────────────────────────────────────────
 header "── Step 2 / 2：啟動後端"
-info "API：     http://localhost:9000"
-info "Swagger： http://localhost:9000/docs"
-info "（前端 proxy：localhost:5173/api → localhost:9000）"
+info "API：     http://localhost:19000"
+info "Swagger： http://localhost:19000/docs"
+info "（前端 proxy：localhost:5173/api → localhost:19000）"
 info "按 Ctrl+C 停止"
 echo ""
 
-exec $UVICORN_CMD app.main:app --host 0.0.0.0 --port 9000 --reload
+exec $UVICORN_CMD app.main:app --host 0.0.0.0 --port 19000 --reload

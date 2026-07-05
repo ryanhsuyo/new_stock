@@ -177,7 +177,7 @@ python3 scripts/daily_check.py --write-report
 ```bash
 cd /Users/ryan/Desktop/code/new_stock/backend
 python3 scripts/daily_update.py --months 1
-python3 -m uvicorn app.main:app --host 127.0.0.1 --port 9000 --reload
+python3 -m uvicorn app.main:app --host 127.0.0.1 --port 19000 --reload
 ```
 
 前端開發伺服器另開一個 terminal：
@@ -226,7 +226,7 @@ python3 scripts/run_signals.py                       # 重算訊號
 ### 方式 C：透過 API 觸發（適合已開啟 server 時）
 
 ```bash
-curl -X POST http://localhost:9000/api/stocks/signals/run \
+curl -X POST http://localhost:19000/api/stocks/signals/run \
      -H "Content-Type: application/json" -d '{}'
 ```
 
@@ -246,7 +246,7 @@ curl -X POST http://localhost:9000/api/stocks/signals/run \
 ### 方式 2：API 查詢
 
 ```bash
-curl http://localhost:9000/api/system/data-status | python3 -m json.tool
+curl http://localhost:19000/api/system/data-status | python3 -m json.tool
 ```
 
 關鍵欄位：
@@ -325,7 +325,7 @@ cat backend/out/data_coverage_report.json | python3 -m json.tool
 排程健康是 API 即時計算的衍生狀態，不會寫回 `update_status.json`：
 
 ```bash
-curl -s http://localhost:9000/api/system/data-status | python3 -m json.tool
+curl -s http://localhost:19000/api/system/data-status | python3 -m json.tool
 ```
 
 - `schedule_health_status=overdue`：最近一次完成後已錯過至少一個已結束的平日，需檢查 launchd / cron 與 `update.log`。
@@ -353,7 +353,7 @@ log 格式：
 
 ```bash
 # 每 3 秒輪詢一次狀態（確認是否還在 running）
-watch -n 3 'curl -s http://localhost:9000/api/system/data-status | python3 -m json.tool'
+watch -n 3 'curl -s http://localhost:19000/api/system/data-status | python3 -m json.tool'
 ```
 
 或開啟前端「投組總覽」，當 `last_run_status = "running"` 時頁面會自動每 3 秒 poll 並顯示 spinner。
@@ -446,7 +446,7 @@ crontab -e
 ```bash
 cd backend
 export CORS_ALLOWED_ORIGINS="https://stock.example.com,http://localhost:5173"
-uvicorn app.main:app --host 0.0.0.0 --port 9000
+uvicorn app.main:app --host 0.0.0.0 --port 19000
 ```
 
 - 修改環境變數後必須重新啟動 Uvicorn 才會生效。
@@ -479,7 +479,7 @@ python3 scripts/run_backtest.py --code 2330 --as-of 2026-01-01 --initial-cash 10
 python3 scripts/run_backtest.py --code 2330 --force-close  # 最後收盤強制平倉
 
 # === 狀態查看 ===
-curl http://localhost:9000/api/system/data-status     # 更新狀態 API
+curl http://localhost:19000/api/system/data-status    # 更新狀態 API
 cat backend/out/update_status.json                    # 原始狀態檔
 tail -50 backend/out/update.log                       # 更新 log
 cat backend/out/summary.json                          # 最新訊號摘要
@@ -489,8 +489,8 @@ cd backend && pytest -q                               # 執行所有測試
 cd backend && pytest tests/test_signals_api.py -v    # 單一測試檔
 
 # === 伺服器 ===
-uvicorn app.main:app --reload --port 9000             # 開發模式
-uvicorn app.main:app --host 0.0.0.0 --port 9000       # 指定 host/port
+uvicorn app.main:app --reload --port 19000            # 開發模式
+uvicorn app.main:app --host 0.0.0.0 --port 19000      # 指定 host/port
 ```
 
 回測輸出為 `backend/out/backtest_summary.json` 與

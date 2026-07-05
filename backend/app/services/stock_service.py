@@ -58,10 +58,11 @@ def _load_signals(strategy: str = DEFAULT_RECOMMENDATION_STRATEGY) -> list[dict]
         summary = json.load(f)
 
     signals = summary.get("signals", [])
+    buy_signals = [s for s in signals if s.get("signal") == "BUY"]
     if strategy == "old_wang":
-        hits = [s for s in signals if s.get("old_wang_flag")]
+        hits = [s for s in buy_signals if s.get("old_wang_flag")]
     else:
-        hits = [s for s in signals if s.get("steady_momentum_flag")]
+        hits = [s for s in buy_signals if s.get("steady_momentum_flag")]
 
     hits.sort(
         key=lambda s: (

@@ -6,11 +6,11 @@
 
 ## 1. 開發伺服器
 
-後端固定使用 9000 port：
+後端固定使用 19000 port：
 
 ```bash
 cd /Users/ryan/Desktop/code/new_stock/backend
-python3 -m uvicorn app.main:app --host 127.0.0.1 --port 9000 --reload
+python3 -m uvicorn app.main:app --host 127.0.0.1 --port 19000 --reload
 ```
 
 前端固定使用 5173 port：

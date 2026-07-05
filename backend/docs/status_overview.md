@@ -249,7 +249,7 @@
 cd backend && python3 -m pytest -q
 
 # 後端啟動
-cd backend && uvicorn app.main:app --reload --port 9000
+cd backend && uvicorn app.main:app --reload --port 19000
 
 # 手動回補（最近 1 個月）
 cd backend && python3 scripts/daily_update.py --months 1

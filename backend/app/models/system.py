@@ -12,6 +12,8 @@ class DataStatus(BaseModel):
     last_warning: str | None = None
     last_warning_summary: str | None = None  # 警告第一行，max 120 chars，供前端 banner 顯示
     last_data_as_of: str | None = None       # YYYY-MM-DD
+    coverage_report_path: str | None = None
+    data_coverage_pct: float | None = None
     schedule_health_status: str = "never_run"
     schedule_is_overdue: bool = False
     schedule_health_message: str = "尚無自動更新完成紀錄。"

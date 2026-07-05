@@ -29,6 +29,11 @@ PLIST_LABEL="com.stockapp.daily-update"
 PLIST_PATH="${HOME}/Library/LaunchAgents/${PLIST_LABEL}.plist"
 UPDATE_SCRIPT="${SCRIPT_DIR}/daily_update.py"
 LOG_FILE="${OUT_DIR}/update.log"
+# launchd 專用 stdout/stderr log，必須與 LOG_FILE 分開：
+# 專案位於 ~/Desktop（TCC 保護區），launchd 只能開啟「自己建立」的檔案
+# （帶有 com.apple.macl 授權）。若指到其他程式建立的 update.log，
+# spawn 會直接失敗（EX_CONFIG 78）。
+LAUNCHD_LOG="${OUT_DIR}/update.launchd.log"
 
 # ── 前置檢查 ──────────────────────────────────────────────────────────────
 
@@ -103,11 +108,15 @@ cat > "${PLIST_PATH}" <<PLIST
         <integer>${SCHEDULE_MINUTE}</integer>
     </dict>
 
-    <!-- launchd stdout/stderr 同步導向 log 檔 -->
+    <!-- launchd 預設 CWD 是 /，固定在 backend 下避免相對路徑失效 -->
+    <key>WorkingDirectory</key>
+    <string>${BACKEND_DIR}</string>
+
+    <!-- launchd stdout/stderr 導向獨立 log（不可與 update.log 共用，見上方註解） -->
     <key>StandardOutPath</key>
-    <string>${LOG_FILE}</string>
+    <string>${LAUNCHD_LOG}</string>
     <key>StandardErrorPath</key>
-    <string>${LOG_FILE}</string>
+    <string>${LAUNCHD_LOG}</string>
 
     <!-- 載入時不立即執行 -->
     <key>RunAtLoad</key>
@@ -127,6 +136,10 @@ if launchctl list 2>/dev/null | grep -q "${PLIST_LABEL}"; then
     echo "  (已卸載舊排程)"
 fi
 
+# 移除舊的 launchd log，讓 launchd 第一次執行時自行建立
+# （launchd 建立的檔案才會帶 com.apple.macl，之後才能重複開啟）
+rm -f "${LAUNCHD_LOG}"
+
 launchctl load "${PLIST_PATH}"
 echo "✓ launchd 排程已載入"
 
@@ -139,6 +152,7 @@ echo "管理指令："
 echo "  查看狀態  : launchctl list | grep stockapp"
 echo "  立即執行  : launchctl start ${PLIST_LABEL}"
 echo "  查看 log  : tail -f ${LOG_FILE}"
+echo "  spawn 除錯: tail -f ${LAUNCHD_LOG}（launchd stdout/stderr）"
 echo "  查看狀態  : cat ${OUT_DIR}/update_status.json"
 echo "  卸載排程  : bash ${SCRIPT_DIR}/remove_schedule.sh"
 echo ""

@@ -1,7 +1,7 @@
 # API 端點總覽
 
 FastAPI 後端，所有端點皆以 `/api` 為前綴。  
-互動文件（Swagger UI）：`http://localhost:9000/docs`
+互動文件（Swagger UI）：`http://localhost:19000/docs`
 
 ---
 

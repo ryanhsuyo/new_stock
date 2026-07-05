@@ -30,6 +30,8 @@ import urllib.request
 import urllib.error
 import urllib.parse
 
+_BACKEND = Path(__file__).resolve().parent.parent
+
 _SSL_CTX = ssl.create_default_context()
 try:
     import certifi
@@ -689,8 +691,8 @@ def parse_args() -> argparse.Namespace:
         description="回補 TWSE 上市 / TPEX 上櫃股票日 OHLCV 至 data/ohlcv.csv"
     )
     parser.add_argument("--months",  type=int,  default=12,                        metavar="N",    help="回補幾個月（預設 12）")
-    parser.add_argument("--leaders", type=Path, default=Path("data/leaders.json"), metavar="PATH", help="leaders.json 路徑")
-    parser.add_argument("--out",     type=Path, default=Path("data/ohlcv.csv"),    metavar="PATH", help="輸出 CSV 路徑")
+    parser.add_argument("--leaders", type=Path, default=_BACKEND / "data" / "leaders.json", metavar="PATH", help="leaders.json 路徑")
+    parser.add_argument("--out",     type=Path, default=_BACKEND / "data" / "ohlcv.csv",    metavar="PATH", help="輸出 CSV 路徑")
     parser.add_argument("--include-current-month", action="store_true", default=False,
                         help="包含當月資料（預設排除，避免抓到未完整月份）")
     parser.add_argument("--skip-market-indices", action="store_true", default=False,

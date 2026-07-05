@@ -23,11 +23,11 @@ pip install -r requirements.txt
 
 ```bash
 cd backend
-uvicorn app.main:app --reload --port 9000
+uvicorn app.main:app --reload --port 19000
 ```
 
-- API 伺服器：`http://localhost:9000`
-- Swagger UI：`http://localhost:9000/docs`
+- API 伺服器：`http://localhost:19000`
+- Swagger UI：`http://localhost:19000/docs`
 
 ---
 

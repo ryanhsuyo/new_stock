@@ -55,9 +55,9 @@ React 18 (TypeScript) + FastAPI 的台灣股票分析與投資紀錄系統。
 ```bash
 cd backend
 pip install -r requirements.txt
-python3 -m uvicorn app.main:app --host 127.0.0.1 --port 9000 --reload
-# API：http://localhost:9000
-# Swagger：http://localhost:9000/docs
+python3 -m uvicorn app.main:app --host 127.0.0.1 --port 19000 --reload
+# API：http://localhost:19000
+# Swagger：http://localhost:19000/docs
 ```
 
 #### 一鍵啟動（含資料更新）
@@ -90,7 +90,7 @@ pnpm dev:all
 
 預設會啟動：
 
-- 後端：`http://127.0.0.1:9000`
+- 後端：`http://127.0.0.1:19000`
 - 前端：`http://127.0.0.1:5173`
 
 ---
