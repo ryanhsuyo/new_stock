@@ -43,6 +43,7 @@ _DATA_FRESHNESS_COMMAND = "python3 scripts/daily_update.py --months 1"
 _SIGNAL_ALERTS_FILE = "backend/out/signal_alerts.json"
 _SIGNAL_ALERTS_COMMAND = f"cat {_SIGNAL_ALERTS_FILE}"
 _DATA_REPAIR_REQUIRED_ROWS = 60
+_FUNDAMENTALS_USER_INPUT_NOTE = "需要真實外部基本面資料；系統不得偽造 ROE、FCF、CAGR、interest coverage 或 dividend years。"
 
 def _copy_command(command: str) -> str:
     return f"cd {_BACKEND}\n{command}"
@@ -298,6 +299,9 @@ def _manual_market_note_action(signals_summary: dict[str, Any] | None, data_as_o
             "kind": "api",
             "method": "POST",
             "endpoint": "/api/stocks/market-notes",
+            "requires_user_input": True,
+            "user_input_kind": "manual_market_note",
+            "user_input_note": "需要使用者提供真實盤後觀察；系統不得自動編寫 headline、風險水位或盤勢內容。",
             "confirm_message": "只更新盤後筆記，不改交易紀錄。",
             "preview_items": [preview],
             "required_fields": [
@@ -464,6 +468,18 @@ def _normalize_action_payload(payload: dict[str, Any]) -> dict[str, Any]:
     return normalized
 
 
+def _mark_fundamentals_user_input(action: dict[str, Any]) -> dict[str, Any]:
+    if action.get("key") != "fundamentals":
+        return action
+    payload = action.get("action_payload")
+    if not isinstance(payload, dict) or payload.get("kind") != "copy_text":
+        return action
+    payload.setdefault("requires_user_input", True)
+    payload.setdefault("user_input_kind", "fundamentals_priority_csv")
+    payload.setdefault("user_input_note", _FUNDAMENTALS_USER_INPUT_NOTE)
+    return action
+
+
 def _action_type_for_key(key: str) -> str:
     mapping = {
         "data_repair": "data_repair",
@@ -536,6 +552,7 @@ def _top_actions(
         }
         if isinstance(check.get("action_payload"), dict):
             item["action_payload"] = _normalize_action_payload(check["action_payload"])
+            item = _mark_fundamentals_user_input(item)
         candidates.append(item)
     candidates.extend(_with_action_type(action) for action in (extra_actions or []))
     candidates.sort(

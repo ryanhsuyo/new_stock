@@ -94,7 +94,7 @@ Phase name: none
 
 Active phase file:
 
-None. F63 is complete; use `backend/docs/ai_tasks/F21_heartbeat_development_operating_contract.md` and `backend/docs/ai_tasks/loop_state.md` to select the next safe heartbeat slice.
+none
 
 ## 7. Required Reading
 

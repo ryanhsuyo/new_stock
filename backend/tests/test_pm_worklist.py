@@ -76,6 +76,9 @@ def test_pm_worklist_prioritizes_data_repair_before_followup_work(monkeypatch):
     assert "backend/out/daily_check.json" in worklist["items"][0]["action_payload"]["expected_outputs"]
     assert worklist["items"][1]["focus_codes"] == ["2408"]
     assert worklist["items"][1]["action_payload"]["kind"] == "copy_text"
+    assert worklist["items"][1]["action_payload"]["requires_user_input"] is True
+    assert worklist["items"][1]["action_payload"]["user_input_kind"] == "fundamentals_priority_csv"
+    assert "真實外部基本面資料" in worklist["items"][1]["action_payload"]["user_input_note"]
     assert "南亞科 2408" in worklist["items"][1]["action_payload"]["copy_text"]
     assert worklist["items"][1]["action_payload"]["preview_items"] == ["南亞科 2408"]
     assert "5 年平均 ROE" in worklist["items"][1]["action_payload"]["copy_text"]

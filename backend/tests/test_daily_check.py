@@ -61,6 +61,9 @@ def test_daily_check_builds_summary_from_doctor_report():
     assert summary["top_actions"][0]["key"] == "fundamentals"
     assert summary["top_actions"][0]["action_type"] == "fundamentals"
     assert summary["top_actions"][0]["action_payload"]["kind"] == "copy_text"
+    assert summary["top_actions"][0]["action_payload"]["requires_user_input"] is True
+    assert summary["top_actions"][0]["action_payload"]["user_input_kind"] == "fundamentals_priority_csv"
+    assert "真實外部基本面資料" in summary["top_actions"][0]["action_payload"]["user_input_note"]
     assert "台積電 2330" in summary["top_actions"][0]["action_payload"]["copy_text"]
     assert summary["top_actions"][0]["action_payload"]["preview_items"] == ["台積電 2330"]
     assert summary["top_actions"][1]["details"]["missing_codes"] == ["2330", "2454"]
@@ -584,6 +587,9 @@ def test_daily_check_surfaces_stale_manual_market_note():
     assert payload["kind"] == "api"
     assert payload["method"] == "POST"
     assert payload["endpoint"] == "/api/stocks/market-notes"
+    assert payload["requires_user_input"] is True
+    assert payload["user_input_kind"] == "manual_market_note"
+    assert "真實盤後觀察" in payload["user_input_note"]
     assert payload["confirm_message"] == "只更新盤後筆記，不改交易紀錄。"
     assert payload["preview_items"] == ["舊筆記 2026-05-27：舊盤後筆記"]
     assert payload["required_fields"] == [

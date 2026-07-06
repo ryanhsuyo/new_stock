@@ -18,6 +18,7 @@ Loop mode: waiting_for_next_safe_phase
 
 Last completed phase:
 
+* `F64_user_input_required_actions.md` — Manual market note and fundamentals copy-text actions now explicitly require true user input via backend payload metadata.
 * `F61_manual_market_note_top_action_visibility.md` — Daily Check refresh wrappers now pass `summary.json` manual market note state so stale note guidance can surface.
 * `F62_signal_alert_acknowledgement.md` — Added a fingerprinted signal-alert review ledger and thin system API so reviewed current alerts can stop blocking Daily Check trade-output usability.
 * `F63_today_scan_usage_status_refresh.md` — Today Scan usage status can now be refreshed from the latest Daily Check after acknowledgement without recomputing candidates.
@@ -32,7 +33,8 @@ Last completed phase:
 
 Current phase status:
 
-* No active phase. Use F21 backlog order for the next safe heartbeat slice.
+* No active phase. Next heartbeat should use `backend/docs/ai_tasks/F21_heartbeat_development_operating_contract.md` to choose the next low-risk productization slice.
+* F64 completed: manual market note and fundamentals priority copy-text actions now expose `requires_user_input`, `user_input_kind`, and `user_input_note`, so heartbeats and UI can guide without fabricating data.
 * F63 completed: signal-alert acknowledgement refresh now keeps Today Scan `usage_status` aligned with the latest Daily Check while preserving existing candidate buckets.
 * F62 completed: current `signal_alerts.json` can be acknowledged via backend API / PM Worklist and `backend/data/signal_alert_reviews.json`; acknowledgement refreshes Daily Check, while changed fingerprints still require review.
 * F61 completed: Daily Check refresh wrappers now include stale manual market note context from `summary.json`; signal-alert blockers remain unchanged.

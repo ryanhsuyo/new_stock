@@ -31,6 +31,7 @@
 - PM Worklist / Dashboard 若收到 `action_payload.preview_alerts`，應優先呈現這些後端已排序的復盤卡片，再 fallback 到 `preview_items` 或 `focus_codes`；前端不得對 `preview_alerts` 重新排序或重新判定 blocker。
 - `expected_outputs` 的指令對應必須集中維護在後端共用契約，避免 `doctor.py`、`daily_check.py`、PM Worklist 與 workflow service 對同一指令列出不同產物；目前 `run_signals.py` 也會刷新 `daily_check.json`。
 - `daily_check.json.top_actions[*].action_payload.kind="copy_text"` 時，後端應附 `preview_items`，列出前幾個可直接呈現的股票 / 待辦項目；前端或文字報告不應自行解析大段 `copy_text` 才能顯示摘要。
+- `daily_check.json.top_actions[*].action_payload.requires_user_input=true` 代表該待辦需要使用者提供真實資料；心跳與前端只能呈現導引、複製清單或開啟表單，不得自動代填、標記完成或偽造資料。目前 `manual_market_note` 與 fundamentals priority copy-text action 必須提供 `user_input_kind` 與 `user_input_note`。
 - `daily_check.py` 文字輸出必須把 action payload 的重點印出來：command 的預期產物、copy_text 的預覽清單、file 的目標路徑、api 的方法與端點、以及候選股復盤缺少的代碼，避免 PM 摘要只剩「請去 Dashboard 看」。
 - `daily_check.json.top_actions[*]` 必須提供穩定 `action_type`，由後端依 `key` 映射為 `signal_alerts`、`data_freshness`、`today_scan`、`data_repair`、`fundamentals`、`decision_journal` 或 fallback `daily_check`；前端不得自行推導分類。
 - `summary.json.manual_market_note.update_required=true` 或 `is_stale=true` 時，Daily Check 應把「更新人工盤後筆記」列入 top actions，`action_payload.kind="api"` 指向 `POST /api/stocks/market-notes`；此待辦只提醒使用者更新筆記，不自動儲存、不重算正式訊號、不修改交易紀錄 / 持倉 / 現金。
