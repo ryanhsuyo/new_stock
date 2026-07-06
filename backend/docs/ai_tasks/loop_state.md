@@ -20,6 +20,7 @@ Last completed phase:
 
 * `F61_manual_market_note_top_action_visibility.md` — Daily Check refresh wrappers now pass `summary.json` manual market note state so stale note guidance can surface.
 * `F62_signal_alert_acknowledgement.md` — Added a fingerprinted signal-alert review ledger and thin system API so reviewed current alerts can stop blocking Daily Check trade-output usability.
+* `F63_today_scan_usage_status_refresh.md` — Today Scan usage status can now be refreshed from the latest Daily Check after acknowledgement without recomputing candidates.
 * `F60_heartbeat_backlog_state_refresh.md` — Heartbeat backlog state now reflects F52-F59 completion and the signal-alert acknowledgement approval guard.
 * `F59_weekend_daily_check_freshness.md` — Daily Check snapshot freshness is now trading-day aware, avoiding weekend-only refresh noise.
 * `F58_two_strategy_contract_regression.md` — User-facing aligned strategies now exclude internal `core` and remain limited to `old_wang` / `steady_momentum`.
@@ -32,6 +33,7 @@ Last completed phase:
 Current phase status:
 
 * No active phase. Use F21 backlog order for the next safe heartbeat slice.
+* F63 completed: signal-alert acknowledgement refresh now keeps Today Scan `usage_status` aligned with the latest Daily Check while preserving existing candidate buckets.
 * F62 completed: current `signal_alerts.json` can be acknowledged via backend API / PM Worklist and `backend/data/signal_alert_reviews.json`; acknowledgement refreshes Daily Check, while changed fingerprints still require review.
 * F61 completed: Daily Check refresh wrappers now include stale manual market note context from `summary.json`; signal-alert blockers remain unchanged.
 * F60 completed: refreshed F52 backlog baseline / recommendation after F59 so future idle heartbeats start from current state.
@@ -161,7 +163,8 @@ Recent verification:
 * F60 docs sanity passed: confirmed F52 no longer references the stale F50/F51 latest-completed baseline, execution state has no active F60 phase, and `git diff --check` passed.
 * F61 focused tests passed: `/Library/Frameworks/Python.framework/Versions/3.11/bin/python3 -m pytest backend/tests/test_daily_check.py backend/tests/test_run_signals_cli.py backend/tests/test_schedule.py backend/tests/test_update_status.py -q` (`125 passed`)
 * F62 focused tests passed: signal-alert acknowledgement RED/GREEN tests (`4 passed`) and Daily Check / Update Status / Update Workflow / PM Worklist suite (`122 passed`); full backend tests passed (`789 passed`); frontend structure tests passed (`22 passed`); frontend build passed.
+* F63 focused tests passed: `/Library/Frameworks/Python.framework/Versions/3.11/bin/python3 -m pytest backend/tests/test_today_scan_service.py backend/tests/test_update_status.py::TestSignalAlertReviewsAPI -q` (`8 passed`).
 
 ## Last Stop Reason
 
-F62 completed. Continue with F21 backlog order; signal-alert acknowledgement is available but must be triggered explicitly by the user/API.
+F63 completed. Continue with F21 backlog order; Today Scan usage status is aligned after signal-alert acknowledgement, while manual market note and fundamentals warnings remain non-blocking follow-up work.

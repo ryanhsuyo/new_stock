@@ -341,6 +341,27 @@ def write_today_scan_report(out_dir: Path | None = None, *, limit: int = DEFAULT
     return path
 
 
+def refresh_today_scan_usage_status(out_dir: Path | None = None) -> bool:
+    """Refresh only Today Scan usage metadata from the latest Daily Check."""
+    out_dir = out_dir or _OUT
+    path = out_dir / TODAY_SCAN_FILENAME
+    payload = _read_json(path)
+    if not payload:
+        return False
+
+    has_candidates = any(
+        payload.get(key)
+        for key in ("formal_entries", "old_wang_candidates", "steady_momentum_candidates", "risk_items")
+    )
+    payload["usage_status"] = _usage_status(out_dir, has_candidates=has_candidates)
+    atomic_write_text(path, json.dumps(payload, ensure_ascii=False, indent=2))
+    as_of = str(payload.get("as_of") or "").strip()
+    if as_of:
+        snapshot_path = out_dir / TODAY_SCAN_SNAPSHOT_DIR / f"today_scan_{as_of}.json"
+        atomic_write_text(snapshot_path, json.dumps(payload, ensure_ascii=False, indent=2))
+    return True
+
+
 def load_today_scan_report(out_dir: Path | None = None) -> dict[str, Any] | None:
     out_dir = out_dir or _OUT
     path = out_dir / TODAY_SCAN_FILENAME

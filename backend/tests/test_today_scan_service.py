@@ -305,6 +305,57 @@ def test_today_scan_report_includes_blocked_usage_status_from_daily_check(tmp_pa
     }
 
 
+def test_refresh_today_scan_usage_status_preserves_candidates(tmp_path):
+    from app.services.today_scan_service import refresh_today_scan_usage_status
+
+    out = tmp_path / "out"
+    out.mkdir(parents=True)
+    blocked_status = {
+        "can_use_trade_outputs": False,
+        "status": "blocked_by_daily_check",
+        "headline": "Today Scan 可供復盤，但交易輸出暫不可用",
+        "reason": "訊號快照變化警示：偵測到 2 筆 block 警示。",
+        "next_action": "先查看 signal_alerts.json。",
+        "blocking_action_key": "signal_alerts",
+        "blocking_action_status": "block",
+    }
+    report = {
+        "as_of": "2026-06-25",
+        "generated_at": "now",
+        "formal_entries": [{"code": "2337", "name": "旺宏"}],
+        "old_wang_candidates": [],
+        "steady_momentum_candidates": [],
+        "risk_items": [],
+        "usage_status": blocked_status,
+    }
+    _write_json(out / "today_scan.json", report)
+    _write_json(out / "today_scans" / "today_scan_2026-06-25.json", report)
+    _write_json(out / "daily_check.json", {
+        "data_as_of": "2026-06-25",
+        "can_use_trade_outputs": True,
+        "top_actions": [
+            {"key": "manual_market_note", "status": "warn", "title": "更新人工盤後筆記"},
+        ],
+    })
+
+    refreshed = refresh_today_scan_usage_status(out)
+
+    assert refreshed is True
+    loaded = json.loads((out / "today_scan.json").read_text(encoding="utf-8"))
+    assert loaded["formal_entries"] == [{"code": "2337", "name": "旺宏"}]
+    assert loaded["usage_status"] == {
+        "can_use_trade_outputs": True,
+        "status": "ready",
+        "headline": "Today Scan 可供盤後復盤",
+        "reason": "Daily Check 未封鎖交易輸出；仍需依價格計畫、停損與風險報酬檢查候選。",
+        "next_action": "先看可小試與風險分桶，再逐檔確認價格計畫。",
+        "blocking_action_key": None,
+        "blocking_action_status": None,
+    }
+    snapshot = json.loads((out / "today_scans" / "today_scan_2026-06-25.json").read_text(encoding="utf-8"))
+    assert snapshot["usage_status"] == loaded["usage_status"]
+
+
 def test_write_and_load_today_scan_round_trip(tmp_path):
     from app.services.today_scan_service import load_today_scan_report, write_today_scan_report
 

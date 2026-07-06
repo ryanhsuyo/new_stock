@@ -89,7 +89,7 @@ def _refresh_daily_check_safely() -> None:
         if str(scripts_dir) not in sys.path:
             sys.path.insert(0, str(scripts_dir))
 
-        from app.services.today_scan_service import load_today_scan_report
+        from app.services.today_scan_service import load_today_scan_report, refresh_today_scan_usage_status
         from daily_check import build_daily_summary, load_summary_for_daily_check, write_daily_summary
         from doctor import build_doctor_report
 
@@ -104,6 +104,7 @@ def _refresh_daily_check_safely() -> None:
             include_official_coverage=True,
         )
         write_daily_summary(summary, _BACKEND)
+        refresh_today_scan_usage_status(_BACKEND / "out")
     except Exception:
         # The review ledger is the source of truth; Daily Check can be regenerated later.
         pass
