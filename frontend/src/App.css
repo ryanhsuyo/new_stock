@@ -21,8 +21,28 @@ body {
   background: #0d47a1;
   color: #fff;
   padding: 16px 24px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
 }
 .app-title { font-size: 20px; font-weight: 700; }
+
+/* 市場切換入口（scaffold）：US 尚未開放 */
+.market-switch { display: flex; gap: 4px; flex: 0 0 auto; }
+.market-switch-btn {
+  padding: 5px 12px;
+  border: 1px solid rgba(255, 255, 255, 0.4);
+  background: transparent;
+  color: #fff;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+  white-space: nowrap;
+}
+.market-switch-btn.active { background: #fff; color: #0d47a1; border-color: #fff; }
+.market-switch-btn:disabled { opacity: 0.55; cursor: not-allowed; }
 
 .tab-nav {
   width: 100%;

@@ -33,6 +33,7 @@ from collections.abc import Mapping
 from datetime import datetime, timedelta
 from pathlib import Path
 
+from app.services.markets import classify_region
 from app.services.pattern_service import detect_pattern as _detect_pattern
 from app.services.fundamental_guard_service import evaluate_fundamental_guard
 from app.services.daily_brief_service import write_daily_brief
@@ -205,6 +206,7 @@ def get_universe() -> list[dict]:
         result.append({
             "code":            code,
             "name":            _stock_name(code),
+            "region":          classify_region(code),   # 市場維度 scaffold：現有台股皆為 TW
             "has_data":        data_status == "ok",
             "row_count":       row_count,
             "last_data_as_of": last_date,

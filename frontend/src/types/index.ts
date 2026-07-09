@@ -1125,6 +1125,8 @@ export interface SignalsStatus {
 export interface StockUniverseItem {
   code: string
   name: string
+  /** 市場維度 scaffold：現有台股皆為 'TW'，美股（'US'）尚未接真資料 */
+  region?: 'TW' | 'US'
   has_data: boolean
   row_count: number
   last_data_as_of: string | null

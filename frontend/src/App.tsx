@@ -84,6 +84,8 @@ export default function App() {
   const [universeJournalFilter, setUniverseJournalFilter] = useState<UniverseJournalFilter>('all')
   // 遞增以通知左 rail 重新抓取（例如在研究頁成功加入觀察清單後）
   const [railRefreshKey, setRailRefreshKey] = useState(0)
+  // 市場切換入口（scaffold）：目前只有台股 TW；US 尚未開放，選擇不影響任何資料流
+  const [region, setRegion] = useState<'TW' | 'US'>('TW')
 
   // 用 ref 讀取最新值，避免 hashchange handler 抓到過時 closure
   const tabRef = useRef(tab)
@@ -153,6 +155,28 @@ export default function App() {
     <div className="app">
       <header className="app-header">
         <h1 className="app-title">台灣股票分析與投資紀錄</h1>
+        {/* 市場切換入口（scaffold）：US 尚未開放，選擇不影響現有台股主流程 */}
+        <div className="market-switch" role="tablist" aria-label="市場切換">
+          <button
+            type="button"
+            role="tab"
+            aria-selected={region === 'TW'}
+            className={`market-switch-btn${region === 'TW' ? ' active' : ''}`}
+            onClick={() => setRegion('TW')}
+          >
+            台股
+          </button>
+          <button
+            type="button"
+            role="tab"
+            aria-selected={false}
+            className="market-switch-btn"
+            disabled
+            title="美股尚未開放（開發中）"
+          >
+            美股 · 即將推出
+          </button>
+        </div>
       </header>
 
       <nav className="tab-nav">
