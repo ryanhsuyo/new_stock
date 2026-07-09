@@ -91,6 +91,10 @@ const STRATEGY_OPTIONS: Array<{ key: RecommendationStrategy; label: string; desc
   { key: 'old_wang', label: '老王短波段', desc: '短線資金、族群輪動、跳空與短均線訊號' },
 ]
 
+// 背景連線偵測：每 15 秒探測一次，連續 2 次失敗才判定為中斷（去抖，避免單次抖動誤報）
+const HEALTH_POLL_MS = 15000
+const HEALTH_FAIL_THRESHOLD = 2
+
 const DECISION_OPTIONS: Array<{ key: DecisionJournalDecision; label: string }> = [
   { key: 'hold', label: '續抱' },
   { key: 'watch', label: '觀察' },
@@ -2219,6 +2223,11 @@ export default function Dashboard({ onNavigateAnalysis, onNavigateUniverseReport
   const [running, setRunning]       = useState(false)
   const [updating, setUpdating]     = useState(false)
   const [error, setError]           = useState('')
+  // 核心資料載入失敗（後端無法連線 / API 錯誤）；與一般操作 error、正常空狀態分開
+  const [loadError, setLoadError]   = useState('')
+  // 頁面已載入後，背景偵測到與後端連線中斷（去抖後才為 true，恢復即 false）
+  const [connectionLost, setConnectionLost] = useState(false)
+  const pollFailRef = useRef(0)
   const [runMsg, setRunMsg]         = useState('')
   const [savingNote, setSavingNote] = useState(false)
   const [mergingFundamentals, setMergingFundamentals] = useState(false)
@@ -2328,10 +2337,20 @@ export default function Dashboard({ onNavigateAnalysis, onNavigateUniverseReport
     }
   }
 
-  useEffect(() => {
+  const loadDashboard = () => {
+    setLoading(true)
     fetchAll()
-      .catch(e => setError(e instanceof Error ? e.message : '載入失敗'))
+      .then(() => {
+        setLoadError('')
+        pollFailRef.current = 0
+        setConnectionLost(false)
+      })
+      .catch(e => setLoadError(e instanceof Error ? e.message : '載入失敗'))
       .finally(() => setLoading(false))
+  }
+
+  useEffect(() => {
+    loadDashboard()
   }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
@@ -2398,6 +2417,26 @@ export default function Dashboard({ onNavigateAnalysis, onNavigateUniverseReport
     }, 2000)
     return () => clearInterval(timer)
   }, [status?.run_status]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  // 背景連線探測：頁面載入後持續每 15 秒探測 data-status（成功=200 代表連線正常，
+  // 與「有沒有資料」無關，故不會把正常空狀態誤判成中斷）。連續失敗達門檻才顯示提示，
+  // 任一次成功即清除。只做觀測，不改任何資料 / 商業邏輯。
+  useEffect(() => {
+    const timer = setInterval(() => {
+      api.getDataStatus()
+        .then(() => {
+          pollFailRef.current = 0
+          setConnectionLost(prev => (prev ? false : prev))
+        })
+        .catch(() => {
+          pollFailRef.current += 1
+          if (pollFailRef.current >= HEALTH_FAIL_THRESHOLD) {
+            setConnectionLost(prev => (prev ? prev : true))
+          }
+        })
+    }, HEALTH_POLL_MS)
+    return () => clearInterval(timer)
+  }, [])
 
   const handleUpdateNow = async () => {
     if (isBusy || updating || dataStatus?.last_run_status === 'running') return
@@ -2756,6 +2795,41 @@ export default function Dashboard({ onNavigateAnalysis, onNavigateUniverseReport
 
   return (
     <div>
+      {/* ── 核心資料載入失敗：與「正常空狀態」明確分開，避免使用者誤以為今天沒事做 ── */}
+      {loadError && (
+        <div className="alert alert-error" role="alert" style={{ marginBottom: 20 }}>
+          <div className="alert-title">⚠ 無法載入今日資料</div>
+          <div className="alert-meta">
+            後端無法連線或資料讀取失敗。請確認後端服務（uvicorn，port 19000）是否已啟動，再重試。
+          </div>
+          <div className="alert-meta" style={{ opacity: 0.7 }}>錯誤訊息：{loadError}</div>
+          <button
+            className="btn btn-primary btn-sm"
+            style={{ marginTop: 8 }}
+            onClick={loadDashboard}
+            disabled={loading}
+          >
+            {loading ? '重試中…' : '重試'}
+          </button>
+        </div>
+      )}
+      {/* ── 載入後連線中斷：畫面資料可能已非最新（去抖後才顯示，恢復自動清除）── */}
+      {!loadError && connectionLost && (
+        <div className="alert alert-error" role="alert" style={{ marginBottom: 20 }}>
+          <div className="alert-title">⚠ 與後端的連線中斷</div>
+          <div className="alert-meta">
+            畫面上的資料可能已非最新。請確認後端服務（uvicorn，port 19000）是否仍在執行；連線恢復後會自動解除此提示。
+          </div>
+          <button
+            className="btn btn-primary btn-sm"
+            style={{ marginTop: 8 }}
+            onClick={loadDashboard}
+            disabled={loading}
+          >
+            {loading ? '重新載入中…' : '重新載入'}
+          </button>
+        </div>
+      )}
       {/* ── 資料更新中 banner ── */}
       {isDataRunning && (
         <div className="alert alert-running" role="status" style={{ marginBottom: 20 }}>
@@ -2990,8 +3064,8 @@ export default function Dashboard({ onNavigateAnalysis, onNavigateUniverseReport
 
       <details className="dashboard-detail-section dashboard-secondary-section">
         <summary>
-          <span>基本面與系統維護</span>
-          <small>PM 待辦、基本面避雷資料、更新操作與檔案健康</small>
+          <span>決策輔助</span>
+          <small>PM 待辦與每日檢查</small>
         </summary>
         <div className="dashboard-detail-section-body">
           <PmWorklistBox
@@ -3004,12 +3078,6 @@ export default function Dashboard({ onNavigateAnalysis, onNavigateUniverseReport
             onRunUniverseReviewBatch={handleBulkCreateUniverseReviewJournal}
             onAcknowledgeSignalAlerts={handleAcknowledgeSignalAlerts}
           />
-          <UpdateWorkflowBox
-            workflow={updateWorkflow}
-            onDailyUpdate={handleUpdateNow}
-            busy={isBusy || isDataRunning}
-            running={isDataRunning}
-          />
           <div ref={dailyCheckRef}>
             <DailyCheckBox
               report={dailyCheck}
@@ -3017,6 +3085,22 @@ export default function Dashboard({ onNavigateAnalysis, onNavigateUniverseReport
               onFocusFundamentals={() => focusSection(fundamentalsRef)}
             />
           </div>
+        </div>
+      </details>
+
+      {/* ── 系統狀態：維運 / 資料管線，預設收合，壞了才展開 ── */}
+      <details className="dashboard-detail-section dashboard-secondary-section">
+        <summary>
+          <span>系統狀態</span>
+          <small>更新流程、資料修復、檔案健康與基本面匯入</small>
+        </summary>
+        <div className="dashboard-detail-section-body">
+          <UpdateWorkflowBox
+            workflow={updateWorkflow}
+            onDailyUpdate={handleUpdateNow}
+            busy={isBusy || isDataRunning}
+            running={isDataRunning}
+          />
           <DataRepairQueueBox
             universe={universe}
             onNavigateAnalysis={onNavigateAnalysis}

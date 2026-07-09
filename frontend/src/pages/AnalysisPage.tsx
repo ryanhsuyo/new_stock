@@ -10,6 +10,10 @@ interface Props {
   initialCode?: string
   /** 同一檔股票重複跳轉時，用來強制重新載入 */
   requestId?: number
+  /** 頁內搜尋 / 選股成功後回報目前代碼，讓 App 同步 hash 與左 rail 高亮 */
+  onCodeChange?: (code: string) => void
+  /** 成功加入觀察清單後通知 App，讓左 rail 重新抓取 watchlists */
+  onWatchlistChanged?: () => void
 }
 
 const DATA_STATUS_HINT: Record<string, string> = {
@@ -44,7 +48,7 @@ const BACKEND_REPAIR_COMMAND = [
   'python3 scripts/daily_update.py --months 12',
 ].join('\n')
 
-export default function AnalysisPage({ initialCode, requestId }: Props) {
+export default function AnalysisPage({ initialCode, requestId, onCodeChange, onWatchlistChanged }: Props) {
   const [inputVal, setInputVal]       = useState(initialCode ?? '')
   // pickerFilter 獨立於 inputVal：下拉展開時重置為空，打字時更新
   const [pickerFilter, setPickerFilter] = useState('')
@@ -101,9 +105,11 @@ export default function AnalysisPage({ initialCode, requestId }: Props) {
     return () => document.removeEventListener('mousedown', handle)
   }, [])
 
-  // 若有 initialCode（從投組頁跳轉），自動設定代碼並載入
+  // 若有 initialCode（從投組頁 / 左 rail 跳轉），自動設定代碼並載入
+  // 已顯示同一檔時略過：避免頁內搜尋回報代碼、App 更新 initialCode 後又重覆載入
   useEffect(() => {
     if (!initialCode) return
+    if (data?.code?.toUpperCase() === initialCode.toUpperCase()) return
     loadAnalysis(initialCode)
   }, [initialCode, requestId]) // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -149,6 +155,8 @@ export default function AnalysisPage({ initialCode, requestId }: Props) {
       const result = await api.getStockAnalysis(target)
       setData(result)
       setInputVal(target)
+      // 回報目前代碼給 App：同步 hash 與左 rail 高亮（App 不會 bump requestId，故不重載本頁）
+      onCodeChange?.(target)
       setIntradayForm({
         price: result.close != null ? String(result.close) : '',
         open: '',
@@ -171,6 +179,7 @@ export default function AnalysisPage({ initialCode, requestId }: Props) {
       await api.addToWatchlist(addGroup, data.code, data.name)
       setAddMsg(`已加入「${addGroup}」`)
       setAddGroup('')
+      onWatchlistChanged?.()
     } catch (e) {
       setAddMsg(e instanceof Error ? e.message : '加入失敗')
     } finally {

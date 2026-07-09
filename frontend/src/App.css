@@ -50,6 +50,145 @@ body {
 .tab-btn:hover { color: #0d47a1; }
 .tab-btn.active { color: #0d47a1; border-bottom-color: #0d47a1; }
 
+/* 導覽分組（今日 / 研究 / 投組 / 系統）：純呈現層級，維持單一水平列 */
+.tab-group { flex: 0 0 auto; display: flex; align-items: stretch; }
+.tab-group + .tab-group { border-left: 1px solid #eef0f3; }
+.tab-group-label {
+  display: flex;
+  align-items: center;
+  padding: 0 6px 0 12px;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  color: #9aa4b2;
+  white-space: nowrap;
+}
+.tab-group-btns { display: flex; }
+
+/* 研究頁：左側常駐 rail + 右側 AnalysisPage 主體 */
+.research-layout { display: flex; gap: 16px; align-items: flex-start; }
+.research-main { flex: 1; min-width: 0; }
+.research-rail {
+  flex: 0 0 210px;
+  position: sticky;
+  top: 12px;
+  max-height: calc(100vh - 40px);
+  overflow-y: auto;
+  border: 1px solid #dbe3ef;
+  border-radius: 10px;
+  background: #fff;
+  padding: 10px;
+}
+.research-rail-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 6px;
+}
+.research-rail-heading { font-size: 11px; font-weight: 700; letter-spacing: 0.04em; color: #94a3b8; }
+.research-rail-refresh {
+  border: 1px solid #dbe3ef;
+  background: #f8fafc;
+  border-radius: 6px;
+  width: 24px;
+  height: 22px;
+  font-size: 13px;
+  line-height: 1;
+  color: #64748b;
+  cursor: pointer;
+}
+.research-rail-refresh:hover:not(:disabled) { color: #0d47a1; border-color: #bfdbfe; }
+.research-rail-refresh:disabled { opacity: 0.6; cursor: default; }
+.research-rail-chiprow { display: flex; gap: 3px; margin-bottom: 8px; }
+.research-rail-chip {
+  flex: 1;
+  padding: 4px 3px;
+  border: 1px solid #e2e8f0;
+  background: #fff;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 600;
+  color: #64748b;
+  cursor: pointer;
+  white-space: nowrap;
+}
+.research-rail-chip:hover { color: #0d47a1; }
+.research-rail-chip.active { background: #0d47a1; border-color: #0d47a1; color: #fff; }
+.research-rail-sortrow { display: flex; justify-content: flex-end; margin-bottom: 6px; }
+.research-rail-sort {
+  border: 1px solid #e2e8f0;
+  background: #fff;
+  border-radius: 6px;
+  padding: 3px 8px;
+  font-size: 11px;
+  font-weight: 600;
+  color: #64748b;
+  cursor: pointer;
+}
+.research-rail-sort:hover { color: #0d47a1; border-color: #bfdbfe; }
+.research-rail-tabs { display: flex; gap: 3px; margin-bottom: 8px; }
+.research-rail-tab {
+  flex: 1;
+  padding: 5px 3px;
+  border: 1px solid #dbe3ef;
+  background: #f8fafc;
+  border-radius: 6px;
+  font-size: 11px;
+  font-weight: 700;
+  color: #64748b;
+  cursor: pointer;
+  white-space: nowrap;
+}
+.research-rail-tab:hover { color: #0d47a1; }
+.research-rail-tab.active { background: #e0edff; border-color: #bfdbfe; color: #0d47a1; }
+.research-rail-empty { font-size: 12px; color: #94a3b8; padding: 8px 4px; line-height: 1.5; }
+.research-rail-group { margin-bottom: 8px; }
+.research-rail-group-name { font-size: 11px; font-weight: 700; color: #94a3b8; padding: 2px 4px; }
+.research-rail-group-empty { font-size: 11px; color: #cbd5e1; padding: 2px 6px; }
+.research-rail-list { list-style: none; margin: 0; padding: 0; }
+.research-rail-item {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  width: 100%;
+  padding: 6px 8px;
+  border: none;
+  background: transparent;
+  border-radius: 6px;
+  cursor: pointer;
+  text-align: left;
+  font: inherit;
+}
+.research-rail-item:hover { background: #f1f5f9; }
+.research-rail-item.active { background: #e0edff; }
+.research-rail-code { font-weight: 700; font-size: 13px; color: #0d47a1; flex: 0 0 auto; }
+.research-rail-name {
+  font-size: 12px;
+  color: #475569;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.research-rail-badge {
+  margin-left: auto;
+  flex: 0 0 auto;
+  max-width: 42%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 11px;
+  font-weight: 700;
+  color: #64748b;
+  background: #f1f5f9;
+  border-radius: 999px;
+  padding: 0 7px;
+}
+
+@media (max-width: 720px) {
+  .research-layout { flex-direction: column; }
+  .research-rail { flex-basis: auto; width: 100%; position: static; max-height: none; }
+}
+
 .app-main { flex: 1; max-width: 1100px; width: 100%; margin: 0 auto; padding: 28px 20px; }
 .app-main-wide {
   max-width: min(1680px, calc(100vw - 24px));

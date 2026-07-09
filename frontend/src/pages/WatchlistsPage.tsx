@@ -4,9 +4,11 @@ import type { WatchlistGroup } from '../types'
 
 interface Props {
   onNavigateAnalysis?: (code: string) => void
+  /** watchlist CRUD 成功後通知 App，讓研究頁 rail 重新抓取 */
+  onWatchlistChanged?: () => void
 }
 
-export default function WatchlistsPage({ onNavigateAnalysis }: Props) {
+export default function WatchlistsPage({ onNavigateAnalysis, onWatchlistChanged }: Props) {
   const [groups, setGroups]         = useState<WatchlistGroup[]>([])
   const [loading, setLoading]       = useState(true)
   const [error, setError]           = useState('')
@@ -30,6 +32,7 @@ export default function WatchlistsPage({ onNavigateAnalysis }: Props) {
     setCreateErr('')
     try {
       await api.createWatchlist(name)
+      onWatchlistChanged?.()
       setNewName('')
       await loadGroups()
     } catch (e) {
@@ -43,6 +46,7 @@ export default function WatchlistsPage({ onNavigateAnalysis }: Props) {
     if (!confirm(`確定要刪除群組「${groupName}」及其所有股票？`)) return
     try {
       await api.deleteWatchlist(groupName)
+      onWatchlistChanged?.()
       await loadGroups()
     } catch (e) {
       setError(e instanceof Error ? e.message : '刪除失敗')
@@ -52,6 +56,7 @@ export default function WatchlistsPage({ onNavigateAnalysis }: Props) {
   async function handleRemoveStock(groupName: string, code: string) {
     try {
       await api.removeFromWatchlist(groupName, code)
+      onWatchlistChanged?.()
       await loadGroups()
     } catch (e) {
       setError(e instanceof Error ? e.message : '移除失敗')
