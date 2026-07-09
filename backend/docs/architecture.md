@@ -153,9 +153,9 @@ backend/app/
 
 ```
 leaders.json ─┐
-ohlcv.csv  ───┴─→ signals_service → summary.json
+ohlcv.csv  ───┴─→ signals_service → summary.json（含 recommendation_buckets）
                                    → universe_report.csv
-                                   → buy_list.json / sell_list.json / hold_list.json
+                                   → daily_brief.json / signal_alerts.json
 ```
 
 ### 前端讀取流

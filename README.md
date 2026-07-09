@@ -118,11 +118,12 @@ python3 scripts/daily_update.py --months 12
 
 | 檔案 | 說明 |
 |------|------|
-| `summary.json` | 統計：通過股數、訊號分佈、不買原因計數 |
-| `buy_list.json` | 建議買入清單 |
-| `sell_list.json` | 建議賣出清單 |
-| `hold_list.json` | 持續持有清單 |
+| `summary.json` | 統計：通過股數、訊號分佈、不買原因計數、兩策略推薦桶（`recommendation_buckets`） |
 | `universe_report.csv` | 全股票明細：訊號、分數、不買原因 |
+| `daily_brief.json` | 每日晨報摘要 |
+| `today_scan.json` | 今日規則掃描分桶（可小試 / 老王觀察 / 穩健動能 / 風險處理） |
+| `daily_check.json` | 每日健康檢查（overall_status / blockers） |
+| `signal_alerts.json` | 跨日訊號變化警示 |
 
 ---
 

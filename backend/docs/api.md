@@ -5,6 +5,105 @@ FastAPI 後端，所有端點皆以 `/api` 為前綴。
 
 ---
 
+## 端點索引
+
+所有實際存在的端點一覽（與 `app/routers/*` 同步；`backend/tests/test_api_docs.py` 會驗證本文件不漏列端點）。
+部分端點在下方有詳細章節；未列詳細章節者以本表描述與 Swagger UI 為準。
+
+### 訊號與推薦（stocks）
+
+| 方法 | 路徑 | 說明 |
+|------|------|------|
+| GET | `/api/stocks/recommendations` | 推薦清單（`old_wang` / `steady_momentum` 兩策略） |
+| GET | `/api/stocks/universe` | 追蹤股票資料狀態清單（leaders.json × ohlcv.csv 交叉比對） |
+| GET | `/api/stocks/{code}/analysis` | 單檔深度分析：支撐壓力線、趨勢線、訊號、reasons、risk_notes |
+| GET | `/api/stocks/{code}/intraday-monitor` | 盤中監控：只檢查日線計畫是否被盤中價格破壞 |
+| POST | `/api/stocks/{code}/tracking` | 把單檔加入 leaders.json 的手動追蹤群組；不觸發長時間回補 |
+| GET | `/api/stocks/signals/status` | out/ 檔案存在狀態、最後更新時間、summary 的 as_of / generated_at |
+| POST | `/api/stocks/signals/run` | 背景執行訊號計算，透過 status 輪詢結果 |
+| GET | `/api/stocks/signals/summary` | 讀取最近一次 run 的 summary.json |
+| GET | `/api/stocks/signals/daily-brief` | 讀取最近一次 run 的 daily_brief.json |
+| GET | `/api/stocks/signals/universe_report` | 下載 universe_report.csv（FileResponse） |
+| GET | `/api/stocks/signals/universe-report` | 讀取 universe_report.csv，以 JSON array 回傳 |
+| GET | `/api/stocks/signals/manual-watchlist-review` | 人工盤後觀察股逐檔校正表 |
+| GET | `/api/stocks/market-notes` | 人工盤後筆記清單（日期新到舊） |
+| POST | `/api/stocks/market-notes` | 新增或覆蓋指定日期的人工盤後筆記 |
+
+### 交易紀錄（trades）
+
+| 方法 | 路徑 | 說明 |
+|------|------|------|
+| GET | `/api/trades` | 交易紀錄清單 |
+| POST | `/api/trades/buy` | 記錄買入（含現金驗證） |
+| POST | `/api/trades/sell` | 記錄賣出（含超賣驗證） |
+| POST | `/api/trades/import` | 批次匯入交易紀錄（會先備份再覆蓋） |
+| POST | `/api/trades/import/validate` | 匯入前完整驗證（一次回傳所有錯誤，不寫檔） |
+| POST | `/api/trades/import/preview` | 匯入前預檢（含 positions_preview，不寫檔） |
+| POST | `/api/trades/clear` | 清空交易紀錄（會先備份） |
+| GET | `/api/trades/backups` | 交易紀錄備份清單 |
+| POST | `/api/trades/backups/restore` | 還原指定交易備份 |
+
+### 投資組合與統計
+
+| 方法 | 路徑 | 說明 |
+|------|------|------|
+| GET | `/api/portfolio` | 持倉損益（均攤成本 + 未實現損益） |
+| GET | `/api/portfolio/positions` | 從 trades.json 推算目前持股（不含技術分析） |
+| GET | `/api/portfolio/analysis` | 持股 + 技術訊號（依緊急度排序） |
+| GET | `/api/portfolio/summary` | 投組摘要（總成本 / 估值 / 損益 / 訊號分布） |
+| GET | `/api/stats` | 月結 / 全期統計（勝率 / 已實現損益） |
+
+### 系統狀態（system）
+
+| 方法 | 路徑 | 說明 |
+|------|------|------|
+| GET | `/api/system/data-status` | 資料更新狀態 + stale 計算 |
+| POST | `/api/system/update-now` | 手動觸發資料更新（backfill + signals；已在執行中回 409） |
+| GET | `/api/system/update-workflow` | 每日更新流程狀態：目前卡在哪一步、下一個可執行動作 |
+| GET | `/api/system/workflow-status` | PM 視角每日工作流狀態：能不能操作、下一步優先做什麼 |
+| GET | `/api/system/daily-check` | 每日 PM 摘要（由 `scripts/daily_check.py --write-report` 產生） |
+| GET | `/api/system/today-scan` | Today Scan 衍生報告；不重算策略、不寫檔 |
+| GET | `/api/system/pm-worklist` | PM 工作佇列：資料修復、基本面、候選復盤與 Daily Check 優先順序 |
+| GET | `/api/system/settings/trading` | 交易費率設定（供前端估算交易成本） |
+| GET | `/api/system/signal-alert-reviews` | 目前 signal_alerts.json 是否已被人工檢視 |
+| POST | `/api/system/signal-alert-reviews/current` | 標記目前 signal_alerts.json fingerprint 已檢視（只寫 review ledger） |
+| GET | `/api/system/fundamentals-status` | 基本面避雷資料對 leaders 清單的覆蓋率 |
+| GET | `/api/system/fundamentals-priority-fill` | 下載基本面避雷優先補資料 CSV |
+| POST | `/api/system/fundamentals-priority-fill/merge` | 預覽或正式合併基本面優先補資料 CSV |
+| GET | `/api/system/fundamentals-official/status` | 官方基本面暫存報告檔狀態；不觸發外部抓取 |
+| POST | `/api/system/fundamentals-official/reports` | 觸發官方基本面暫存報告產生；report-only，不寫入策略輸入 |
+| GET | `/api/system/fundamentals-official/coverage-audit` | 官方 report-only 覆蓋率稽核 |
+| GET | `/api/system/fundamentals-official/quality-momentum-lite-guard` | Quality Momentum Lite guard 覆蓋率（report-only） |
+| GET | `/api/system/personal-backups` | 個人資料備份清單 |
+| POST | `/api/system/personal-backups` | 建立個人資料備份（不含行情與 out 產物） |
+| POST | `/api/system/personal-backups/restore-preview` | Dry-run 預覽還原；不寫檔 |
+| POST | `/api/system/personal-backups/restore` | 正式還原（需 `confirm=RESTORE_PERSONAL_DATA`，先備份目前狀態） |
+
+### 觀察清單（watchlists）
+
+| 方法 | 路徑 | 說明 |
+|------|------|------|
+| GET | `/api/watchlists` | 所有觀察清單群組（含股票列表） |
+| POST | `/api/watchlists` | 建立新群組（名稱重複回 409） |
+| DELETE | `/api/watchlists/{group}` | 刪除整個群組 |
+| POST | `/api/watchlists/{group}/stocks` | 加入股票（冪等，已存在則跳過） |
+| DELETE | `/api/watchlists/{group}/stocks/{code}` | 移除股票（群組不存在回 404） |
+
+### 決策日誌（decision-journal）
+
+| 方法 | 路徑 | 說明 |
+|------|------|------|
+| GET | `/api/decision-journal` | 讀取決策日誌（只做復盤紀錄，不改持倉 / 交易） |
+| POST | `/api/decision-journal` | 新增一筆買 / 賣 / 續抱 / 觀望 / 不動的決策紀錄 |
+| PUT | `/api/decision-journal/{entry_id}` | 更新單筆決策日誌（保留建立時間與 workflow snapshot） |
+| DELETE | `/api/decision-journal/{entry_id}` | 刪除單筆決策日誌 |
+| GET | `/api/decision-journal/summary` | 指定日期的決策日誌統計 |
+| GET | `/api/decision-journal/universe-report-workflow` | 候選股報表復盤 PM 工作流摘要（唯讀） |
+| POST | `/api/decision-journal/from-universe-report` | 將尚未記錄的可行動候選批次轉成決策日誌 |
+| POST | `/api/decision-journal/from-portfolio-tasks` | 將尚未記錄的持股待辦批次轉成決策日誌 |
+
+---
+
 ## 訊號與推薦
 
 ### `GET /api/stocks/recommendations`
@@ -767,6 +866,117 @@ PM 視角的每日工作流狀態。此 endpoint 彙整 data-status、signals/st
 `workflow_metrics` 是 Dashboard KPI，用既有 `next_actions`、`close_checklist`、`portfolio_tasks` 與決策日誌覆蓋率推導，不應另建買賣判斷。`decision_journal_today_count` 以 `data_as_of` 對齊今天持股待辦已記錄的股票數，`portfolio_tasks_without_journal_count` 代表尚未復盤記錄的持股待辦數。
 
 `decision_guardrails` 是交易輸出使用閘門。當 `can_use_trade_outputs=false` 時，前端應把 `blocked_outputs` 顯示為「只能回顧、不可作為今天交易依據」，並優先引導使用者執行 `required_action`。
+
+---
+
+### `GET /api/system/update-workflow`
+
+每日更新流程狀態機。告訴 Dashboard 目前卡在哪一步、下一個可執行動作是什麼；與 `workflow-status`（PM 視角彙總）不同，本 endpoint 聚焦「更新流程本身」的步驟進度。
+
+**回應**（`UpdateWorkflowStatus`）：
+
+```json
+{
+  "generated_at": "2026-07-06T15:35:00",
+  "overall_status": "warn",
+  "headline": "資料已更新，仍有待處理警示",
+  "can_use_trade_outputs": false,
+  "current_step": "review_alerts",
+  "next_action": {
+    "key": "signal_alerts",
+    "title": "檢視訊號變化警示",
+    "detail": "…",
+    "action_type": "copy_command",
+    "command": "…",
+    "copy_command": "…",
+    "expected_outputs": [],
+    "action_payload": {}
+  },
+  "steps": [
+    { "key": "update_data", "label": "更新資料", "status": "done", "message": "…", "command": null }
+  ],
+  "checks": {}
+}
+```
+
+- `steps[].status`：`done` / `warning` / `blocked` / `running`。
+- `next_action.action_type`：`copy_command`（有可複製指令）或 `wait`（等待中，無指令可執行）。
+- `action_payload.requires_user_input=true` 代表該動作需要使用者提供資料或人工判斷（例如真實基本面 CSV、人工檢視警示），系統與前端都不應代做。
+- `can_use_trade_outputs=false` 時，交易輸出只能回顧，不可作為當日交易依據（與 `workflow-status.decision_guardrails` 同一閘門邏輯）。
+
+---
+
+### `GET /api/system/today-scan`
+
+讀取 Today Scan 衍生報告（`out/today_scan.json`）。唯讀：不重算策略、不寫入任何檔案。檔案由 `python3 scripts/today_scan.py --write-report` 或每日更新流程產生；尚無檔案時回 `404`。
+
+**回應**（主要欄位）：
+
+| 欄位 | 說明 |
+|------|------|
+| `as_of` / `generated_at` | 資料日期與產生時間 |
+| `rules_version` / `rules_metadata` | 掃描規則版本與參數（兩策略 profile、timeout 等） |
+| `data_status` | `universe_size` / `data_ok_count` / `data_missing_count` |
+| `market_context` | 大盤 regime 與 old_wang 市場濾網判斷及理由 |
+| `signal_counts` | 7 狀態訊號 + `DATA_MISSING` 各自數量 |
+| `formal_entries` | 可小試名單（正式進場條件成立） |
+| `old_wang_candidates` / `steady_momentum_candidates` | 兩策略觀察候選（含各自 score / signal） |
+| `risk_items` | 風險處理名單（持股或候選出現退出 / 減碼訊號） |
+| `usage_status` | 使用閘門：`can_use_trade_outputs`、`status`、`reason`、`next_action`；被 Daily Check 或 signal alerts 阻擋時會標示 blocking action |
+| `bucket_notes` / `data_freshness` / `notes` | 分桶說明、資料新鮮度與補充備註 |
+
+候選項目一律附 `daily_action` / `daily_action_label` 與策略分數摘要；本 endpoint 不產生新訊號，只整理最近一次 run 的結果。
+
+---
+
+### `GET /api/system/pm-worklist`
+
+PM 首頁工作佇列：把資料修復、基本面補資料、候選復盤與 Daily Check 整理成單一優先順序清單，供 Dashboard 的 PM Worklist / Primary Action / Today Focus 區塊使用。
+
+**回應**（`PmWorklist`）：
+
+```json
+{
+  "generated_at": "2026-07-06T15:35:00",
+  "overall_status": "warn",
+  "headline": "…",
+  "primary_action": {
+    "key": "signal_alerts",
+    "title": "檢視訊號變化警示",
+    "detail": "…",
+    "priority": 1,
+    "severity": "warn",
+    "status": "todo",
+    "action_type": "signal_alerts",
+    "action_label": "前往檢視",
+    "command": "",
+    "source": "signal_alerts",
+    "metric": "27 筆",
+    "focus_codes": ["2330"],
+    "action_payload": {}
+  },
+  "today_focus": [
+    {
+      "category": "entry",
+      "code": "2330",
+      "name": "台積電",
+      "label": "可小試",
+      "reason": "…",
+      "next_action": "…",
+      "severity": "info",
+      "source": "today_scan",
+      "price_basis": "2026-07-06 收盤",
+      "as_of": "2026-07-06"
+    }
+  ],
+  "items": []
+}
+```
+
+- `items` 依 `priority` 升冪排列；`primary_action` 是其中最優先的一項（可能為 `null`）。
+- `action_type` 是工作項分類（例如 `update_workflow` / `data_repair` / `fundamentals` / `decision_journal` / `data_freshness` / `market_note` / `signal_alerts` / `daily_check`），供前端決定跳轉位置。
+- 需要使用者提供資料或人工判斷的項目，會在 `action_payload` 中帶 `requires_user_input=true` 與 `user_input_note`，前端不應提供一鍵代做。
+- 本 endpoint 只彙整既有報告（daily_check / today_scan / fundamentals / coverage），不重算策略、不建立新交易訊號。
 
 ---
 

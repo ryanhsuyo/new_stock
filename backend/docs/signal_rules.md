@@ -350,7 +350,7 @@ Quality Momentum Lite 滿分 100 分，定位為第二主策略，補老王短�
 - 資料足夠的股票數
 - 進入 `watchlist` / `ready_to_enter` / `entry_confirmed` 的數量
 - 沒有買點的主因分布
-- 若 `buy_list` 為空，為什麼為空
+- 若 `recommendation_buckets` 中某策略推薦為空，為什麼為空
 - `strategy_catalog`：列出目前策略 tag 名稱、角色與說明
 - `recommendation_buckets`：分開列出 `old_wang`、`steady_momentum` 兩種方案推薦桶
 - `calculation_timeout_seconds`：本次單檔計算 timeout 秒數
