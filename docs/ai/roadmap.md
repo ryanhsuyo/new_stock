@@ -57,13 +57,15 @@
 **Purpose**
 在**不破壞台股主流程、不做美股策略、不下單、不做即時交易決策**的前提下，把美股資料真正接進來並在前端做最基本的清單 / 行情呈現。延續 `6ed907a` 的 scaffold（region 維度、price-source adapter seam）。
 
+**資料源方向（已確認）**：主源為 **Stooq（免 API key，直接抓歷史日 OHLCV CSV）**；**Finnhub 降為 future optional**（免費層歷史 candle 已改付費 403；保留供之後接 quote / 即時 / 基本面）。
+
 **Scope**
 - 包含：
-  - Finnhub API key 讀取（`FINNHUB_API_KEY`，不進 git；缺 key 有明確錯誤）。
-  - `FinnhubPriceSource` 實作（OHLCV candles + quote），取代 US stub；錯誤處理、rate-limit 友善、缺 key 明確錯誤。
+  - `StooqPriceSource`（US Phase 1 主源，免 key）：抓歷史日 OHLCV，`.us` 後綴、解析、限流 / 非預期格式錯誤處理。走 stdlib `urllib`（無新依賴）。
+  - `FinnhubPriceSource` 保留為 optional（讀 `FINNHUB_API_KEY`，缺 key 明確錯誤），**不在 US registry**。
   - 第一版小型 US universe（`backend/data/us_leaders.json`：AAPL / MSFT / NVDA / TSLA / SPY / QQQ），每筆標 `region: US`。
-  - `backend/scripts/backfill_ohlcv_us.py`：獨立可驗收，寫入**獨立檔** `backend/data/ohlcv_us.csv`（**不寫台股 `ohlcv.csv`**，避免回歸）。
-  - US universe / status 唯讀 API + 前端 US 清單（含「尚未設定資料源 / 尚未更新」誠實狀態）。
+  - `backend/scripts/backfill_ohlcv_us.py`：source-agnostic（走 `get_price_source("US")`），寫入**獨立檔** `backend/data/ohlcv_us.csv`（**不寫台股 `ohlcv.csv`**，避免回歸）。
+  - US universe / status 唯讀 API + 前端 US 清單（含「尚未就緒 / 尚未更新」誠實狀態）。
 - **不包含（out of scope）**：
   - 美股策略（不套 old_wang / steady_momentum）。
   - 下單 / 自動交易 / 即時交易決策。
@@ -71,12 +73,11 @@
   - 美股技術分析 / 訊號 / 候選桶。
 
 **Acceptance Criteria**
-- [ ] `cd backend && python3.11 -m pytest -q` 全綠（台股 baseline 不破，US 新測試涵蓋缺 key / 解析 / 錯誤）。
-- [ ] `cd frontend && npm run build` 成功。
-- [ ] 無 `FINNHUB_API_KEY` 時：US 來源 `is_available()=False`、`fetch_ohlcv` 丟明確錯誤；測試驗證此行為且**不使整體測試失敗**。
-- [ ] 有 `FINNHUB_API_KEY` 時：`backfill_ohlcv_us.py` 能抓至少 1–2 檔並寫入 `ohlcv_us.csv`，回報輸出檔與筆數。
-- [ ] 前端 US toggle 可切換；US 視圖只做清單 / 基本行情，缺 key / 無資料時顯示誠實訊息；台股主流程完全不受影響。
-- [ ] 台股 `ohlcv.csv` / `leaders.json` / 809 tests baseline 不變。
+- [x] `cd backend && python3.11 -m pytest -q` 全綠（台股 baseline 不破，US 新測試涵蓋 Stooq 解析 / 限流 / no-data、Finnhub 缺 key）。
+- [x] `cd frontend && npm run build` 成功。
+- [x] US 主源 Stooq 免 key：`is_available()=True`、`source_configured=true`；`backfill_ohlcv_us.py` 免 key 可跑（實際抓取需正常對外網路；sandbox 因自簽憑證代理無法對外，錯誤有優雅降級）。
+- [x] 前端 US toggle 可切換；US 視圖只做清單 / 基本行情，無資料時顯示「資料尚未更新」誠實訊息；台股主流程完全不受影響。
+- [x] 台股 `ohlcv.csv` / `leaders.json` / 測試 baseline 不變（825 passed）。
 
 
 ### Phase 1: 資料更新穩定化
