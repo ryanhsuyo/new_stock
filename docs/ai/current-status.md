@@ -5,28 +5,26 @@
 
 ## Current Phase
 
-研究頁（AnalysisPage）UX 與前端可觀測性收尾（多輪 heartbeat 小改，目前**尚未 commit**），以及本次導入 AI Project Handoff Standard（docs-only）。
+heartbeat / UX 收尾已**驗證並 commit**（乾淨 baseline）。下一階段：規劃「US market（加美股）」新 phase（見 `roadmap.md`）。
 
-對應 roadmap 的「前端 dashboard usability」方向；後端資料流與兩策略推薦桶已穩定（見 `backend/docs/status_overview.md`）。
+對應 roadmap 的「前端 dashboard usability」方向已收尾；後端資料流與兩策略推薦桶穩定（見 `backend/docs/status_overview.md`）。
 
 ## Completed
 
-> 已完成的事（後端多數已隨既有 commit 驗證；本 session 的前端改動為逐項驗證、尚未整批 commit）。
+> 已完成且已驗證的事。
 
-- 後端（已 commit，最新 commit `e6438b2`）：資料回補、兩策略推薦桶、universe_report、daily_check / today_scan、決策日誌、signal alerts、launchd 每日更新。
-- 文件漂移修正（本 session，未 commit）：`backend/docs/api.md` 全端點索引 + `test_api_docs.py` guard；`test_docs_consistency.py`（擋已下線輸出檔名）；README / architecture / signal_rules 移除 buy_list/sell_list/hold_list。
-- 前端研究頁（本 session，未 commit）：導覽分 4 組（今日/研究/投組/系統）、Dashboard 維運區摺疊、hash 路由（含 deep link）、研究頁左 rail（觀察/推薦/候選 + 策略切換 + 檢視過濾 + priority 排序 + ⟳）、加入觀察清單後 rail 自動刷新。
-- 前端可觀測性（本 session，未 commit）：修 vite proxy 的 localhost→IPv6 問題（改 127.0.0.1）；初始載入失敗 `loadError` 橫幅；背景連線中斷偵測（去抖 + 自動恢復）。
+- 後端核心（更早 commit）：資料回補、兩策略推薦桶、universe_report、daily_check / today_scan、決策日誌、signal alerts、launchd 每日更新。
+- 文件漂移修正 + guard（commit `b97807c`）：`backend/docs/api.md` 全端點索引、`test_api_docs.py`、`test_docs_consistency.py`；README / architecture / signal_rules 移除 buy_list/sell_list/hold_list。
+- 前端研究頁 UX + 可觀測性（commit `96694ba`）：導覽分 4 組、Dashboard 維運區摺疊、hash 路由（含 deep link）、研究頁左 rail（觀察/推薦/候選 + 策略切換 + 檢視過濾 + priority 排序 + ⟳）、加入觀察清單後 rail 自動刷新；vite proxy 改 127.0.0.1（修 IPv6）、`loadError` 載入失敗橫幅、背景連線中斷偵測（去抖 + 自動恢復）。
 
 ## In Progress
 
-- 本 session 的前端 / 文件改動**尚未整批 commit**，散落為未提交的 modified / untracked 檔案，需要一次整合驗證後再提交。
-- 背景 polling 可觀測化剛完成，尚未在長時間 session 中觀察誤報率。
+- 無進行中實作。下一步為 US market phase 的 scope 定義（尚未動手）。
+- 背景連線偵測剛上線，尚未在長時間 session 觀察誤報率。
 
 ## Blocked / Risks
 
 - 基本面避雷覆蓋率不足（真實外部資料尚未匯入）；`overall_status` 可能為 warn。不可用假數字補齊。
-- 本 session 的未提交改動未經一次完整回歸（見下方 Latest Verified State）；下一步應整批驗證再 commit，避免遺漏。
 - 後端依賴僅在本機 `python3.11` 安裝；用其他 interpreter 跑 pytest 會失敗（缺 fastapi 等）。
 
 ## Do Not Redo
@@ -40,13 +38,11 @@
 
 ## Latest Verified State
 
-> 誠實回報：本次為 docs-only 任務，未跑測試。
-
-- **Latest Verified State: Pending verification in this session.**
-- 說明：本次（AI handoff docs 導入）為 docs-only，未跑 pytest / build。本 session 先前的前端改動是**逐項**用瀏覽器 + `npm run build` 驗證過，但這些改動**尚未整批 commit、也未做一次完整 `pytest` 回歸**。最後一次已知的完整後端測試綠燈是在更早的 session（約 792 tests，對應當時狀態），不代表目前未提交的工作樹已整批驗證。
-- Last commit: `e6438b2 Mark user-input-only workflow actions`（2026-07-06）。
+- **Verified at: 2026-07-09**，commits `b97807c`（後端 docs+guards）與 `96694ba`（前端 UX+可觀測性）。
+- What was verified: 整批一起跑過 `cd backend && python3.11 -m pytest -q` → **794 passed**；`cd frontend && npm run build` → 成功（tsc + vite）。
+- 前端互動流程於本 session 以瀏覽器逐項實測（Today→研究→切股→back/forward、deep link 重整、後端關閉時的錯誤/連線橫幅）。
 
 ## Next Recommended Task
 
-- 對本 session 未提交的前端 / 文件改動做**一次整合驗證**：`cd backend && python3.11 -m pytest -q` 與 `cd frontend && npm run build`，通過後再 commit（與本次 docs commit 分開）。
+- 規劃 **US market（加美股）新 phase** 的 scope（先定，再動手）：資料源（建議 Finnhub 優先、SEC EDGAR 補財報）、universe 分池（TW/US）、交易日曆/時區分離、第一版是否套策略（建議先只做行情+呈現）。
 - 之後可考慮把 `connectionLost` 連線偵測抽成共用 hook（單例探測，避免多頁各起 interval）。

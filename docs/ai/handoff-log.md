@@ -12,6 +12,27 @@
 
 ---
 
+## 2026-07-09 — 驗證並 commit heartbeat / UX 批次
+
+- **Date:** 2026-07-09
+- **Task:** 對前幾輪 heartbeat / UX 未提交變更做整合驗證，通過後 commit 成乾淨 baseline，並更新 AI 狀態文件。
+- **Goal:** 在開始「加美股」大功能前，讓現有工作有已驗證、可回溯的基準。
+- **Completed:**
+  - 整批驗收：`python3.11 -m pytest -q` → **794 passed**；`npm run build` → 成功。
+  - 分 2 個邏輯 commit 落地：`b97807c`（後端 docs 同步 + drift guards）、`96694ba`（前端研究頁 UX + API 失敗可觀測性）。
+  - 更新 `current-status.md`（Latest Verified State → verified）與本紀錄。
+- **Changed Files:**
+  - 後端：`README.md`、`backend/docs/{api,architecture,signal_rules,status_overview}.md`、`backend/tests/test_api_docs.py`、`backend/tests/test_docs_consistency.py`。
+  - 前端：`frontend/vite.config.ts`、`frontend/src/App.{tsx,css}`、`frontend/src/components/AnalysisRail.tsx`、`frontend/src/pages/{AnalysisPage,Dashboard,WatchlistsPage}.tsx`。
+  - 文件：`docs/ai/current-status.md`、`docs/ai/handoff-log.md`。
+- **Validation:** 後端 `python3.11 -m pytest -q` → 794 passed（2m22s）；前端 `npm run build` → 成功（tsc + vite）。前端動線以瀏覽器實測。
+- **Git Status:** 開始前僅有本批 heartbeat/UX 改動，無無關檔案；分 3 commit（含本 docs commit）落地後工作樹乾淨。
+- **Commit:** `b97807c`、`96694ba`，以及本次 docs commit `docs: mark heartbeat/UX batch verified`（hash 見完成回報）。**未 push。**
+- **Next Steps:** 規劃 US market 新 phase（資料源 Finnhub、universe 分池、交易日曆/時區、第一版是否套策略）；`connectionLost` 抽共用 hook。
+- **Notes / Warnings:** 後端測試需以 `python3.11` 執行（依賴僅裝在該 interpreter）。
+
+---
+
 ## 2026-07-09 — 導入 AI Project Handoff Standard
 
 - **Date:** 2026-07-09
