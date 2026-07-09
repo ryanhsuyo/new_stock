@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import AnalysisRail from './components/AnalysisRail'
 import AnalysisPage from './pages/AnalysisPage'
+import UsMarketPage from './pages/UsMarketPage'
 import Dashboard from './pages/Dashboard'
 import PortfolioOverviewPage from './pages/PortfolioOverviewPage'
 import PortfolioPage from './pages/PortfolioPage'
@@ -155,7 +156,7 @@ export default function App() {
     <div className="app">
       <header className="app-header">
         <h1 className="app-title">台灣股票分析與投資紀錄</h1>
-        {/* 市場切換入口（scaffold）：US 尚未開放，選擇不影響現有台股主流程 */}
+        {/* 市場切換：US Phase 1 只做清單/基本行情，缺 key/無資料時 US 頁會誠實顯示 */}
         <div className="market-switch" role="tablist" aria-label="市場切換">
           <button
             type="button"
@@ -169,16 +170,20 @@ export default function App() {
           <button
             type="button"
             role="tab"
-            aria-selected={false}
-            className="market-switch-btn"
-            disabled
-            title="美股尚未開放（開發中）"
+            aria-selected={region === 'US'}
+            className={`market-switch-btn${region === 'US' ? ' active' : ''}`}
+            onClick={() => setRegion('US')}
+            title="美股（Phase 1：清單 / 基本行情）"
           >
-            美股 · 即將推出
+            美股
           </button>
         </div>
       </header>
 
+      {region === 'US' ? (
+        <UsMarketPage />
+      ) : (
+      <>
       <nav className="tab-nav">
         {TAB_GROUPS.map(g => (
           <div className="tab-group" key={g.group}>
@@ -222,6 +227,8 @@ export default function App() {
         {tab === 'trades' && <TradesPage />}
         {tab === 'stats' && <StatsPage />}
       </main>
+      </>
+      )}
     </div>
   )
 }

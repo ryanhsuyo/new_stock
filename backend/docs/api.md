@@ -1197,6 +1197,37 @@ Dry-run 預覽還原，不寫入任何檔案。
 
 ---
 
+## 美股（US Market — Phase 1）
+
+> 唯讀，只做清單 / 基本行情呈現；**不做美股訊號 / 策略 / 推薦 / 下單**。與台股端點分離。
+
+### `GET /api/markets/us/universe`
+
+美股追蹤清單（`us_leaders.json` × `ohlcv_us.csv`）。每筆：`code` / `name` /
+`region`（固定 `"US"`）/ `has_data` / `row_count` / `last_data_as_of` / `last_close` /
+`data_status`（`"ok"` | `"no_data"`）。尚未回補時 `has_data=false`、`last_close=null`。
+
+### `GET /api/markets/us/status`
+
+美股資料源 / 資料狀態，供前端誠實呈現：
+
+```json
+{
+  "region": "US",
+  "source_configured": false,
+  "source_label": "Finnhub（美股）",
+  "universe_size": 6,
+  "tickers_with_data": 0,
+  "last_data_as_of": null,
+  "backfill_command": "cd backend && python3 scripts/backfill_ohlcv_us.py"
+}
+```
+
+- `source_configured`：是否已設定 `FINNHUB_API_KEY`（**不外洩 key 本身**）。
+- `false` → 前端顯示「美股資料源尚未設定」；`true` 但 `tickers_with_data=0` → 顯示「美股資料尚未更新」。
+
+---
+
 ## 錯誤格式
 
 所有錯誤回應格式統一：

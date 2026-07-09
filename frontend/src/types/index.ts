@@ -1133,6 +1133,29 @@ export interface StockUniverseItem {
   data_status: 'ok' | 'insufficient' | 'no_data'
 }
 
+// ── 美股（US Market — Phase 1）──────────────────────────────────────────────
+export interface UsUniverseItem {
+  code: string
+  name: string
+  region: 'US'
+  has_data: boolean
+  row_count: number
+  last_data_as_of: string | null
+  last_close: number | null
+  data_status: 'ok' | 'no_data'
+}
+
+export interface UsMarketStatus {
+  region: 'US'
+  /** 是否已設定 FINNHUB_API_KEY（不外洩 key 本身） */
+  source_configured: boolean
+  source_label?: string
+  universe_size: number
+  tickers_with_data: number
+  last_data_as_of: string | null
+  backfill_command?: string
+}
+
 export interface WatchlistItem {
   code: string
   name: string

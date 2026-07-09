@@ -1,0 +1,12 @@
+{
+  "market": "US",
+  "note": "US Market Phase 1 小型 universe；代碼為美股 ticker，region=US。與台股 leaders.json 完全分離。",
+  "stocks": [
+    { "code": "AAPL", "name": "Apple Inc." },
+    { "code": "MSFT", "name": "Microsoft Corp." },
+    { "code": "NVDA", "name": "NVIDIA Corp." },
+    { "code": "TSLA", "name": "Tesla Inc." },
+    { "code": "SPY",  "name": "SPDR S&P 500 ETF" },
+    { "code": "QQQ",  "name": "Invesco QQQ Trust" }
+  ]
+}

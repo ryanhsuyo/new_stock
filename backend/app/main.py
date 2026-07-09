@@ -2,7 +2,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.config import resolve_cors_allowed_origins
-from app.routers import decision_journal, portfolio, stats, stocks, system, trades, watchlists
+from app.routers import decision_journal, markets, portfolio, stats, stocks, system, trades, watchlists
 
 
 def create_app(cors_origins: list[str] | None = None) -> FastAPI:
@@ -25,6 +25,7 @@ def create_app(cors_origins: list[str] | None = None) -> FastAPI:
     application.include_router(system.router, prefix="/api")
     application.include_router(watchlists.router, prefix="/api")
     application.include_router(decision_journal.router, prefix="/api")
+    application.include_router(markets.router, prefix="/api")
     return application
 
 
