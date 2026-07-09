@@ -7,8 +7,12 @@ price_source.py — 各 region 的行情資料來源 adapter。
 - 台股 `TwsePriceSource`：資料由既有 `scripts/backfill_ohlcv_twse.py` 的 TWSE/TPEX
   流程產生；本 adapter 為 seam，**尚未接管抓取**（`fetch_ohlcv` 刻意丟錯），台股
   行為不變。`test_markets_scaffold.py` 對此有斷言，勿順手修掉。
-- 美股 `FinnhubPriceSource`：接 Finnhub（免金鑰時 `is_available()=False`、`fetch_ohlcv`
-  丟 `PriceSourceUnavailable`，不影響台股）；有 key 時抓 OHLCV candles / quote。
+- 美股（US Phase 1 主資料源）`StooqPriceSource`：Stooq 免 API key，直接抓歷史日
+  OHLCV CSV（`is_available()=True`）。非正式來源、無 SLA，重度抓取可能被限流；只做
+  少量 ticker、EOD、節流的個人用途。
+- 美股 optional 來源 `FinnhubPriceSource`：接 Finnhub（免金鑰時 `is_available()=False`、
+  `fetch_ohlcv` 丟 `PriceSourceUnavailable`）。**目前不在 US registry**，保留供之後
+  接 quote / 即時 / 基本面時使用。註：Finnhub 免費層歷史 candle 已改付費（403）。
 
 不新增第三方依賴：HTTP 一律走標準庫 `urllib`（與既有 backfill 一致）。
 """
@@ -70,7 +74,15 @@ class TwsePriceSource:
 
 _FINNHUB_BASE = "https://finnhub.io/api/v1"
 _TIMEOUT = 15
+
+# SSL context：與既有 scripts/backfill_ohlcv_twse.py 一致（certifi 優先，缺則退回不驗證）
 _SSL_CTX = ssl.create_default_context()
+try:
+    import certifi
+    _SSL_CTX = ssl.create_default_context(cafile=certifi.where())
+except ImportError:
+    _SSL_CTX.check_hostname = False
+    _SSL_CTX.verify_mode = ssl.CERT_NONE
 
 
 class FinnhubPriceSource:
@@ -197,11 +209,83 @@ def _int(seq, i) -> int:
         return 0
 
 
+# ── 美股 Phase 1 主資料源：Stooq（免 key）─────────────────────────────────────
+
+_STOOQ_BASE = "https://stooq.com/q/d/l/"
+
+
+class StooqPriceSource:
+    """
+    Stooq 美股歷史日 OHLCV（免 API key）。
+
+    - `is_available()=True`（無金鑰門檻）。
+    - `fetch_ohlcv`：GET CSV（`s=<ticker>.us&i=d`），回傳日 OHLCV。無資料 / 壞代碼回
+      []；偵測到達下載上限則丟 `PriceSourceRateLimited`；非預期格式（可能被擋）丟
+      `PriceSourceError`。
+    - 非正式來源、無 SLA：請節流、少量 ticker、EOD 個人用途。
+    """
+
+    region = "US"
+    label = "Stooq（美股）"
+
+    def is_available(self) -> bool:
+        return True
+
+    def _http_get_text(self, url: str) -> str:
+        req = urllib.request.Request(url, headers={"User-Agent": "new_stock-us-backfill/1.0"})
+        try:
+            with urllib.request.urlopen(req, timeout=_TIMEOUT, context=_SSL_CTX) as resp:
+                return resp.read().decode("utf-8", errors="replace")
+        except urllib.error.HTTPError as exc:
+            if exc.code == 429:
+                raise PriceSourceRateLimited("Stooq 限流（429），請稍後再試。") from exc
+            raise PriceSourceError(f"Stooq HTTP {exc.code}。") from exc
+        except (urllib.error.URLError, TimeoutError) as exc:
+            raise PriceSourceError(f"連線 Stooq 失敗：{exc}") from exc
+
+    def fetch_ohlcv(self, code: str, months: int = 12) -> list[dict]:
+        symbol = code.strip().upper()
+        today = datetime.now(timezone.utc).date()
+        d1 = (today - timedelta(days=max(1, months) * 31)).strftime("%Y%m%d")
+        d2 = today.strftime("%Y%m%d")
+        url = f"{_STOOQ_BASE}?s={symbol.lower()}.us&i=d&d1={d1}&d2={d2}"
+        text = self._http_get_text(url)
+        low = text.lower()
+        if "exceed" in low and "limit" in low:
+            raise PriceSourceRateLimited("Stooq 已達下載上限，請稍後再試。")
+        return _parse_stooq_csv(text, symbol)
+
+
+def _parse_stooq_csv(text: str, code: str) -> list[dict]:
+    lines = [ln for ln in text.strip().splitlines() if ln.strip()]
+    if not lines or not lines[0].lower().startswith("date,"):
+        return []  # "No data" / 壞代碼 / 非 CSV
+    rows: list[dict] = []
+    for line in lines[1:]:
+        parts = line.split(",")
+        if len(parts) < 6 or not parts[0] or parts[0][0].isalpha():
+            continue
+        try:
+            rows.append({
+                "date":   parts[0],
+                "code":   code,
+                "open":   float(parts[1]),
+                "high":   float(parts[2]),
+                "low":    float(parts[3]),
+                "close":  float(parts[4]),
+                "volume": int(float(parts[5])),
+            })
+        except ValueError:
+            continue  # 例如 "N/D" 缺值列
+    return rows
+
+
 # ── registry ─────────────────────────────────────────────────────────────────
+# US Phase 1 主資料源 = Stooq（免 key）。Finnhub 保留為 future optional，不在此註冊。
 
 _REGISTRY: dict[str, PriceSource] = {
     "TW": TwsePriceSource(),
-    "US": FinnhubPriceSource(),
+    "US": StooqPriceSource(),
 }
 
 

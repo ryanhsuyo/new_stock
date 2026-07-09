@@ -36,9 +36,9 @@ export default function UsMarketPage() {
 
       {!sourceReady && (
         <div className="alert alert-error" role="alert" style={{ marginBottom: 16 }}>
-          <div className="alert-title">美股資料源尚未設定</div>
+          <div className="alert-title">美股資料源尚未就緒</div>
           <div className="alert-meta">
-            需設定環境變數 <code>FINNHUB_API_KEY</code> 才能抓美股資料；設定後執行 <code>{backfillCmd}</code>。
+            目前資料源（{status?.source_label ?? 'US'}）尚未就緒；請確認設定後執行 <code>{backfillCmd}</code>。
           </div>
         </div>
       )}

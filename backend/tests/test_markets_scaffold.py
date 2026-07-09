@@ -42,18 +42,16 @@ def test_tw_source_available_but_not_taking_over_fetch():
         tw.fetch_ohlcv("2330")
 
 
-def test_us_source_unavailable_without_key(monkeypatch):
-    monkeypatch.delenv("FINNHUB_API_KEY", raising=False)
+def test_us_source_is_stooq_and_available_without_key():
+    # US Phase 1 主源為 Stooq，免 API key
     us = price_source.get_price_source("US")
     assert us.region == "US"
-    assert us.is_available() is False
-    with pytest.raises(price_source.PriceSourceUnavailable):
-        us.fetch_ohlcv("AAPL")
+    assert us.is_available() is True
+    assert isinstance(us, price_source.StooqPriceSource)
 
 
-def test_available_regions_only_tw_without_key(monkeypatch):
-    monkeypatch.delenv("FINNHUB_API_KEY", raising=False)
-    assert price_source.available_regions() == ["TW"]
+def test_available_regions_include_us_via_stooq():
+    assert price_source.available_regions() == ["TW", "US"]
 
 
 def test_unknown_region_raises():

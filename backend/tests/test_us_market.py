@@ -14,6 +14,7 @@ from app.services.price_source import (
     FinnhubPriceSource,
     PriceSourceRateLimited,
     PriceSourceUnavailable,
+    StooqPriceSource,
 )
 from app.storage import us_market_store
 
@@ -73,6 +74,59 @@ def test_rate_limited_type_exists():
     assert issubclass(PriceSourceRateLimited, Exception)
 
 
+# ── Stooq 來源（US Phase 1 主源，免 key；mock _http_get_text）─────────────────
+
+_STOOQ_CSV = (
+    "Date,Open,High,Low,Close,Volume\n"
+    "2026-07-08,185.00,187.50,184.20,186.10,52000000\n"
+    "2026-07-09,186.20,188.00,185.50,187.40,48000000\n"
+)
+
+
+def test_stooq_available_without_key():
+    src = StooqPriceSource()
+    assert src.region == "US"
+    assert src.is_available() is True
+
+
+def test_stooq_fetch_ohlcv_parses_and_uses_us_suffix(monkeypatch):
+    src = StooqPriceSource()
+    seen = {}
+
+    def fake_get(url):
+        seen["url"] = url
+        return _STOOQ_CSV
+
+    monkeypatch.setattr(src, "_http_get_text", fake_get)
+    rows = src.fetch_ohlcv("AAPL", months=1)
+    assert "s=aapl.us" in seen["url"] and "i=d" in seen["url"]
+    assert len(rows) == 2
+    assert rows[0]["code"] == "AAPL" and rows[0]["date"] == "2026-07-08"
+    assert rows[1]["close"] == 187.4 and rows[1]["volume"] == 48000000
+    assert set(rows[0]) == {"date", "code", "open", "high", "low", "close", "volume"}
+
+
+def test_stooq_no_data_returns_empty(monkeypatch):
+    src = StooqPriceSource()
+    monkeypatch.setattr(src, "_http_get_text", lambda url: "No data")
+    assert src.fetch_ohlcv("ZZZZ") == []
+
+
+def test_stooq_rate_limit_detected(monkeypatch):
+    src = StooqPriceSource()
+    monkeypatch.setattr(src, "_http_get_text", lambda url: "Exceeded the daily hits limit")
+    with pytest.raises(PriceSourceRateLimited):
+        src.fetch_ohlcv("AAPL")
+
+
+def test_stooq_skips_bad_value_rows(monkeypatch):
+    src = StooqPriceSource()
+    csv = "Date,Open,High,Low,Close,Volume\n2026-07-08,N/D,N/D,N/D,N/D,N/D\n2026-07-09,1,2,0.5,1.5,10\n"
+    monkeypatch.setattr(src, "_http_get_text", lambda url: csv)
+    rows = src.fetch_ohlcv("AAPL")
+    assert len(rows) == 1 and rows[0]["date"] == "2026-07-09"
+
+
 # ── us_market_store：合併去重 ─────────────────────────────────────────────────
 
 def test_merge_write_dedupes_code_date(tmp_path, monkeypatch):
@@ -102,12 +156,13 @@ def test_us_universe_all_us_region_and_no_data_when_no_csv(tmp_path, monkeypatch
         assert item["last_close"] is None
 
 
-def test_us_status_reports_source_configured_false_without_key(tmp_path, monkeypatch):
-    monkeypatch.delenv("FINNHUB_API_KEY", raising=False)
+def test_us_status_source_configured_true_via_stooq(tmp_path, monkeypatch):
+    # US Phase 1 主源 Stooq 免 key → source_configured 恆為 True
     monkeypatch.setattr(us_market_store, "OHLCV_US_PATH", tmp_path / "missing.csv")
     status = us_market_service.get_us_market_status()
     assert status["region"] == "US"
-    assert status["source_configured"] is False
+    assert status["source_configured"] is True
+    assert status["source_label"] == "Stooq（美股）"
     assert status["tickers_with_data"] == 0
     assert status["universe_size"] >= 1
 
