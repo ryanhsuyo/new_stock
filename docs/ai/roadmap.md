@@ -2,18 +2,17 @@
 
 > 專案的方向與規劃。用 Now / Next / Later 分層，細節放在各 Phase。
 > 規劃改變時就更新這裡。
-> Last updated: 2026-07-09
+> Last updated: 2026-07-10
 
 ## Vision
 
-打造一個**自用、可解釋、可信任**的台股決策工作台：資料流穩定跑通，訊號與候選股都能說明「為何買 / 為何不買 / 為何不是入場點」，前端只做呈現與決策動線；**不碰自動交易**。
+打造一個**自用、可解釋、可信任**的股票決策工作台（台股為主，逐步納入美股）：資料流穩定跑通，訊號與候選股都能說明「為何買 / 為何不買 / 為何不是入場點」，前端只做呈現與決策動線；**不碰自動交易**。
 
 ## Now
 
 > 現在正在做 / 即將做的（對應 `current-status.md` 的 Current Phase）。
 
-- 前端研究頁 UX 與可觀測性收尾（rail、hash 路由、錯誤橫幅、連線偵測）。
-- 導入 AI Project Handoff Standard（本次 docs-only）。
+- **US Market — Phase 1：接真實美股資料流 + 基本呈現**（見下方 Phase 規格）。骨架已在 `6ed907a` 落地；本階段接 Finnhub 資料源、US universe、US backfill 與前端 US 清單，**不做美股策略 / 不下單 / 不改台股主流程**。
 
 ## Next
 
@@ -52,6 +51,33 @@
 ## Phases
 
 > 每個 phase 都要有 Purpose / Scope / Acceptance Criteria。
+
+### US Market — Phase 1：接真實美股資料流 + 基本呈現
+
+**Purpose**
+在**不破壞台股主流程、不做美股策略、不下單、不做即時交易決策**的前提下，把美股資料真正接進來並在前端做最基本的清單 / 行情呈現。延續 `6ed907a` 的 scaffold（region 維度、price-source adapter seam）。
+
+**Scope**
+- 包含：
+  - Finnhub API key 讀取（`FINNHUB_API_KEY`，不進 git；缺 key 有明確錯誤）。
+  - `FinnhubPriceSource` 實作（OHLCV candles + quote），取代 US stub；錯誤處理、rate-limit 友善、缺 key 明確錯誤。
+  - 第一版小型 US universe（`backend/data/us_leaders.json`：AAPL / MSFT / NVDA / TSLA / SPY / QQQ），每筆標 `region: US`。
+  - `backend/scripts/backfill_ohlcv_us.py`：獨立可驗收，寫入**獨立檔** `backend/data/ohlcv_us.csv`（**不寫台股 `ohlcv.csv`**，避免回歸）。
+  - US universe / status 唯讀 API + 前端 US 清單（含「尚未設定資料源 / 尚未更新」誠實狀態）。
+- **不包含（out of scope）**：
+  - 美股策略（不套 old_wang / steady_momentum）。
+  - 下單 / 自動交易 / 即時交易決策。
+  - 改動台股 backfill 主流程、台股 `ohlcv.csv`、台股 `leaders.json`。
+  - 美股技術分析 / 訊號 / 候選桶。
+
+**Acceptance Criteria**
+- [ ] `cd backend && python3.11 -m pytest -q` 全綠（台股 baseline 不破，US 新測試涵蓋缺 key / 解析 / 錯誤）。
+- [ ] `cd frontend && npm run build` 成功。
+- [ ] 無 `FINNHUB_API_KEY` 時：US 來源 `is_available()=False`、`fetch_ohlcv` 丟明確錯誤；測試驗證此行為且**不使整體測試失敗**。
+- [ ] 有 `FINNHUB_API_KEY` 時：`backfill_ohlcv_us.py` 能抓至少 1–2 檔並寫入 `ohlcv_us.csv`，回報輸出檔與筆數。
+- [ ] 前端 US toggle 可切換；US 視圖只做清單 / 基本行情，缺 key / 無資料時顯示誠實訊息；台股主流程完全不受影響。
+- [ ] 台股 `ohlcv.csv` / `leaders.json` / 809 tests baseline 不變。
+
 
 ### Phase 1: 資料更新穩定化
 

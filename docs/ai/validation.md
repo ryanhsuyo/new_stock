@@ -51,6 +51,13 @@
 | 今日掃描 | `cd backend && python3 scripts/today_scan.py` |
 | 健康檢查 | `cd backend && python3 scripts/doctor.py` |
 | 每日健康檢查 | `cd backend && python3 scripts/daily_check.py --write-report` |
+| 美股回補（需 key） | `cd backend && python3 scripts/backfill_ohlcv_us.py [--months N] [--quote-only]` |
+
+### 美股（US Market）驗收
+
+- 資料源 key：環境變數 `FINNHUB_API_KEY`（**不進 git**；缺 key 時 US 來源 `is_available()=False`、`fetch_ohlcv` 丟明確錯誤）。
+- **無 key**：`python3.11 -m pytest -q` 仍應全綠（`tests/test_us_market.py` 以 mock 驗證解析/錯誤，缺 key 行為以斷言涵蓋，不打真網路、不使整體失敗）；前端美股頁顯示「美股資料源尚未設定」。
+- **有 key**：`export FINNHUB_API_KEY=<key>` 後 `python3 scripts/backfill_ohlcv_us.py --quote-only`（免費層）或不加旗標（candle，需付費層）可抓 1–2 檔，寫入 `backend/data/ohlcv_us.csv`；回報輸出檔與筆數。**美股回補只寫 `ohlcv_us.csv`，不動台股 `ohlcv.csv`。**
 
 > 注意事項（repo 實況，勿改成錯的）：
 > - 後端 port 是 **19000**（不是 9000）。

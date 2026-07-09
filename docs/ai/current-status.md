@@ -5,7 +5,7 @@
 
 ## Current Phase
 
-US market（加美股）**骨架已落地**（commit `6ed907a`）：region 維度、price-source adapter seam、前端 market toggle 預留都在，台股主流程零改動。**下一步接真實美股資料流，明確依賴一把 Finnhub（或其他來源）API key。**
+**US Market — Phase 1（接真實美股資料流 + 基本呈現）實作完成**（骨架 `6ed907a`；本階段程式待 commit）：Finnhub 資料源、US universe、US backfill、US 唯讀 API、前端美股頁都在。**只做清單 + 基本行情，不做美股策略 / 訊號 / 下單；台股主流程零改動。** 抓真實美股資料需設定 `FINNHUB_API_KEY`（缺 key 時前端誠實顯示「尚未設定資料源」）。
 
 後端資料流與兩策略推薦桶穩定（見 `backend/docs/status_overview.md`）；前端 dashboard usability 已收尾。
 
@@ -23,10 +23,17 @@ US market（加美股）**骨架已落地**（commit `6ed907a`）：region 維�
   - US stub —— `UsPriceSourceStub.is_available()=False`、`fetch_ohlcv()` 丟 `PriceSourceUnavailable`（等來源）。
   - 前端 market toggle 預留 —— header 右上「台股 / 美股·即將推出」，US disabled、不接任何資料流。
   - 未把 old_wang / steady_momentum 套到美股。
+- US Market Phase 1 資料流（本階段，程式待 commit）：
+  - `FINNHUB_API_KEY` 讀取（`config.resolve_finnhub_api_key`，不進 git；缺 key 明確錯誤）。
+  - `FinnhubPriceSource`（取代 US stub）：`/stock/candle` + `/quote`，錯誤/限流/缺 key 處理；HTTP 走 stdlib `urllib`（**未加依賴**）。
+  - US universe：`backend/data/us_leaders.json`（AAPL/MSFT/NVDA/TSLA/SPY/QQQ，region=US）。
+  - US backfill：`backend/scripts/backfill_ohlcv_us.py` → 寫**獨立** `ohlcv_us.csv`（**不動台股 ohlcv.csv**）。
+  - US 唯讀 API：`GET /api/markets/us/universe`、`/api/markets/us/status`（`app/routers/markets.py`）。
+  - 前端：market toggle 啟用；`UsMarketPage` 只列清單 + 基本行情，缺 key / 無資料時誠實顯示；台股主流程完全不受影響。
 
 ## In Progress
 
-- 無進行中實作。US 骨架已 commit；下一步等 Finnhub key 才能接真實美股資料流。
+- US Phase 1 程式待 commit（本 session）；抓真實美股資料需 `FINNHUB_API_KEY`（使用者尚未提供）。
 - 背景連線偵測剛上線，尚未在長時間 session 觀察誤報率。
 
 ## Blocked / Risks
@@ -42,23 +49,19 @@ US market（加美股）**骨架已落地**（commit `6ed907a`）：region 維�
 - vite proxy 已改用 `127.0.0.1:19000`；**不要改回 `localhost`**（Node 會走 IPv6 連不到只綁 IPv4 的 uvicorn，整個 Dashboard 會變空白）。
 - App 路由已改為「由 hash lazy-init state」以修 StrictMode 下 deep link 重整掉回首頁的問題；**不要改回 skip-first ref 的寫法**。
 - rail 為研究頁 AnalysisPage 的 sibling（在 `{tab === 'analysis'}` 內），跨分頁會 remount 重抓；已知且刻意。
-- US scaffold：`TwsePriceSource.fetch_ohlcv()` **刻意丟 `PriceSourceError`**（seam，本輪不接管台股抓取），`test_markets_scaffold.py` 對此有斷言。要讓 TW adapter 真的接管抓取是**有意識的下一步**，屆時需同步更新該測試——不是 bug，別「順手修掉」。
+- US scaffold：`TwsePriceSource.fetch_ohlcv()` **刻意丟 `PriceSourceError`**（seam，不接管台股抓取），`test_markets_scaffold.py` 對此有斷言。要讓 TW adapter 真的接管抓取是**有意識的下一步**，屆時需同步更新該測試——不是 bug，別「順手修掉」。
+- 美股 OHLCV 寫**獨立** `ohlcv_us.csv`、US universe 用**獨立** `us_leaders.json`；**不要把美股資料混進台股 `ohlcv.csv` / `leaders.json`**（會回歸台股流程）。
+- 美股 Phase 1 **不做策略 / 訊號 / 推薦 / 下單**；別把 old_wang / steady_momentum 套到美股。
 
 ## Latest Verified State
 
-- **Verified at: 2026-07-10**，commit `6ed907a`（US market 骨架）。
-- What was verified: `cd backend && python3.11 -m pytest -q` → **809 passed**（794 + 15 scaffold）；`cd frontend && npm run build` → 成功（tsc + vite）；`/api/stocks/universe` 76 筆全部 `region: "TW"`；瀏覽器實測 market toggle（US disabled、台股主流程正常、無 console error）。
-- 更早基準：commits `b97807c` / `96694ba`（2026-07-09，794 passed + build）。
+- **Verified at: 2026-07-10**，commit `f65867b` 之後的 US Phase 1 工作樹（**尚未 commit**）。
+- What was verified: `cd backend && python3.11 -m pytest -q` → **820 passed**（809 + 11 US 測試，含缺 key 行為 + Finnhub 解析 mock）；`cd frontend && npm run build` → 成功；`/api/markets/us/status` 回 `source_configured=false`、universe 6 筆 region=US；`/api/stocks/universe` 台股仍 76 筆 region=TW；瀏覽器實測美股頁（缺 key 誠實顯示、切回台股完全復原、無 console error）。
+- 更早基準：`6ed907a`（2026-07-10，809 passed）、`b97807c` / `96694ba`（2026-07-09）。
 
 ## Next Recommended Task
 
-> 明確依賴：**需要一把 Finnhub（或其他來源）API key** 才能接真實美股資料流。拿到後依序接：
-1. `backend/app/config.py`（或 `.env`）放 `FINNHUB_API_KEY`（**不進 git**）。
-2. `price_source.py`：`UsPriceSourceStub` → `FinnhubPriceSource.fetch_ohlcv()`（真 API + 節流 + 錯誤處理）。
-3. 新增 `backend/scripts/backfill_ohlcv_us.py`（對稱於 TWSE 版），寫入 OHLCV 並更新 region/universe。
-4. `markets.py`：把 US `enabled` 打開 + region 持久化（新 store 或擴充 `stock_markets.json`）。
-5. `leaders.json`（或新 US universe 檔）放美股 ticker。
-6. 前端啟用 market toggle，依 `region` 過濾清單（**仍只做行情+呈現，先不套策略**）。
-7. 交易日曆 / 時區分 region（美股 ≠ 台股）。
-
-- 與美股無關的待辦：把 `connectionLost` 連線偵測抽成共用 hook（單例探測，避免多頁各起 interval）。
+- **US Phase 1 尚未 commit** —— 驗收全綠後先 local commit（不 push）。
+- **抓真實美股資料需 `FINNHUB_API_KEY`**（使用者提供）：`export FINNHUB_API_KEY=<key>` 後 `python3 scripts/backfill_ohlcv_us.py --quote-only`（免費層）或不加旗標（candle，需付費層），驗證 `ohlcv_us.csv` 有資料、前端美股頁顯示收盤價。
+- US Phase 2 候選（本階段刻意不做）：美股技術指標 / 訊號、交易日曆 / 時區分 region、US universe 擴充。
+- 與美股無關：把 `connectionLost` 連線偵測抽成共用 hook（單例探測，避免多頁各起 interval）。
