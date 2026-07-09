@@ -1147,13 +1147,35 @@ export interface UsUniverseItem {
 
 export interface UsMarketStatus {
   region: 'US'
-  /** 是否已設定 FINNHUB_API_KEY（不外洩 key 本身） */
+  /** 資料源是否就緒（Stooq 免 key → 恆 true；Finnhub optional 需 key） */
   source_configured: boolean
   source_label?: string
   universe_size: number
   tickers_with_data: number
   last_data_as_of: string | null
   backfill_command?: string
+}
+
+/** Phase 2：美股基本技術狀態（描述性，非買賣建議） */
+export type UsTechStatus = 'trend_up' | 'pullback_watch' | 'overheated' | 'weak_or_no_data'
+
+export interface UsAnalysisItem {
+  code: string
+  name: string
+  region: 'US'
+  data_status: 'ok' | 'no_data'
+  row_count: number
+  last_data_as_of: string | null
+  last_close: number | null
+  ma20: number | null
+  ma60: number | null
+  rsi14: number | null
+  change_20d_pct: number | null
+  dist_ma20_pct: number | null
+  dist_ma60_pct: number | null
+  days_since_last: number | null
+  status: UsTechStatus
+  status_label: string
 }
 
 export interface WatchlistItem {

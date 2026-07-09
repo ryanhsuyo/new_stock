@@ -7,6 +7,7 @@ markets.py — 市場（region）相關 HTTP 端點。
 
 from fastapi import APIRouter
 
+from app.services.us_analysis_service import get_us_analysis
 from app.services.us_market_service import get_us_market_status, get_us_universe
 
 router = APIRouter()
@@ -20,5 +21,11 @@ def us_universe() -> list[dict]:
 
 @router.get("/markets/us/status")
 def us_status() -> dict:
-    """美股資料源 / 資料狀態：source_configured 反映是否已設定 FINNHUB_API_KEY。"""
+    """美股資料源 / 資料狀態：source_configured 反映資料源是否就緒。"""
     return get_us_market_status()
+
+
+@router.get("/markets/us/analysis")
+def us_analysis() -> list[dict]:
+    """美股基本技術狀態（MA/RSI/漲跌幅/距均線/新鮮度 + 描述性狀態）。非買賣建議。"""
+    return get_us_analysis()

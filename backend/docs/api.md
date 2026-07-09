@@ -1227,6 +1227,22 @@ Dry-run 預覽還原，不寫入任何檔案。
 - `source_configured=false` → 前端顯示「美股資料源尚未就緒」；`true` 但 `tickers_with_data=0` → 顯示「美股資料尚未更新」（請先跑 `backfill_command`）。
 - `source_label` 反映目前 US 主源；Finnhub 為 future optional，需 key。
 
+### `GET /api/markets/us/analysis`
+
+美股**基本技術狀態**（Phase 2，唯讀，**非買賣建議 / 非策略**）。每筆在 universe 欄位外，另含技術指標與描述性狀態：
+
+| 欄位 | 說明 |
+|------|------|
+| `ma20` / `ma60` | 20 / 60 日均線（資料不足時 `null`） |
+| `rsi14` | 14 期 RSI（資料不足時 `null`） |
+| `change_20d_pct` | 20 日漲跌幅（%） |
+| `dist_ma20_pct` / `dist_ma60_pct` | 收盤距 MA20 / MA60（%） |
+| `days_since_last` | 距最後資料日的天數（新鮮度） |
+| `status` | `trend_up` / `pullback_watch` / `overheated` / `weak_or_no_data` |
+| `status_label` | 狀態中文標籤（描述性，非推薦） |
+
+狀態純為描述性技術分類（趨勢向上 / 回檔觀察 / 過熱 / 弱勢或資料不足）；**不套用台股 old_wang / steady_momentum，不產生買賣訊號。**
+
 ---
 
 ## 錯誤格式

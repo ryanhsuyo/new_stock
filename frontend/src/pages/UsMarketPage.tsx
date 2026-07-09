@@ -1,21 +1,21 @@
 import { useEffect, useState } from 'react'
 import { api } from '../api/client'
-import type { UsMarketStatus, UsUniverseItem } from '../types'
+import type { UsAnalysisItem, UsMarketStatus } from '../types'
 
 /**
- * 美股 Phase 1：只做清單 + 基本行情呈現。
- * 不含策略 / 訊號 / 推薦 / 下單；缺 key 或無資料時誠實顯示狀態。
+ * 美股 Phase 2：清單 + 基本技術狀態（MA/RSI/漲跌幅/距均線 + 描述性狀態）。
+ * **非買賣建議、非策略、無下單**；缺 key 或無資料時誠實顯示。
  */
 export default function UsMarketPage() {
   const [status, setStatus] = useState<UsMarketStatus | null>(null)
-  const [universe, setUniverse] = useState<UsUniverseItem[]>([])
+  const [items, setItems] = useState<UsAnalysisItem[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
 
   useEffect(() => {
     let alive = true
-    Promise.all([api.getUsMarketStatus(), api.getUsUniverse()])
-      .then(([s, u]) => { if (alive) { setStatus(s); setUniverse(u) } })
+    Promise.all([api.getUsMarketStatus(), api.getUsAnalysis()])
+      .then(([s, a]) => { if (alive) { setStatus(s); setItems(a) } })
       .catch(e => { if (alive) setError(e instanceof Error ? e.message : '載入失敗') })
       .finally(() => { if (alive) setLoading(false) })
     return () => { alive = false }
@@ -31,7 +31,7 @@ export default function UsMarketPage() {
   return (
     <main className="app-main">
       <div className="page-actions">
-        <h2 className="page-subtitle">美股 · US Market（Phase 1）</h2>
+        <h2 className="page-subtitle">美股 · US Market（Phase 2：基本技術狀態）</h2>
       </div>
 
       {!sourceReady && (
@@ -52,25 +52,40 @@ export default function UsMarketPage() {
       )}
 
       <p className="us-note">
-        此頁只做美股清單與基本行情呈現；<strong>不含策略、訊號、推薦或下單</strong>。
+        以下為<strong>基本技術狀態</strong>（MA / RSI / 漲跌幅 / 距均線）；<strong>非買賣建議、非策略、無下單</strong>。
       </p>
 
       <table className="data-table">
         <thead>
-          <tr><th>Ticker</th><th>名稱</th><th>最新收盤</th><th>資料日</th><th>狀態</th></tr>
+          <tr>
+            <th>Ticker</th><th>名稱</th><th>收盤</th><th>資料日</th>
+            <th>MA20</th><th>MA60</th><th>RSI</th><th>20日%</th><th>距MA20</th><th>技術狀態</th>
+          </tr>
         </thead>
         <tbody>
-          {universe.map(u => (
+          {items.map(u => (
             <tr key={u.code}>
               <td><span className="td-id">{u.code}</span></td>
               <td>{u.name}</td>
-              <td>{u.last_close != null ? u.last_close.toFixed(2) : '—'}</td>
+              <td>{fmt(u.last_close)}</td>
               <td>{u.last_data_as_of ?? '—'}</td>
-              <td>{u.data_status === 'ok' ? `已更新（${u.row_count} 筆）` : '尚未更新'}</td>
+              <td>{fmt(u.ma20)}</td>
+              <td>{fmt(u.ma60)}</td>
+              <td>{u.rsi14 != null ? u.rsi14.toFixed(0) : '—'}</td>
+              <td>{pct(u.change_20d_pct)}</td>
+              <td>{pct(u.dist_ma20_pct)}</td>
+              <td><span className={`us-status us-status-${u.status}`}>{u.status_label}</span></td>
             </tr>
           ))}
         </tbody>
       </table>
     </main>
   )
+}
+
+function fmt(n: number | null): string {
+  return n != null ? n.toFixed(2) : '—'
+}
+function pct(n: number | null): string {
+  return n != null ? `${n > 0 ? '+' : ''}${n.toFixed(1)}%` : '—'
 }
