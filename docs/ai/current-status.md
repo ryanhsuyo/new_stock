@@ -5,7 +5,7 @@
 
 ## Current Phase
 
-**US Market — Phase 1（接真實美股資料流 + 基本呈現）完成**（本階段程式待 commit）。**資料源方向已定：主源 = Stooq（免 API key）**，Finnhub 降為 future optional。US universe、US backfill、US 唯讀 API、前端美股頁都在。**只做清單 + 基本行情，不做美股策略 / 訊號 / 下單；台股主流程零改動。** 免 key 即可跑 backfill（實際抓取需正常對外網路）。
+**US Market — Phase 2（美股基本技術狀態）完成**（本階段程式待 commit）。從 `ohlcv_us.csv` 算 MA20/MA60/RSI14/20日漲跌幅/距均線/新鮮度，產生描述性狀態（trend_up / pullback_watch / overheated / weak_or_no_data），`/api/markets/us/analysis` + 前端呈現。**非策略、非買賣建議、無下單；台股主流程零改動。** Phase 1（Stooq 資料源 + 基本清單，主源 Stooq 免 key、Finnhub optional）已完成。
 
 後端資料流與兩策略推薦桶穩定（見 `backend/docs/status_overview.md`）；前端 dashboard usability 已收尾。
 
@@ -31,9 +31,14 @@
   - US 唯讀 API：`GET /api/markets/us/universe`、`/api/markets/us/status`（`app/routers/markets.py`）。
   - 前端：market toggle 啟用；`UsMarketPage` 只列清單 + 基本行情，無資料時誠實顯示「尚未更新」；台股主流程完全不受影響。
 
+- US Market Phase 2 基本技術狀態（本階段，程式待 commit）：
+  - `us_analysis_service`（自帶 MA/RSI/漲跌幅/距均線/新鮮度指標，不耦合 signals_service）+ `classify_status`（四種描述性狀態）。
+  - `GET /api/markets/us/analysis`；前端美股頁顯示指標 + 狀態 badge，附「非買賣建議」聲明。
+  - **未套** old_wang / steady_momentum、無買賣建議、無下單。
+
 ## In Progress
 
-- US Phase 1 程式待 commit（本 session）。
+- US Phase 1 + 2 程式待 commit（本 session）。
 - 背景連線偵測剛上線，尚未在長時間 session 觀察誤報率。
 
 ## Blocked / Risks
@@ -54,17 +59,18 @@
 - 美股 Phase 1 **不做策略 / 訊號 / 推薦 / 下單**；別把 old_wang / steady_momentum 套到美股。
 - US Phase 1 主源 = **Stooq（免 key）**；registry `US` → `StooqPriceSource`。**Finnhub 保留為 optional、不在 registry**，別在沒需求時把它切回主源。
 - Stooq 為非正式來源、無 SLA：backfill 需節流、少量 ticker；被限流 / 非預期格式要優雅降級（已有錯誤型別），別移除。
+- 美股 Phase 2 的 `status`（trend_up / pullback_watch / overheated / weak_or_no_data）是**描述性技術狀態、非買賣建議**；`us_analysis_service` 自帶輕量指標、**不耦合 signals_service、不套兩策略**。別把它升級成推薦桶或加買賣訊號（除非明確要求）。
 
 ## Latest Verified State
 
-- **Verified at: 2026-07-10**，commit `562fdb5` 之後的 US Phase 1（Stooq 方向）工作樹（**尚未 commit**）。
-- What was verified: `cd backend && python3.11 -m pytest -q` → **825 passed**（含 Stooq 解析 / 限流 / no-data、Finnhub optional 缺 key）；`cd frontend && npm run build` → 成功；`/api/markets/us/status` 回 `source_configured=true`、`source_label=Stooq（美股）`、6 檔 region=US；台股 `/api/stocks/universe` 仍 76 筆 region=TW；瀏覽器實測美股頁顯示「資料尚未更新」、切回台股完全復原、無 console error。
-- **未實測真實 Stooq 抓取**：本 sandbox 對外走自簽憑證代理（`CERTIFICATE_VERIFY_FAILED`），backfill 無法連外；錯誤有優雅降級（skip + 明確訊息）。正常對外網路（同 TWSE backfill 環境）即可抓取。
-- 更早基準：`dd88e22` / `562fdb5`（Finnhub 版 US Phase 1，820 passed）、`6ed907a`（骨架）。
+- **Verified at: 2026-07-10**，commit `3633ad0` 之後的 US Phase 1+2 工作樹（**尚未 commit**）。
+- What was verified: `cd backend && python3.11 -m pytest -q` → **837 passed**（Phase 2：指標數學、四種狀態分類、fixture 端到端、endpoint schema）；`cd frontend && npm run build` → 成功；用 **fixture `ohlcv_us.csv`**（AAPL 65 列）實測 `/api/markets/us/analysis` 算出 MA20/MA60/RSI/漲跌幅並歸類 overheated，前端顯示指標 + 狀態 badge；無資料 ticker 顯示「弱勢/資料不足」；台股主流程不受影響、無 console error。**fixture 已刪除**（gitignored，未入 repo）。
+- **未實測真實 Stooq 抓取**：本 sandbox 對外走自簽憑證代理（`CERTIFICATE_VERIFY_FAILED`），backfill 無法連外。正常對外網路（同 TWSE backfill 環境）即可抓取。
+- 更早基準：`0a8adb0` / `3633ad0`（Stooq 方向）、`dd88e22`（Finnhub 版 Phase 1）、`6ed907a`（骨架）。
 
 ## Next Recommended Task
 
-- **US Phase 1（Stooq）尚未 commit** —— 驗收全綠後先 local commit（不 push）。
-- 在**能對外的環境**跑 `cd backend && python3 scripts/backfill_ohlcv_us.py --months 1`（免 key），確認 `ohlcv_us.csv` 有資料、前端美股頁顯示收盤價與資料日。
-- US Phase 2 候選（本階段刻意不做）：美股技術指標 / 訊號、交易日曆 / 時區分 region、US universe 擴充、Finnhub optional（quote / 即時 / 基本面）。
+- **US Phase 1+2 尚未 commit** —— 驗收全綠後先 local commit（不 push）。
+- 使用者本機（真實 Stooq）後續驗收：`cd backend && python3 scripts/backfill_ohlcv_us.py --months 1`（免 key）→ 確認 `ohlcv_us.csv` 產生、`/api/markets/us/status` `tickers_with_data>0`、前端美股頁顯示真實收盤價 / 資料日 / 指標 / 狀態。
+- US 後續候選（未做）：交易日曆 / 時區分 region、US universe 擴充、Finnhub optional（quote / 即時 / 基本面）。**仍不做美股推薦策略 / 下單。**
 - 與美股無關：把 `connectionLost` 連線偵測抽成共用 hook（單例探測，避免多頁各起 interval）。

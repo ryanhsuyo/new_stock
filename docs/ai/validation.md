@@ -53,12 +53,21 @@
 | 每日健康檢查 | `cd backend && python3 scripts/daily_check.py --write-report` |
 | 美股回補（免 key） | `cd backend && python3 scripts/backfill_ohlcv_us.py [--months N]` |
 
-### 美股（US Market）驗收
+### 美股（US Market）驗收 —— 分兩層
 
 - **資料源方向**：主源 = **Stooq（免 API key）**；Finnhub = future optional（`FINNHUB_API_KEY`，不進 git）。
-- **測試**：`python3.11 -m pytest -q` 全綠（`tests/test_us_market.py` 以 mock 驗證 Stooq 解析 / 限流 / no-data，以及 Finnhub optional 缺 key 行為；不打真網路）。
-- **前端**：美股 toggle → `UsMarketPage`；Stooq 免 key 故 `source_configured=true`，尚無資料時顯示「美股資料尚未更新」。
-- **實際抓取**：`python3 scripts/backfill_ohlcv_us.py --months 1`（**免 key**）；需**正常對外網路**（若環境走自簽憑證代理會 `CERTIFICATE_VERIFY_FAILED`，backfill 會優雅 skip）。成功後寫入 `backend/data/ohlcv_us.csv`；回報輸出檔與筆數。**美股回補只寫 `ohlcv_us.csv`，不動台股 `ohlcv.csv`。**
+
+**A. AI 可自行驗收（不需真實 Stooq）：**
+- `python3.11 -m pytest -q` 全綠：`test_us_market.py`（Stooq 解析 / 限流 / no-data、Finnhub 缺 key）、`test_us_analysis.py`（指標數學、四種狀態分類、**fixture `ohlcv_us.csv` 端到端**、`/markets/us/analysis` schema）。
+- `npm run build` 成功。
+- API 在**無資料**時：`/markets/us/analysis` 回 `weak_or_no_data` + 指標 null；用 **fixture** 時算出 MA/RSI/漲跌幅並歸類狀態。
+- 前端：缺資料誠實顯示；有資料顯示指標 + 狀態 badge。**驗收用 fixture 後務必刪除 `backend/data/ohlcv_us.csv`（gitignored），以免污染真實回補。**
+
+**B. 需使用者本機（真實 Stooq）後續驗收：**
+- `cd backend && python3 scripts/backfill_ohlcv_us.py --months 1`（**免 key**）；需**正常對外網路**（自簽憑證代理環境會 `CERTIFICATE_VERIFY_FAILED`，backfill 會優雅 skip）。
+- `backend/data/ohlcv_us.csv` 實際產生（只寫此檔，**不動台股 `ohlcv.csv`**）。
+- `/api/markets/us/status` 顯示 `tickers_with_data > 0`。
+- 前端美股頁顯示**真實**收盤價 / 資料日 / 指標 / 狀態。
 
 > 注意事項（repo 實況，勿改成錯的）：
 > - 後端 port 是 **19000**（不是 9000）。

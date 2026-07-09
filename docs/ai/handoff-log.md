@@ -12,6 +12,27 @@
 
 ---
 
+## 2026-07-10 — US Phase 2：美股基本技術狀態（非策略、非買賣建議）
+
+- **Date:** 2026-07-10
+- **Task:** 在美股資料流上做基本技術狀態呈現：MA20/MA60/RSI14/20日漲跌幅/距均線/新鮮度 + 描述性狀態；不套兩策略、不做買賣建議、不下單、不改台股。
+- **Goal:** 讓美股頁能快速看基本技術狀態；AI 用 fixture 自行驗收，真實資料留給使用者本機。
+- **Completed:**
+  - `backend/app/services/us_analysis_service.py`：自帶輕量指標（`_sma`/`_rsi`/`_pct_change`/`_dist_pct`/`_days_since`）+ `classify_status`（trend_up / pullback_watch / overheated / weak_or_no_data）。**不耦合 signals_service。**
+  - `GET /api/markets/us/analysis`（`app/routers/markets.py`）。
+  - 前端 `UsMarketPage` 顯示指標 + 狀態 badge（顏色分四種），附「非買賣建議、非策略、無下單」聲明。
+  - 測試 `test_us_analysis.py`：指標數學、四種狀態分類（受控輸入）、fixture 端到端、endpoint schema。
+- **Changed Files:** 新增 `backend/app/services/us_analysis_service.py`、`backend/tests/test_us_analysis.py`；修改 `backend/app/routers/markets.py`、`backend/docs/api.md`、`frontend/src/pages/UsMarketPage.tsx`、`frontend/src/App.css`、`frontend/src/types/index.ts`、`frontend/src/api/client.ts`；docs（roadmap / current-status / handoff-log / validation）。
+- **Validation（兩層）:**
+  - **AI 已驗收**：`python3.11 -m pytest -q` → **837 passed**；`npm run build` → 成功；用 fixture `ohlcv_us.csv`（AAPL 65 列）實測 analysis API 算出指標並歸類 overheated，前端顯示指標 + badge，無資料 ticker 顯示弱勢/資料不足；台股不受影響、無 console error；**fixture 已刪除（gitignored）**。
+  - **需使用者本機（真實 Stooq）**：真正回補 → `ohlcv_us.csv` 產生 → `/api/markets/us/status` `tickers_with_data>0` → 前端顯示真實收盤 / 資料日 / 指標。
+- **Git Status:** 本階段 feat + docs 待 commit（HEAD `3633ad0`）。
+- **Commit:** 見完成回報。**未 push。**
+- **Next Steps:** 使用者本機真實回補驗收；之後 US 候選（交易日曆/時區、universe 擴充、Finnhub optional）仍不做策略 / 下單。
+- **Notes / Warnings:** `status` 為描述性技術狀態、非買賣建議；勿升級成推薦桶或加買賣訊號。
+
+---
+
 ## 2026-07-10 — US Phase 1 資料源改用 Stooq（免 API key）
 
 - **Date:** 2026-07-10

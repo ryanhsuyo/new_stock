@@ -12,7 +12,7 @@
 
 > 現在正在做 / 即將做的（對應 `current-status.md` 的 Current Phase）。
 
-- **US Market — Phase 1：接真實美股資料流 + 基本呈現**（見下方 Phase 規格）。骨架已在 `6ed907a` 落地；本階段接 Finnhub 資料源、US universe、US backfill 與前端 US 清單，**不做美股策略 / 不下單 / 不改台股主流程**。
+- **US Market — Phase 2：美股基本技術狀態**（見下方 Phase 規格）。從 `ohlcv_us.csv` 算 MA/RSI/漲跌幅/距均線/新鮮度，產生描述性狀態（trend_up / pullback_watch / overheated / weak_or_no_data）並在前端呈現。**非策略、非買賣建議、無下單、不改台股主流程。** Phase 1（Stooq 資料源 + 基本清單）已完成。
 
 ## Next
 
@@ -78,6 +78,34 @@
 - [x] US 主源 Stooq 免 key：`is_available()=True`、`source_configured=true`；`backfill_ohlcv_us.py` 免 key 可跑（實際抓取需正常對外網路；sandbox 因自簽憑證代理無法對外，錯誤有優雅降級）。
 - [x] 前端 US toggle 可切換；US 視圖只做清單 / 基本行情，無資料時顯示「資料尚未更新」誠實訊息；台股主流程完全不受影響。
 - [x] 台股 `ohlcv.csv` / `leaders.json` / 測試 baseline 不變（825 passed）。
+
+### US Market — Phase 2：美股基本技術狀態
+
+**Purpose**
+在美股資料流之上，做**基本技術狀態呈現**（描述性），供快速看盤；**不做正式推薦策略、不做買賣建議、不下單**。
+
+**Scope**
+- 包含：
+  - `us_analysis_service`：從 `ohlcv_us.csv` 算 MA20 / MA60 / RSI14 / 20 日漲跌幅 / 距 MA20、MA60 / 資料新鮮度（自帶輕量指標函式，不耦合 signals_service）。
+  - 描述性狀態：`trend_up` / `pullback_watch` / `overheated` / `weak_or_no_data`。
+  - `GET /api/markets/us/analysis` + 前端美股頁顯示指標與狀態 badge。
+- **不包含（out of scope）**：
+  - 套用 old_wang / steady_momentum 或任何台股推薦桶。
+  - 買賣建議 / 進出場價 / 下單 / 交易決策。
+  - 改動台股主流程。
+
+**Acceptance Criteria（分兩層）**
+
+AI 已驗收：
+- [x] `python3.11 -m pytest -q` → 837 passed（含指標數學、四種狀態分類、fixture 端到端、endpoint schema）。
+- [x] `npm run build` 成功。
+- [x] API 在**無資料**時回 `weak_or_no_data` + 指標 null；用 **fixture `ohlcv_us.csv`** 時算出 MA/RSI/漲跌幅並歸類狀態。
+- [x] 前端：缺資料誠實顯示、有資料顯示指標 + 狀態 badge（實測 fixture：AAPL 過熱 badge、其餘弱勢/資料不足）；台股主流程不受影響。
+
+需使用者本機（真實 Stooq 資料）後續驗收：
+- [ ] 真正連 Stooq 回補，`ohlcv_us.csv` 實際產生。
+- [ ] `/api/markets/us/status` 顯示 `tickers_with_data > 0`。
+- [ ] 前端美股頁顯示**真實**收盤價 / 資料日 / 指標 / 狀態。
 
 
 ### Phase 1: 資料更新穩定化
