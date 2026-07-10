@@ -157,6 +157,7 @@ def get_us_watch_signals() -> dict:
         signals.append({
             "code":         a["code"],
             "name":         a["name"],
+            "category":      a.get("category", ""),
             "close":        a["last_close"],
             "status":       a["status"],          # Phase 2 技術狀態
             "signal":       signal,               # Phase 3 觀察訊號

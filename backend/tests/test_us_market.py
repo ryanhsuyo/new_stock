@@ -195,8 +195,21 @@ def test_us_universe_endpoint_schema():
     assert isinstance(items, list)
     for item in items:
         assert item["region"] == "US"
-        for key in ("code", "name", "has_data", "row_count", "last_data_as_of", "last_close", "data_status"):
+        for key in ("code", "name", "category", "has_data", "row_count", "last_data_as_of", "last_close", "data_status"):
             assert key in item
+
+
+def test_us_universe_expanded_with_categories(tmp_path, monkeypatch):
+    # 第一版 universe 擴充：約 20–30 檔、每檔帶觀察用 category（非推薦分類）。
+    monkeypatch.setattr(us_market_store, "OHLCV_US_PATH", tmp_path / "missing.csv")
+    universe = us_market_service.get_us_universe()
+    assert 20 <= len(universe) <= 40
+    assert all(isinstance(u.get("category"), str) and u["category"] for u in universe)
+    # 分類至少涵蓋 ETF 基準與大型科技（觀察分組）
+    cats = {u["category"] for u in universe}
+    assert "ETF / Benchmark" in cats
+    codes = {u["code"] for u in universe}
+    assert {"SPY", "QQQ", "NVDA", "AVGO", "PLTR"}.issubset(codes)
 
 
 def test_us_status_endpoint_schema():

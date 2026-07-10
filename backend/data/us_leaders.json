@@ -1,12 +1,37 @@
 {
   "market": "US",
-  "note": "US Market Phase 1 小型 universe；代碼為美股 ticker，region=US。與台股 leaders.json 完全分離。",
+  "note": "US Market 小型 universe（第一版 27 檔）；代碼為美股 ticker，region=US。與台股 leaders.json 完全分離。category 為觀察用分類（非產業標準分類、非推薦、非買賣建議）。",
   "stocks": [
-    { "code": "AAPL", "name": "Apple Inc." },
-    { "code": "MSFT", "name": "Microsoft Corp." },
-    { "code": "NVDA", "name": "NVIDIA Corp." },
-    { "code": "TSLA", "name": "Tesla Inc." },
-    { "code": "SPY",  "name": "SPDR S&P 500 ETF" },
-    { "code": "QQQ",  "name": "Invesco QQQ Trust" }
+    { "code": "SPY",  "name": "SPDR S&P 500 ETF",        "category": "ETF / Benchmark" },
+    { "code": "QQQ",  "name": "Invesco QQQ Trust",        "category": "ETF / Benchmark" },
+    { "code": "DIA",  "name": "SPDR Dow Jones Industrial Average ETF", "category": "ETF / Benchmark" },
+    { "code": "IWM",  "name": "iShares Russell 2000 ETF", "category": "ETF / Benchmark" },
+
+    { "code": "AAPL", "name": "Apple Inc.",               "category": "Mega-cap Tech" },
+    { "code": "MSFT", "name": "Microsoft Corp.",          "category": "Mega-cap Tech" },
+    { "code": "NVDA", "name": "NVIDIA Corp.",             "category": "Mega-cap Tech" },
+    { "code": "AMZN", "name": "Amazon.com Inc.",          "category": "Mega-cap Tech" },
+    { "code": "GOOGL","name": "Alphabet Inc. (Class A)",  "category": "Mega-cap Tech" },
+    { "code": "META", "name": "Meta Platforms Inc.",      "category": "Mega-cap Tech" },
+    { "code": "TSLA", "name": "Tesla Inc.",               "category": "Mega-cap Tech" },
+
+    { "code": "AMD",  "name": "Advanced Micro Devices Inc.", "category": "Semiconductors / AI" },
+    { "code": "AVGO", "name": "Broadcom Inc.",            "category": "Semiconductors / AI" },
+    { "code": "TSM",  "name": "Taiwan Semiconductor (TSMC) ADR", "category": "Semiconductors / AI" },
+    { "code": "ASML", "name": "ASML Holding NV ADR",      "category": "Semiconductors / AI" },
+    { "code": "MU",   "name": "Micron Technology Inc.",   "category": "Semiconductors / AI" },
+    { "code": "ARM",  "name": "Arm Holdings plc ADR",     "category": "Semiconductors / AI" },
+
+    { "code": "CRM",  "name": "Salesforce Inc.",          "category": "Software / Cloud" },
+    { "code": "ORCL", "name": "Oracle Corp.",             "category": "Software / Cloud" },
+    { "code": "NOW",  "name": "ServiceNow Inc.",          "category": "Software / Cloud" },
+    { "code": "SNOW", "name": "Snowflake Inc.",           "category": "Software / Cloud" },
+    { "code": "PLTR", "name": "Palantir Technologies Inc.", "category": "Software / Cloud" },
+
+    { "code": "COST", "name": "Costco Wholesale Corp.",   "category": "Defensive / Consumer" },
+    { "code": "WMT",  "name": "Walmart Inc.",             "category": "Defensive / Consumer" },
+    { "code": "MCD",  "name": "McDonald's Corp.",         "category": "Defensive / Consumer" },
+    { "code": "KO",   "name": "Coca-Cola Co.",            "category": "Defensive / Consumer" },
+    { "code": "PG",   "name": "Procter & Gamble Co.",     "category": "Defensive / Consumer" }
   ]
 }

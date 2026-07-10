@@ -12,7 +12,7 @@
 
 > 現在正在做 / 即將做的（對應 `current-status.md` 的 Current Phase）。
 
-- **US Market — Phase 3：美股觀察訊號**（見下方 Phase 規格）。在 Phase 2 指標上產生描述性觀察訊號（watch_breakout / watch_pullback / trend_up / overheated / avoid_weak），用 SPY/QQQ 當大盤基準調整觀察優先度。**非推薦、非買賣建議、無下單、不套台股策略、不改台股主流程。** Phase 1（Yahoo 免 key 資料源 + 清單）、Phase 2（基本技術狀態）、資料新鮮度皆已完成。
+- **US Market — universe 擴充 + 分類**。`us_leaders.json` 擴到第一版 27 檔並為每檔加觀察用 `category`（ETF/Benchmark、Mega-cap Tech、Semiconductors/AI、Software/Cloud、Defensive/Consumer）；`/universe`、`/analysis`、`/signals` 帶 `category`；前端加分類欄 + 分類過濾。**非推薦、非買賣建議、無下單、不套台股策略、不改台股主流程；本輪刻意不做 launchd。** Phase 1（Yahoo 免 key 資料源）、Phase 2（基本技術狀態）、Phase 3（觀察訊號）、資料新鮮度皆已完成。
 
 ## Next
 
@@ -128,6 +128,29 @@ AI 已驗收：
 - [x] `/api/markets/us/signals` 回 6 檔觀察訊號 + market_bias；`ohlcv_us.csv` 不存在 → 全 avoid_weak / market_bias=unknown（誠實）。
 - [x] 前端美股頁顯示觀察訊號區塊（訊號 badge / priority / reasons / risk）。實測（真實資料）：大盤 bullish、AAPL/SPY watch_breakout、MSFT/NVDA avoid_weak。
 - [x] 未做買賣建議 / 下單 / 推薦；未套台股策略；未改台股；未擴 universe。
+
+
+### US Market — universe 擴充 + 分類
+
+**Purpose**
+把美股觀察清單從第一版 6 檔擴到第一版 27 檔，並為每檔加上**觀察用分類**（`category`），讓前端可依分類瀏覽 / 過濾；仍是描述性觀察，**不做正式推薦、不做買賣建議、不下單**。
+
+**Scope**
+- 包含：
+  - `us_leaders.json` 擴到 27 檔（ETF/Benchmark 4、Mega-cap Tech 7、Semiconductors/AI 6、Software/Cloud 5、Defensive/Consumer 5），每檔帶 `category`。
+  - `load_us_leaders()` 帶出 `category`；`/universe`、`/analysis`、`/signals` 每筆帶 `category`。
+  - 前端美股頁：兩張表加「分類」欄 + 分類過濾 chip（同時過濾技術狀態表與觀察訊號表）。
+- **不包含（out of scope）**：
+  - 正式推薦 / 買賣建議 / 下單 / 套台股策略。
+  - launchd 自動排程 US backfill（**本輪刻意不做**，backfill 續手動跑）。
+  - 產業標準分類 / 基本面欄位（`category` 僅為觀察分組）。
+
+**Acceptance Criteria**
+- [x] `python3.11 -m pytest -q` 全綠（858 passed；新增 universe/category 測試）。
+- [x] `npm run build` 成功。
+- [x] `/api/markets/us/universe` 回 ~27 檔且每筆帶 `category`；`/signals` 帶 `category`。
+- [x] 前端顯示分類欄 + 分類過濾；新 ticker 尚未回補時誠實顯示資料不足。
+- [x] 未做買賣建議 / 下單 / 推薦；未套台股策略；未改台股；未做 launchd。
 
 
 ### Phase 1: 資料更新穩定化

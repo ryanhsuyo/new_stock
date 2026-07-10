@@ -1137,6 +1137,8 @@ export interface StockUniverseItem {
 export interface UsUniverseItem {
   code: string
   name: string
+  /** 觀察用分類（如 "Mega-cap Tech"）；非產業標準分類、非推薦 */
+  category: string
   region: 'US'
   has_data: boolean
   row_count: number
@@ -1166,6 +1168,8 @@ export type UsTechStatus = 'trend_up' | 'pullback_watch' | 'overheated' | 'weak_
 export interface UsAnalysisItem {
   code: string
   name: string
+  /** 觀察用分類（如 "Mega-cap Tech"）；非產業標準分類、非推薦 */
+  category: string
   region: 'US'
   data_status: 'ok' | 'no_data'
   row_count: number
@@ -1188,6 +1192,8 @@ export type UsWatchSignal = 'watch_breakout' | 'watch_pullback' | 'trend_up' | '
 export interface UsWatchSignalItem {
   code: string
   name: string
+  /** 觀察用分類（如 "Mega-cap Tech"）；非產業標準分類、非推薦 */
+  category: string
   close: number | null
   status: UsTechStatus
   signal: UsWatchSignal

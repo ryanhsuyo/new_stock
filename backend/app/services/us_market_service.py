@@ -74,8 +74,8 @@ def get_us_universe() -> list[dict]:
     """
     回傳美股追蹤清單的資料狀態（us_leaders.json × ohlcv_us.csv 交叉比對）。
 
-    每筆：code / name / region('US') / has_data / row_count / last_data_as_of /
-    last_close / data_status（"ok" | "no_data"）。
+    每筆：code / name / category / region('US') / has_data / row_count /
+    last_data_as_of / last_close / data_status（"ok" | "no_data"）。
     """
     leaders = load_us_leaders()
     ohlcv = load_us_ohlcv()
@@ -89,6 +89,7 @@ def get_us_universe() -> list[dict]:
         result.append({
             "code":            code,
             "name":            item["name"],
+            "category":        item.get("category", ""),
             "region":          "US",
             "has_data":        row_count > 0,
             "row_count":       row_count,

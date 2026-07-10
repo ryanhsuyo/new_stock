@@ -22,7 +22,10 @@ CSV_FIELDS = ["date", "code", "open", "high", "low", "close", "volume"]
 
 
 def load_us_leaders() -> list[dict]:
-    """回傳 [{"code", "name"}, ...]；檔案不存在或損壞時回傳 []。"""
+    """回傳 [{"code", "name", "category"}, ...]；檔案不存在或損壞時回傳 []。
+
+    `category` 為觀察用分類（如 "Mega-cap Tech"）；缺欄位時回傳 ""。
+    """
     if not US_LEADERS_PATH.exists():
         return []
     try:
@@ -34,10 +37,11 @@ def load_us_leaders() -> list[dict]:
     for item in stocks or []:
         if isinstance(item, dict) and item.get("code"):
             code = str(item["code"]).strip().upper()
-            out.append({"code": code, "name": str(item.get("name") or code)})
+            category = str(item.get("category") or "").strip()
+            out.append({"code": code, "name": str(item.get("name") or code), "category": category})
         elif isinstance(item, str) and item.strip():
             code = item.strip().upper()
-            out.append({"code": code, "name": code})
+            out.append({"code": code, "name": code, "category": ""})
     return out
 
 

@@ -5,7 +5,7 @@
 
 ## Current Phase
 
-**US Market — Phase 3（美股觀察訊號）完成**（本階段程式待 commit）。在 Phase 2 指標上產生描述性觀察訊號（watch_breakout / watch_pullback / trend_up / overheated / avoid_weak），用 SPY/QQQ 當大盤基準調整觀察 priority，`/api/markets/us/signals` + 前端「觀察訊號」區塊。**非推薦、非買賣建議、無下單、不套台股策略；台股主流程零改動。** Phase 1（Yahoo 免 key 資料源 + 清單）、Phase 2（基本技術狀態）、資料新鮮度皆已完成。
+**US Market — universe 擴充 + 分類完成**（本階段程式待 commit）。`us_leaders.json` 擴到第一版 27 檔（ETF/Benchmark 4、Mega-cap Tech 7、Semiconductors/AI 6、Software/Cloud 5、Defensive/Consumer 5），每檔帶觀察用 `category`；`/universe`、`/analysis`、`/signals` 皆帶 `category`；前端美股頁加分類欄位 + 分類過濾 chip（同時過濾技術狀態表與觀察訊號表）。**仍非推薦、非買賣建議、無下單、不套台股策略；台股主流程零改動；本輪不做 launchd。** Phase 1（Yahoo 免 key 資料源）、Phase 2（基本技術狀態）、Phase 3（觀察訊號）、資料新鮮度皆已完成。
 
 後端資料流與兩策略推薦桶穩定（見 `backend/docs/status_overview.md`）；前端 dashboard usability 已收尾。
 
@@ -68,13 +68,15 @@
 - **真實 Yahoo 端到端已驗證通過**（AI 直接跑，非 mock）：`python3.11 scripts/backfill_ohlcv_us.py --months 12` 成功 → 六檔 AAPL/MSFT/NVDA/TSLA/SPY/QQQ **各 255 rows、total 1530**，`ohlcv_us.csv` 產生（本機資料、gitignored、未 commit），`last_data_as_of=2026-07-09`。`/api/markets/us/status` `tickers_with_data=6`；`/api/markets/us/analysis` 六檔皆有 MA20/MA60/RSI/status（3 檔 trend_up、3 檔 weak_or_no_data）；前端美股頁顯示真實收盤/資料日/指標/狀態 badge，「資料尚未更新」橫幅消失、無 console error。
 - **US 資料新鮮度（最小收尾切片，本輪，待 commit）**：`/api/markets/us/status` 加 `expected_trading_day` / `days_since_last`（交易日）/ `is_stale`（weekend-aware、容忍 1 個交易日、**不含 NYSE 假日**，複用既有 trading_calendar 函式並傳空 calendar）；前端美股頁顯示「資料日 X（N 個交易日前）」，stale 時琥珀提示重跑 backfill。
 - **US Phase 3 觀察訊號（本輪，待 commit）**：`us_watch_signal_service`（複用 Phase 2 指標）產生五種觀察訊號 + reasons/risk_notes/priority；SPY/QQQ 大盤基準（market_bias）調整 priority；`GET /api/markets/us/signals` + 前端「觀察訊號」區塊。**非推薦 / 非買賣 / 無下單 / 未套台股策略。**
+- **US universe 擴充 + 分類（本輪，待 commit）**：`us_leaders.json` 6 → 27 檔，每檔加 `category`；`load_us_leaders` 帶出 category；`/universe`、`/analysis`、`/signals` 皆帶 `category`；前端加分類欄 + 分類過濾 chip（同時過濾兩張表）。`python3.11 -m pytest -q` → **858 passed**（+1 universe/category 測試）；`npm run build` 成功。新 ticker 的真實 OHLCV 尚未回補（需本機跑 backfill）；未補前 UI 誠實顯示資料不足。**仍非推薦 / 非買賣 / 無下單；本輪未做 launchd。**
 - 測試 / build：`python3.11 -m pytest -q` → **857 passed**（+14 觀察訊號測試）；`npm run build` → 成功；實測 signals（真實資料）：market_bias=bullish、AAPL/SPY watch_breakout(prio 80)、QQQ/TSLA trend_up、MSFT/NVDA avoid_weak；前端「觀察訊號」區塊顯示 badge/priority/reasons/risk、無 console error。
 - **執行注意**：US backfill 需以 **`python3.11`** 執行（本機 `python3`=3.9，無法 import 後端：缺依賴 + `X | None` 語法需 3.10+）。
 - 更早基準：`8d20c12`（新鮮度）、`7c9fe4d`/`cd933ff`（Yahoo）、`bd5f4f0`/`52a0dfc`（Phase 2）。
 
 ## Next Recommended Task
 
-- US Phase 1/2/3 + 新鮮度完成；美股頁已有清單 / 技術狀態 / 觀察訊號（皆描述性）。
-- US 後續候選（未做）：完整 NYSE 假日曆 / 自動排程 US backfill、US universe 擴充、Finnhub optional。**逐步接近台股「可解釋觀察」程度，但仍不做美股正式推薦 / 買賣建議 / 下單。**
+- US Phase 1/2/3 + 新鮮度 + universe 擴充/分類完成；美股頁已有 27 檔清單 / 技術狀態 / 觀察訊號 / 分類過濾（皆描述性）。
+- US 後續候選（未做，逐一小步）：完整 NYSE 假日曆 / 自動排程 US backfill（launchd，本輪刻意未做）、Finnhub optional、再擴 universe。**逐步接近台股「可解釋觀察」程度，但仍不做美股正式推薦 / 買賣建議 / 下單。**
+- 提醒：擴充 universe 後需以 `python3.11 scripts/backfill_ohlcv_us.py --months 12` 補新 ticker 的真實資料；未補前前端會誠實顯示新 ticker「資料不足」。
 - 與美股無關：把 `connectionLost` 連線偵測抽成共用 hook（單例探測，避免多頁各起 interval）。
 - 與美股無關：把 `connectionLost` 連線偵測抽成共用 hook（單例探測，避免多頁各起 interval）。

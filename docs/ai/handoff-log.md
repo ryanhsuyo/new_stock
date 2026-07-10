@@ -12,6 +12,25 @@
 
 ---
 
+## 2026-07-10 — US universe 擴充 + 分類（非推薦、非買賣建議）
+
+- **Date:** 2026-07-10
+- **Task:** 把美股觀察清單擴到第一版 27 檔，每檔加觀察用 `category`，並讓 `/universe`、`/analysis`、`/signals` 帶 category、前端可依分類過濾。本輪**不同時做 launchd**（US backfill 續手動）。
+- **Goal:** 逐步接近台股「可解釋觀察」廣度，但仍非推薦 / 非買賣 / 非下單。
+- **Completed:**
+  - `us_leaders.json`：6 → 27 檔（ETF/Benchmark: SPY,QQQ,DIA,IWM；Mega-cap Tech: AAPL,MSFT,NVDA,AMZN,GOOGL,META,TSLA；Semiconductors/AI: AMD,AVGO,TSM,ASML,MU,ARM；Software/Cloud: CRM,ORCL,NOW,SNOW,PLTR；Defensive/Consumer: COST,WMT,MCD,KO,PG），每檔帶 `category`。此檔為 curated 輸入、在 `.gitignore` allowlist 內 → 會 commit。
+  - `load_us_leaders()` 帶出 `category`（缺欄位 → ""）；`get_us_universe` / `get_us_analysis` / `get_us_watch_signals` 每筆帶 `category`。router 維持純 HTTP、回 dict（無 response_model 需改）。
+  - 前端：`UsUniverseItem` / `UsAnalysisItem` / `UsWatchSignalItem` 加 `category`；`UsMarketPage` 兩張表加「分類」欄 + 分類過濾 chip（單一 `categoryFilter` 同時過濾技術狀態表與觀察訊號表）；`.us-cat-filter` / `.us-cat-chip` / `.us-cat-tag` CSS。
+  - 測試：更新 `test_us_watch_signals.py`（訊號數 = leaders 數、含 category 欄位）、`test_us_market.py`（universe schema 含 category + 新增 `test_us_universe_expanded_with_categories`）。
+- **Changed Files:** `backend/data/us_leaders.json`、`backend/app/storage/us_market_store.py`、`backend/app/services/us_market_service.py`、`backend/app/services/us_analysis_service.py`、`backend/app/services/us_watch_signal_service.py`、`backend/tests/test_us_market.py`、`backend/tests/test_us_watch_signals.py`、`backend/docs/api.md`、`frontend/src/types/index.ts`、`frontend/src/pages/UsMarketPage.tsx`、`frontend/src/App.css`；docs（roadmap / current-status / handoff-log）。
+- **Validation:** `python3.11 -m pytest -q` → **858 passed**（+1）；`npm run build` → 成功。新 ticker 的真實 OHLCV **尚未回補**（需本機 `python3.11 scripts/backfill_ohlcv_us.py --months 12`）；未補前 UI 誠實顯示新 ticker「資料不足」（weak_or_no_data / avoid_weak）。
+- **Git Status:** feat + docs 待 commit。
+- **Commit:** 見完成回報。**未 push。**
+- **Next Steps:** 本機補齊 27 檔真實資料；之後候選：完整 NYSE 假日曆 + launchd 排程 US backfill、Finnhub optional、再擴 universe。**仍不做美股正式推薦 / 買賣 / 下單。**
+- **Notes / Warnings:** `category` 僅為**觀察分組**（非產業標準分類、非推薦）。`ohlcv_us.csv` 仍為本機真實資料、gitignored、不 commit。**不改台股主流程；不套台股策略；本輪未做 launchd。**
+
+---
+
 ## 2026-07-10 — US Phase 3：美股觀察訊號（非推薦、非買賣建議）
 
 - **Date:** 2026-07-10

@@ -1203,7 +1203,9 @@ Dry-run 預覽還原，不寫入任何檔案。
 
 ### `GET /api/markets/us/universe`
 
-美股追蹤清單（`us_leaders.json` × `ohlcv_us.csv`）。每筆：`code` / `name` /
+美股追蹤清單（`us_leaders.json` × `ohlcv_us.csv`，第一版約 27 檔）。每筆：`code` / `name` /
+`category`（觀察用分類，如 `"ETF / Benchmark"` / `"Mega-cap Tech"` / `"Semiconductors / AI"` /
+`"Software / Cloud"` / `"Defensive / Consumer"`；**非產業標準分類、非推薦**）/
 `region`（固定 `"US"`）/ `has_data` / `row_count` / `last_data_as_of` / `last_close` /
 `data_status`（`"ok"` | `"no_data"`）。尚未回補時 `has_data=false`、`last_close=null`。
 
@@ -1216,8 +1218,8 @@ Dry-run 預覽還原，不寫入任何檔案。
   "region": "US",
   "source_configured": true,
   "source_label": "Yahoo Finance（美股，非官方、免 key）",
-  "universe_size": 6,
-  "tickers_with_data": 6,
+  "universe_size": 27,
+  "tickers_with_data": 27,
   "last_data_as_of": "2026-07-09",
   "expected_trading_day": "2026-07-10",
   "days_since_last": 1,
@@ -1235,10 +1237,11 @@ Dry-run 預覽還原，不寫入任何檔案。
 
 ### `GET /api/markets/us/analysis`
 
-美股**基本技術狀態**（Phase 2，唯讀，**非買賣建議 / 非策略**）。每筆在 universe 欄位外，另含技術指標與描述性狀態：
+美股**基本技術狀態**（Phase 2，唯讀，**非買賣建議 / 非策略**）。每筆在 universe 欄位外（含 `category` 觀察分類），另含技術指標與描述性狀態：
 
 | 欄位 | 說明 |
 |------|------|
+| `category` | 觀察用分類（同 universe，如 `"Mega-cap Tech"`；非推薦分組） |
 | `ma20` / `ma60` | 20 / 60 日均線（資料不足時 `null`） |
 | `rsi14` | 14 期 RSI（資料不足時 `null`） |
 | `change_20d_pct` | 20 日漲跌幅（%） |
@@ -1261,7 +1264,7 @@ Dry-run 預覽還原，不寫入任何檔案。
   "benchmarks": { "SPY": {"above_ma60": true, "close": 751.71, "ma60": 734.77}, "QQQ": {"above_ma60": true, "close": 723.28, "ma60": 702.85} },
   "signals": [
     {
-      "code": "AAPL", "name": "Apple Inc.", "close": 316.22,
+      "code": "AAPL", "name": "Apple Inc.", "category": "Mega-cap Tech", "close": 316.22,
       "status": "trend_up", "signal": "watch_breakout", "signal_label": "觀察突破",
       "reasons": ["站上 MA20 / MA60，逼近 20 日高 318.00", "大盤（SPY/QQQ）在 MA60 上方"],
       "risk_notes": ["留意假突破 / 量能不足"],
@@ -1271,6 +1274,7 @@ Dry-run 預覽還原，不寫入任何檔案。
 }
 ```
 
+- **`category`**：觀察用分類（同 universe，如 `"Mega-cap Tech"`）；前端可據此過濾，**非推薦分組**。
 - **`market_bias`**：`bullish`（SPY/QQQ 皆在 MA60 上方）/ `bearish`（皆下方，個股 priority 降級）/ `mixed` / `unknown`（基準資料不足）。
 - **`signal`**：`watch_breakout` / `watch_pullback` / `trend_up` / `overheated` / `avoid_weak`（描述性觀察狀態）。
 - **`priority`**：觀察優先度（排序用，數字越大越優先看）；**非推薦分數、非買賣訊號**。大盤偏弱時整體降級。

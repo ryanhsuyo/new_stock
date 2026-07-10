@@ -48,6 +48,30 @@ body {
 .us-note { font-size: 13px; color: #64748b; margin: 4px 0 12px; }
 .us-freshness { font-size: 13px; color: #334155; margin: 0 0 10px; }
 
+/* 美股分類過濾（觀察用分組，非推薦） */
+.us-cat-filter { display: flex; flex-wrap: wrap; gap: 6px; margin: 0 0 12px; }
+.us-cat-chip {
+  padding: 3px 11px;
+  border-radius: 999px;
+  border: 1px solid #cbd5e1;
+  background: #fff;
+  color: #475569;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+}
+.us-cat-chip:hover { border-color: #94a3b8; }
+.us-cat-chip.is-active { background: #0d47a1; border-color: #0d47a1; color: #fff; }
+.us-cat-tag {
+  display: inline-block;
+  padding: 1px 8px;
+  border-radius: 6px;
+  background: #f1f5f9;
+  color: #475569;
+  font-size: 12px;
+  white-space: nowrap;
+}
+
 /* 美股技術狀態 badge（描述性，非買賣建議）*/
 .us-status {
   display: inline-block;

@@ -137,6 +137,7 @@ def get_us_analysis() -> list[dict]:
         out.append({
             "code":            code,
             "name":            item["name"],
+            "category":        item.get("category", ""),
             "region":          "US",
             "data_status":     "ok" if row_count > 0 else "no_data",
             "row_count":       row_count,

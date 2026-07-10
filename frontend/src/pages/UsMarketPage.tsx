@@ -12,6 +12,7 @@ export default function UsMarketPage() {
   const [signals, setSignals] = useState<UsWatchSignals | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
+  const [categoryFilter, setCategoryFilter] = useState<string>('all')
 
   useEffect(() => {
     let alive = true
@@ -28,6 +29,15 @@ export default function UsMarketPage() {
   const sourceReady = Boolean(status?.source_configured)
   const hasAnyData = (status?.tickers_with_data ?? 0) > 0
   const backfillCmd = status?.backfill_command ?? 'cd backend && python3 scripts/backfill_ohlcv_us.py'
+
+  // 觀察用分類（依 leaders.json 出現順序，非推薦分組）
+  const categories = items.reduce<string[]>((acc, u) => {
+    if (u.category && !acc.includes(u.category)) acc.push(u.category)
+    return acc
+  }, [])
+  const matchCat = (c: string) => categoryFilter === 'all' || c === categoryFilter
+  const shownItems = items.filter(u => matchCat(u.category))
+  const shownSignals = signals?.signals.filter(s => matchCat(s.category)) ?? []
 
   return (
     <main className="app-main">
@@ -77,18 +87,44 @@ export default function UsMarketPage() {
         以下為<strong>基本技術狀態</strong>（MA / RSI / 漲跌幅 / 距均線）；<strong>非買賣建議、非策略、無下單</strong>。
       </p>
 
+      {categories.length > 1 && (
+        <div className="us-cat-filter" role="group" aria-label="分類過濾">
+          <button
+            type="button"
+            className={`us-cat-chip${categoryFilter === 'all' ? ' is-active' : ''}`}
+            onClick={() => setCategoryFilter('all')}
+          >
+            全部（{items.length}）
+          </button>
+          {categories.map(cat => {
+            const n = items.filter(u => u.category === cat).length
+            return (
+              <button
+                key={cat}
+                type="button"
+                className={`us-cat-chip${categoryFilter === cat ? ' is-active' : ''}`}
+                onClick={() => setCategoryFilter(cat)}
+              >
+                {cat}（{n}）
+              </button>
+            )
+          })}
+        </div>
+      )}
+
       <table className="data-table">
         <thead>
           <tr>
-            <th>Ticker</th><th>名稱</th><th>收盤</th><th>資料日</th>
+            <th>Ticker</th><th>名稱</th><th>分類</th><th>收盤</th><th>資料日</th>
             <th>MA20</th><th>MA60</th><th>RSI</th><th>20日%</th><th>距MA20</th><th>技術狀態</th>
           </tr>
         </thead>
         <tbody>
-          {items.map(u => (
+          {shownItems.map(u => (
             <tr key={u.code}>
               <td><span className="td-id">{u.code}</span></td>
               <td>{u.name}</td>
+              <td><span className="us-cat-tag">{u.category || '—'}</span></td>
               <td>{fmt(u.last_close)}</td>
               <td>{u.last_data_as_of ?? '—'}</td>
               <td>{fmt(u.ma20)}</td>
@@ -111,14 +147,15 @@ export default function UsMarketPage() {
           <table className="data-table">
             <thead>
               <tr>
-                <th>Ticker</th><th>名稱</th><th>收盤</th><th>觀察訊號</th><th>優先度</th><th>理由</th><th>風險</th>
+                <th>Ticker</th><th>名稱</th><th>分類</th><th>收盤</th><th>觀察訊號</th><th>優先度</th><th>理由</th><th>風險</th>
               </tr>
             </thead>
             <tbody>
-              {signals.signals.map(s => (
+              {shownSignals.map(s => (
                 <tr key={s.code}>
                   <td><span className="td-id">{s.code}</span></td>
                   <td>{s.name}</td>
+                  <td><span className="us-cat-tag">{s.category || '—'}</span></td>
                   <td>{fmt(s.close)}</td>
                   <td><span className={`us-signal us-signal-${s.signal}`}>{s.signal_label}</span></td>
                   <td>{s.priority}</td>

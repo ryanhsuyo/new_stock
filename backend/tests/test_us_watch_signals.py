@@ -110,10 +110,14 @@ def test_get_watch_signals_with_fixture(tmp_path, monkeypatch):
     out = ws.get_us_watch_signals()
     assert out["market_bias"] == "bullish"          # SPY/QQQ 上升 → 站上 MA60
     assert out["as_of"] is not None
-    assert len(out["signals"]) == 6
+    # 每檔 leader 都要有一筆訊號（有資料算真值、無資料誠實 avoid_weak）
+    assert len(out["signals"]) == len(us_market_store.load_us_leaders())
+    fixtured = {s["code"] for s in out["signals"] if s["code"] in
+                {"AAPL", "MSFT", "NVDA", "TSLA", "SPY", "QQQ"}}
+    assert fixtured == {"AAPL", "MSFT", "NVDA", "TSLA", "SPY", "QQQ"}
     for s in out["signals"]:
         assert s["signal"] in VALID_SIGNALS
-        for key in ("code", "name", "close", "status", "signal", "reasons",
+        for key in ("code", "name", "category", "close", "status", "signal", "reasons",
                     "risk_notes", "priority", "data_as_of"):
             assert key in s
         assert isinstance(s["reasons"], list) and isinstance(s["risk_notes"], list)
