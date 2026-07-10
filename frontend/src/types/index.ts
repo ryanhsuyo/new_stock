@@ -1182,6 +1182,31 @@ export interface UsAnalysisItem {
   status_label: string
 }
 
+/** Phase 3：美股觀察訊號（描述性，非推薦 / 非買賣建議） */
+export type UsWatchSignal = 'watch_breakout' | 'watch_pullback' | 'trend_up' | 'overheated' | 'avoid_weak'
+
+export interface UsWatchSignalItem {
+  code: string
+  name: string
+  close: number | null
+  status: UsTechStatus
+  signal: UsWatchSignal
+  signal_label: string
+  reasons: string[]
+  risk_notes: string[]
+  /** 觀察優先度（排序用，越大越優先看）；非推薦分數、非買賣訊號 */
+  priority: number
+  data_as_of: string | null
+}
+
+export interface UsWatchSignals {
+  as_of: string | null
+  market_bias: 'bullish' | 'bearish' | 'mixed' | 'unknown'
+  market_note: string
+  benchmarks: Record<string, { above_ma60: boolean | null; close: number | null; ma60: number | null }>
+  signals: UsWatchSignalItem[]
+}
+
 export interface WatchlistItem {
   code: string
   name: string

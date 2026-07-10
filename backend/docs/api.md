@@ -1249,6 +1249,35 @@ Dry-run 預覽還原，不寫入任何檔案。
 
 狀態純為描述性技術分類（趨勢向上 / 回檔觀察 / 過熱 / 弱勢或資料不足）；**不套用台股 old_wang / steady_momentum，不產生買賣訊號。**
 
+### `GET /api/markets/us/signals`
+
+美股**觀察訊號**（Phase 3，唯讀，**非推薦 / 非買賣建議 / 非下單**）。以 Phase 2 指標 + SPY/QQQ 大盤基準產生描述性觀察訊號。
+
+```json
+{
+  "as_of": "2026-07-09",
+  "market_bias": "bullish",
+  "market_note": "SPY / QQQ 皆在 MA60 上方，大盤偏多",
+  "benchmarks": { "SPY": {"above_ma60": true, "close": 751.71, "ma60": 734.77}, "QQQ": {"above_ma60": true, "close": 723.28, "ma60": 702.85} },
+  "signals": [
+    {
+      "code": "AAPL", "name": "Apple Inc.", "close": 316.22,
+      "status": "trend_up", "signal": "watch_breakout", "signal_label": "觀察突破",
+      "reasons": ["站上 MA20 / MA60，逼近 20 日高 318.00", "大盤（SPY/QQQ）在 MA60 上方"],
+      "risk_notes": ["留意假突破 / 量能不足"],
+      "priority": 80, "data_as_of": "2026-07-09"
+    }
+  ]
+}
+```
+
+- **`market_bias`**：`bullish`（SPY/QQQ 皆在 MA60 上方）/ `bearish`（皆下方，個股 priority 降級）/ `mixed` / `unknown`（基準資料不足）。
+- **`signal`**：`watch_breakout` / `watch_pullback` / `trend_up` / `overheated` / `avoid_weak`（描述性觀察狀態）。
+- **`priority`**：觀察優先度（排序用，數字越大越優先看）；**非推薦分數、非買賣訊號**。大盤偏弱時整體降級。
+- **`reasons` / `risk_notes`**：字串陣列，解釋觀察狀態與風險（描述性）。
+- `ohlcv_us.csv` 不存在 / 無資料 → 每檔 `avoid_weak`、`market_bias=unknown`（誠實回報資料不足，不假裝有訊號）。
+- **明確不做**：買賣建議、下單、正式推薦；**不套用台股 old_wang / steady_momentum**。
+
 ---
 
 ## 錯誤格式

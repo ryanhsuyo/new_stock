@@ -1,4 +1,4 @@
-import type { BuyRequest, DailyBrief, DailyCheckReport, DataStatus, DecisionJournalBulkCreateResult, DecisionJournalCreate, DecisionJournalEntry, DecisionJournalSummary, FundamentalsPriorityMergeResult, FundamentalsStatus, HoldingAnalysis, IntradayMonitor, ManualWatchlistReview, MarketNoteInput, MarketNoteSaveResult, OfficialFundamentalsCoverageAudit, OfficialFundamentalsReportsResult, OfficialFundamentalsStatus, PmWorklist, PortfolioSummary, Position, RecommendationStrategy, SellRequest, SignalAlertReviewStatus, SignalsSummary, SignalsStatus, Stats, StockAnalysis, StockRecommendation, StockTrackingResult, StockUniverseItem, TodayScanReport, TradeRecord, TradingSettings, UniverseReportItem, UniverseReportReviewWorkflow, UpdateWorkflowStatus, UsAnalysisItem, UsMarketStatus, UsUniverseItem, WatchlistGroup, WorkflowStatus } from '../types'
+import type { BuyRequest, DailyBrief, DailyCheckReport, DataStatus, DecisionJournalBulkCreateResult, DecisionJournalCreate, DecisionJournalEntry, DecisionJournalSummary, FundamentalsPriorityMergeResult, FundamentalsStatus, HoldingAnalysis, IntradayMonitor, ManualWatchlistReview, MarketNoteInput, MarketNoteSaveResult, OfficialFundamentalsCoverageAudit, OfficialFundamentalsReportsResult, OfficialFundamentalsStatus, PmWorklist, PortfolioSummary, Position, RecommendationStrategy, SellRequest, SignalAlertReviewStatus, SignalsSummary, SignalsStatus, Stats, StockAnalysis, StockRecommendation, StockTrackingResult, StockUniverseItem, TodayScanReport, TradeRecord, TradingSettings, UniverseReportItem, UniverseReportReviewWorkflow, UpdateWorkflowStatus, UsAnalysisItem, UsMarketStatus, UsUniverseItem, UsWatchSignals, WatchlistGroup, WorkflowStatus } from '../types'
 
 const BASE = '/api'
 
@@ -203,6 +203,9 @@ export const api = {
 
   getUsAnalysis: () =>
     request<UsAnalysisItem[]>('/markets/us/analysis'),
+
+  getUsSignals: () =>
+    request<UsWatchSignals>('/markets/us/signals'),
 
   // ── Watchlists ────────────────────────────────────────────────────────────
   getWatchlists: () =>

@@ -9,6 +9,7 @@ from fastapi import APIRouter
 
 from app.services.us_analysis_service import get_us_analysis
 from app.services.us_market_service import get_us_market_status, get_us_universe
+from app.services.us_watch_signal_service import get_us_watch_signals
 
 router = APIRouter()
 
@@ -29,3 +30,9 @@ def us_status() -> dict:
 def us_analysis() -> list[dict]:
     """美股基本技術狀態（MA/RSI/漲跌幅/距均線/新鮮度 + 描述性狀態）。非買賣建議。"""
     return get_us_analysis()
+
+
+@router.get("/markets/us/signals")
+def us_signals() -> dict:
+    """美股觀察訊號（含 SPY/QQQ 大盤基準）。**非推薦、非買賣建議、非下單。**"""
+    return get_us_watch_signals()
