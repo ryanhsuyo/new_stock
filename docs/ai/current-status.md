@@ -5,7 +5,7 @@
 
 ## Current Phase
 
-**US Market — Phase 2（美股基本技術狀態）完成**（本階段程式待 commit）。從 `ohlcv_us.csv` 算 MA20/MA60/RSI14/20日漲跌幅/距均線/新鮮度，產生描述性狀態（trend_up / pullback_watch / overheated / weak_or_no_data），`/api/markets/us/analysis` + 前端呈現。**非策略、非買賣建議、無下單；台股主流程零改動。** Phase 1（Stooq 資料源 + 基本清單，主源 Stooq 免 key、Finnhub optional）已完成。
+**US Market — Phase 2（美股基本技術狀態）完成**（本階段程式待 commit）。從 `ohlcv_us.csv` 算 MA20/MA60/RSI14/20日漲跌幅/距均線/新鮮度，產生描述性狀態（trend_up / pullback_watch / overheated / weak_or_no_data），`/api/markets/us/analysis` + 前端呈現。**非策略、非買賣建議、無下單；台股主流程零改動。** Phase 1（資料源 + 基本清單）已完成；**資料源主源改為 Yahoo Finance（免 key、非官方）**——Stooq 因改需瀏覽器 JS 驗證而停用，Finnhub 保留 optional。
 
 後端資料流與兩策略推薦桶穩定（見 `backend/docs/status_overview.md`）；前端 dashboard usability 已收尾。
 
@@ -24,7 +24,7 @@
   - 前端 market toggle 預留 —— header 右上「台股 / 美股·即將推出」，US disabled、不接任何資料流。
   - 未把 old_wang / steady_momentum 套到美股。
 - US Market Phase 1 資料流（本階段，程式待 commit）：
-  - **主源 `StooqPriceSource`（免 key）**：抓歷史日 OHLCV CSV，`.us` 後綴、限流/no-data/非預期格式處理；HTTP 走 stdlib `urllib`（**未加依賴**），SSL context 與 TWSE backfill 一致（certifi）。
+  - **主源 `YahooFinancePriceSource`（免 key、非官方）**：抓 `/v8/finance/chart/{ticker}` JSON → 轉 OHLCV；HTTP 走 stdlib `urllib`（**未加依賴**），SSL context 與 TWSE backfill 一致（certifi）。**Stooq 已停用**（需瀏覽器 JS 驗證，`is_available()=False`）。
   - **`FinnhubPriceSource` = optional**（讀 `FINNHUB_API_KEY`，不進 git，缺 key 明確錯誤），**不在 US registry**。
   - US universe：`backend/data/us_leaders.json`（AAPL/MSFT/NVDA/TSLA/SPY/QQQ，region=US）。
   - US backfill：`backend/scripts/backfill_ohlcv_us.py`（source-agnostic，走 `get_price_source("US")`）→ 寫**獨立** `ohlcv_us.csv`（**不動台股 ohlcv.csv**）。
@@ -57,20 +57,20 @@
 - US scaffold：`TwsePriceSource.fetch_ohlcv()` **刻意丟 `PriceSourceError`**（seam，不接管台股抓取），`test_markets_scaffold.py` 對此有斷言。要讓 TW adapter 真的接管抓取是**有意識的下一步**，屆時需同步更新該測試——不是 bug，別「順手修掉」。
 - 美股 OHLCV 寫**獨立** `ohlcv_us.csv`、US universe 用**獨立** `us_leaders.json`；**不要把美股資料混進台股 `ohlcv.csv` / `leaders.json`**（會回歸台股流程）。
 - 美股 Phase 1 **不做策略 / 訊號 / 推薦 / 下單**；別把 old_wang / steady_momentum 套到美股。
-- US Phase 1 主源 = **Stooq（免 key）**；registry `US` → `StooqPriceSource`。**Finnhub 保留為 optional、不在 registry**，別在沒需求時把它切回主源。
-- Stooq 為非正式來源、無 SLA：backfill 需節流、少量 ticker；被限流 / 非預期格式要優雅降級（已有錯誤型別），別移除。
+- US 主源 = **Yahoo Finance（免 key、非官方）**；registry `US` → `YahooFinancePriceSource`。**Stooq 已停用**（需瀏覽器 JS 驗證，**不要嘗試繞過**）；**Finnhub 保留 optional、不在 registry**。
+- Yahoo 為**非官方 endpoint、無 SLA**：backfill 需節流、少量 ticker；被限流 / 錯誤要優雅降級（已有錯誤型別），別移除。
 - 美股 Phase 2 的 `status`（trend_up / pullback_watch / overheated / weak_or_no_data）是**描述性技術狀態、非買賣建議**；`us_analysis_service` 自帶輕量指標、**不耦合 signals_service、不套兩策略**。別把它升級成推薦桶或加買賣訊號（除非明確要求）。
 
 ## Latest Verified State
 
-- **Verified at: 2026-07-10**，commit `3633ad0` 之後的 US Phase 1+2 工作樹（**尚未 commit**）。
-- What was verified: `cd backend && python3.11 -m pytest -q` → **837 passed**（Phase 2：指標數學、四種狀態分類、fixture 端到端、endpoint schema）；`cd frontend && npm run build` → 成功；用 **fixture `ohlcv_us.csv`**（AAPL 65 列）實測 `/api/markets/us/analysis` 算出 MA20/MA60/RSI/漲跌幅並歸類 overheated，前端顯示指標 + 狀態 badge；無資料 ticker 顯示「弱勢/資料不足」；台股主流程不受影響、無 console error。**fixture 已刪除**（gitignored，未入 repo）。
-- **未實測真實 Stooq 抓取**：本 sandbox 對外走自簽憑證代理（`CERTIFICATE_VERIFY_FAILED`），backfill 無法連外。正常對外網路（同 TWSE backfill 環境）即可抓取。
-- 更早基準：`0a8adb0` / `3633ad0`（Stooq 方向）、`dd88e22`（Finnhub 版 Phase 1）、`6ed907a`（骨架）。
+- **Verified at: 2026-07-10**，commit `52a0dfc` 之後的工作樹（資料源改 Yahoo；**尚未 commit**）。
+- What was verified: `cd backend && python3.11 -m pytest -q` → **838 passed**（Yahoo JSON 解析 / null 跳過 / error、Stooq 已停用、Finnhub 缺 key、Phase 2 指標與狀態、fixture 端到端）；`cd frontend && npm run build` → 成功；`/api/markets/us/status` 回 `source_label=Yahoo Finance…`、`source_configured=true`。前端 fixture 實測（AAPL 過熱 badge）在上一輪已驗，本輪前端未改。
+- **未實測真實 Yahoo 抓取**：本 sandbox 對外走自簽憑證代理（`CERTIFICATE_VERIFY_FAILED`），Yahoo/Stooq/TWSE 皆無法連外；Yahoo 解析全用 mock 驗證。正常對外網路（同 TWSE backfill 環境）即可抓取。
+- 更早基準：`bd5f4f0`/`52a0dfc`（Phase 2）、`0a8adb0`/`3633ad0`（Stooq 方向，已被 Yahoo 取代）、`6ed907a`（骨架）。
 
 ## Next Recommended Task
 
-- **US Phase 1+2 尚未 commit** —— 驗收全綠後先 local commit（不 push）。
-- 使用者本機（真實 Stooq）後續驗收：`cd backend && python3 scripts/backfill_ohlcv_us.py --months 1`（免 key）→ 確認 `ohlcv_us.csv` 產生、`/api/markets/us/status` `tickers_with_data>0`、前端美股頁顯示真實收盤價 / 資料日 / 指標 / 狀態。
+- **本輪（Yahoo 資料源）尚未 commit** —— 驗收全綠後先 local commit（不 push）。
+- 使用者本機（真實 Yahoo）後續驗收：`cd backend && python3 scripts/backfill_ohlcv_us.py --months 12`（免 key）→ 確認 `ohlcv_us.csv` 產生、六檔筆數 > 60、`/api/markets/us/status` `tickers_with_data>0`、`/api/markets/us/analysis` 有 MA20/MA60/RSI/狀態、前端顯示真實資料 + badge。
 - US 後續候選（未做）：交易日曆 / 時區分 region、US universe 擴充、Finnhub optional（quote / 即時 / 基本面）。**仍不做美股推薦策略 / 下單。**
 - 與美股無關：把 `connectionLost` 連線偵測抽成共用 hook（單例探測，避免多頁各起 interval）。

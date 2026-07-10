@@ -12,6 +12,26 @@
 
 ---
 
+## 2026-07-10 — US 資料源改用 Yahoo Finance（Stooq 停用）
+
+- **Date:** 2026-07-10
+- **Task:** 使用者本機實測發現 Stooq 已改為需瀏覽器 JS 驗證（回 HTML「requires JavaScript to verify your browser」，非 CSV）。改資料源方向：Stooq 停用、改用 Yahoo Finance chart endpoint 為 US 主源。
+- **Goal:** 免 key 就能抓真實美股歷史日 OHLCV；不繞過 Stooq 驗證；不改台股、不做策略。
+- **Completed:**
+  - `YahooFinancePriceSource`（新 US 主源，免 key）：`GET /v8/finance/chart/{ticker}?interval=1d&period1&period2` → 解析 timestamp + indicators.quote → 既有 OHLCV；缺值列跳過；429/HTTP/JSON/error 處理。registry `US` → Yahoo。
+  - `StooqPriceSource` **停用**：`is_available()=False`、`fetch_ohlcv` 丟 `PriceSourceUnavailable`（不繞過 JS 驗證）；保留類別供參考。
+  - `backfill_ohlcv_us.py` 仍 source-agnostic（`get_price_source("US")`），無邏輯改動、文案更新。
+  - 測試：移除 Stooq 解析測試，改測「Stooq 已停用」；新增 Yahoo JSON 解析 / null 跳過 / 空結果 / error mock；status 測試改 Yahoo label。
+  - docs（roadmap / current-status / handoff-log / validation / api.md）改標主源 = Yahoo、Stooq 停用、Finnhub optional。
+- **Changed Files:** `backend/app/services/price_source.py`、`backend/scripts/backfill_ohlcv_us.py`、`backend/tests/test_markets_scaffold.py`、`backend/tests/test_us_market.py`、`backend/docs/api.md`；docs（roadmap / current-status / handoff-log / validation）。**前端未改**（source-agnostic，讀 `source_label`）。
+- **Validation:** `python3.11 -m pytest -q` → **838 passed**；`npm run build` → 成功；`/api/markets/us/status` → `source_label=Yahoo Finance…`。**未實測真實 Yahoo 抓取**（sandbox 自簽憑證代理阻擋 HTTPS，Yahoo 解析全用 mock）。
+- **Git Status:** feat + docs 待 commit（HEAD `52a0dfc`）。
+- **Commit:** 見完成回報。**未 push。**
+- **Next Steps:** 使用者本機 `backfill_ohlcv_us.py --months 12`（免 key）實測真實 Yahoo 資料。
+- **Notes / Warnings:** Yahoo 為**非官方 endpoint**、無 SLA、可能變動 / 被限流；**不要繞過 Stooq JS 驗證**；資料仍只寫 `ohlcv_us.csv`。
+
+---
+
 ## 2026-07-10 — US Phase 2：美股基本技術狀態（非策略、非買賣建議）
 
 - **Date:** 2026-07-10

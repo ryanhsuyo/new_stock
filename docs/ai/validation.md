@@ -55,16 +55,16 @@
 
 ### 美股（US Market）驗收 —— 分兩層
 
-- **資料源方向**：主源 = **Stooq（免 API key）**；Finnhub = future optional（`FINNHUB_API_KEY`，不進 git）。
+- **資料源方向**：主源 = **Yahoo Finance chart endpoint（免 API key、非官方、best-effort）**；**Stooq 已停用**（需瀏覽器 JS 驗證）；Finnhub = future optional（`FINNHUB_API_KEY`，不進 git）。
 
-**A. AI 可自行驗收（不需真實 Stooq）：**
-- `python3.11 -m pytest -q` 全綠：`test_us_market.py`（Stooq 解析 / 限流 / no-data、Finnhub 缺 key）、`test_us_analysis.py`（指標數學、四種狀態分類、**fixture `ohlcv_us.csv` 端到端**、`/markets/us/analysis` schema）。
+**A. AI 可自行驗收（不需真實對外網路）：**
+- `python3.11 -m pytest -q` 全綠：`test_us_market.py`（Yahoo JSON 解析 / null 跳過 / error、Stooq 已停用、Finnhub 缺 key）、`test_us_analysis.py`（指標數學、四種狀態分類、**fixture `ohlcv_us.csv` 端到端**、`/markets/us/analysis` schema）。
 - `npm run build` 成功。
 - API 在**無資料**時：`/markets/us/analysis` 回 `weak_or_no_data` + 指標 null；用 **fixture** 時算出 MA/RSI/漲跌幅並歸類狀態。
 - 前端：缺資料誠實顯示；有資料顯示指標 + 狀態 badge。**驗收用 fixture 後務必刪除 `backend/data/ohlcv_us.csv`（gitignored），以免污染真實回補。**
 
-**B. 需使用者本機（真實 Stooq）後續驗收：**
-- `cd backend && python3 scripts/backfill_ohlcv_us.py --months 1`（**免 key**）；需**正常對外網路**（自簽憑證代理環境會 `CERTIFICATE_VERIFY_FAILED`，backfill 會優雅 skip）。
+**B. 需使用者本機（真實 Yahoo）後續驗收：**
+- `cd backend && python3 scripts/backfill_ohlcv_us.py --months 12`（**免 key**）；需**正常對外網路**（自簽憑證代理環境會 `CERTIFICATE_VERIFY_FAILED`，backfill 會優雅 skip）。
 - `backend/data/ohlcv_us.csv` 實際產生（只寫此檔，**不動台股 `ohlcv.csv`**）。
 - `/api/markets/us/status` 顯示 `tickers_with_data > 0`。
 - 前端美股頁顯示**真實**收盤價 / 資料日 / 指標 / 狀態。
