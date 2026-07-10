@@ -12,7 +12,7 @@
 
 > 現在正在做 / 即將做的（對應 `current-status.md` 的 Current Phase）。
 
-- **US Market — Phase 2：美股基本技術狀態**（見下方 Phase 規格）。從 `ohlcv_us.csv` 算 MA/RSI/漲跌幅/距均線/新鮮度，產生描述性狀態（trend_up / pullback_watch / overheated / weak_or_no_data）並在前端呈現。**非策略、非買賣建議、無下單、不改台股主流程。** Phase 1（資料源 + 基本清單）已完成；資料源主源為 **Yahoo Finance（免 key、非官方）**，Stooq 已停用、Finnhub optional。
+- **US Market — Phase 3：美股觀察訊號**（見下方 Phase 規格）。在 Phase 2 指標上產生描述性觀察訊號（watch_breakout / watch_pullback / trend_up / overheated / avoid_weak），用 SPY/QQQ 當大盤基準調整觀察優先度。**非推薦、非買賣建議、無下單、不套台股策略、不改台股主流程。** Phase 1（Yahoo 免 key 資料源 + 清單）、Phase 2（基本技術狀態）、資料新鮮度皆已完成。
 
 ## Next
 
@@ -106,6 +106,28 @@ AI 已驗收：
 - [ ] 真正連 Yahoo 回補，`ohlcv_us.csv` 實際產生。
 - [ ] `/api/markets/us/status` 顯示 `tickers_with_data > 0`。
 - [ ] 前端美股頁顯示**真實**收盤價 / 資料日 / 指標 / 狀態。
+
+### US Market — Phase 3：美股觀察訊號
+
+**Purpose**
+在美股基本技術狀態之上，產生**描述性觀察訊號**與觀察優先度，逐步接近台股「可解釋的觀察」程度；**但不做正式推薦、不做買賣建議、不下單**。
+
+**Scope**
+- 包含：
+  - `us_watch_signal_service`：複用 Phase 2 指標，產生 `watch_breakout` / `watch_pullback` / `trend_up` / `overheated` / `avoid_weak`，每筆帶 reasons / risk_notes / priority / data_as_of。
+  - **SPY / QQQ 大盤基準**：兩者相對 MA60 → `market_bias`（bullish/bearish/mixed/unknown）；偏弱時降低個股觀察 priority。
+  - `GET /api/markets/us/signals` + 前端美股頁「觀察訊號」區塊。
+- **不包含（out of scope）**：
+  - 正式推薦 / 買賣建議 / 進出場價 / 下單。
+  - 套用台股 old_wang / steady_momentum 或任何台股推薦桶。
+  - 改動台股主流程、擴充 universe。
+
+**Acceptance Criteria**
+- [x] `python3.11 -m pytest -q` 全綠（規則五種訊號、SPY/QQQ 基準、fixture 端到端、no-data 誠實、endpoint schema）。
+- [x] `npm run build` 成功。
+- [x] `/api/markets/us/signals` 回 6 檔觀察訊號 + market_bias；`ohlcv_us.csv` 不存在 → 全 avoid_weak / market_bias=unknown（誠實）。
+- [x] 前端美股頁顯示觀察訊號區塊（訊號 badge / priority / reasons / risk）。實測（真實資料）：大盤 bullish、AAPL/SPY watch_breakout、MSFT/NVDA avoid_weak。
+- [x] 未做買賣建議 / 下單 / 推薦；未套台股策略；未改台股；未擴 universe。
 
 
 ### Phase 1: 資料更新穩定化

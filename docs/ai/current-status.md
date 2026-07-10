@@ -5,7 +5,7 @@
 
 ## Current Phase
 
-**US Market — Phase 2（美股基本技術狀態）完成**（本階段程式待 commit）。從 `ohlcv_us.csv` 算 MA20/MA60/RSI14/20日漲跌幅/距均線/新鮮度，產生描述性狀態（trend_up / pullback_watch / overheated / weak_or_no_data），`/api/markets/us/analysis` + 前端呈現。**非策略、非買賣建議、無下單；台股主流程零改動。** Phase 1（資料源 + 基本清單）已完成；**資料源主源改為 Yahoo Finance（免 key、非官方）**——Stooq 因改需瀏覽器 JS 驗證而停用，Finnhub 保留 optional。
+**US Market — Phase 3（美股觀察訊號）完成**（本階段程式待 commit）。在 Phase 2 指標上產生描述性觀察訊號（watch_breakout / watch_pullback / trend_up / overheated / avoid_weak），用 SPY/QQQ 當大盤基準調整觀察 priority，`/api/markets/us/signals` + 前端「觀察訊號」區塊。**非推薦、非買賣建議、無下單、不套台股策略；台股主流程零改動。** Phase 1（Yahoo 免 key 資料源 + 清單）、Phase 2（基本技術狀態）、資料新鮮度皆已完成。
 
 後端資料流與兩策略推薦桶穩定（見 `backend/docs/status_overview.md`）；前端 dashboard usability 已收尾。
 
@@ -59,6 +59,7 @@
 - 美股 Phase 1 **不做策略 / 訊號 / 推薦 / 下單**；別把 old_wang / steady_momentum 套到美股。
 - US 主源 = **Yahoo Finance（免 key、非官方）**；registry `US` → `YahooFinancePriceSource`。**Stooq 已停用**（需瀏覽器 JS 驗證，**不要嘗試繞過**）；**Finnhub 保留 optional、不在 registry**。
 - Yahoo 為**非官方 endpoint、無 SLA**：backfill 需節流、少量 ticker；被限流 / 錯誤要優雅降級（已有錯誤型別），別移除。
+- 美股 `us_watch_signal_service` 的 `signal`（watch_breakout 等）與 `priority` 是**觀察用描述性訊號 / 排序**，**非推薦、非買賣建議、非下單、非台股推薦桶**；`us_analysis`/`us_watch` 自帶輕量指標，**不耦合 signals_service、不套 old_wang / steady_momentum**。別把它升級成推薦或加買賣訊號（除非明確要求）。
 - 美股 Phase 2 的 `status`（trend_up / pullback_watch / overheated / weak_or_no_data）是**描述性技術狀態、非買賣建議**；`us_analysis_service` 自帶輕量指標、**不耦合 signals_service、不套兩策略**。別把它升級成推薦桶或加買賣訊號（除非明確要求）。
 
 ## Latest Verified State
@@ -66,12 +67,14 @@
 - **Verified at: 2026-07-10**，Yahoo 資料源 + Phase 2 已 commit（`7c9fe4d` / `cd933ff`）。
 - **真實 Yahoo 端到端已驗證通過**（AI 直接跑，非 mock）：`python3.11 scripts/backfill_ohlcv_us.py --months 12` 成功 → 六檔 AAPL/MSFT/NVDA/TSLA/SPY/QQQ **各 255 rows、total 1530**，`ohlcv_us.csv` 產生（本機資料、gitignored、未 commit），`last_data_as_of=2026-07-09`。`/api/markets/us/status` `tickers_with_data=6`；`/api/markets/us/analysis` 六檔皆有 MA20/MA60/RSI/status（3 檔 trend_up、3 檔 weak_or_no_data）；前端美股頁顯示真實收盤/資料日/指標/狀態 badge，「資料尚未更新」橫幅消失、無 console error。
 - **US 資料新鮮度（最小收尾切片，本輪，待 commit）**：`/api/markets/us/status` 加 `expected_trading_day` / `days_since_last`（交易日）/ `is_stale`（weekend-aware、容忍 1 個交易日、**不含 NYSE 假日**，複用既有 trading_calendar 函式並傳空 calendar）；前端美股頁顯示「資料日 X（N 個交易日前）」，stale 時琥珀提示重跑 backfill。
-- 測試 / build：`python3.11 -m pytest -q` → **843 passed**（+5 新鮮度測試）；`npm run build` → 成功；實測 status `days_since_last=1`、`is_stale=false`。
+- **US Phase 3 觀察訊號（本輪，待 commit）**：`us_watch_signal_service`（複用 Phase 2 指標）產生五種觀察訊號 + reasons/risk_notes/priority；SPY/QQQ 大盤基準（market_bias）調整 priority；`GET /api/markets/us/signals` + 前端「觀察訊號」區塊。**非推薦 / 非買賣 / 無下單 / 未套台股策略。**
+- 測試 / build：`python3.11 -m pytest -q` → **857 passed**（+14 觀察訊號測試）；`npm run build` → 成功；實測 signals（真實資料）：market_bias=bullish、AAPL/SPY watch_breakout(prio 80)、QQQ/TSLA trend_up、MSFT/NVDA avoid_weak；前端「觀察訊號」區塊顯示 badge/priority/reasons/risk、無 console error。
 - **執行注意**：US backfill 需以 **`python3.11`** 執行（本機 `python3`=3.9，無法 import 後端：缺依賴 + `X | None` 語法需 3.10+）。
-- 更早基準：`bd5f4f0`/`52a0dfc`（Phase 2）、`6ed907a`（骨架）。
+- 更早基準：`8d20c12`（新鮮度）、`7c9fe4d`/`cd933ff`（Yahoo）、`bd5f4f0`/`52a0dfc`（Phase 2）。
 
 ## Next Recommended Task
 
-- 真實 Yahoo 驗收 + 資料新鮮度已完成；US Phase 1+2 資料流可用。
-- US 後續候選（未做）：完整 NYSE 假日曆 / 自動排程 US backfill、US universe 擴充、Finnhub optional（quote / 即時 / 基本面）。**仍不做美股推薦策略 / 下單。**
+- US Phase 1/2/3 + 新鮮度完成；美股頁已有清單 / 技術狀態 / 觀察訊號（皆描述性）。
+- US 後續候選（未做）：完整 NYSE 假日曆 / 自動排程 US backfill、US universe 擴充、Finnhub optional。**逐步接近台股「可解釋觀察」程度，但仍不做美股正式推薦 / 買賣建議 / 下單。**
+- 與美股無關：把 `connectionLost` 連線偵測抽成共用 hook（單例探測，避免多頁各起 interval）。
 - 與美股無關：把 `connectionLost` 連線偵測抽成共用 hook（單例探測，避免多頁各起 interval）。

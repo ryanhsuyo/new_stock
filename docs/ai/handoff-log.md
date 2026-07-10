@@ -12,6 +12,25 @@
 
 ---
 
+## 2026-07-10 — US Phase 3：美股觀察訊號（非推薦、非買賣建議）
+
+- **Date:** 2026-07-10
+- **Task:** 在 Phase 2 指標上做美股觀察訊號（描述性）+ SPY/QQQ 大盤基準，逐步接近台股「可解釋觀察」程度；不做推薦 / 買賣 / 下單 / 不套台股策略。
+- **Goal:** 美股頁能看「觀察訊號 + 理由 + 風險 + 優先度」，但明確非推薦。
+- **Completed:**
+  - `us_watch_signal_service`：`derive_watch_signal`（純函式，五種訊號：watch_breakout / watch_pullback / trend_up / overheated / avoid_weak）+ `_market_context`（SPY/QQQ 相對 MA60 → market_bias）。複用 Phase 2 指標、自帶 20 日高，**不耦合 signals_service、不套台股策略**。
+  - `GET /api/markets/us/signals`：回 `market_bias` / `market_note` / `benchmarks` / `signals[]`（code/name/close/status/signal/reasons/risk_notes/priority/data_as_of，依 priority 排序）；無資料 → 全 avoid_weak / market_bias=unknown。
+  - 前端 `UsMarketPage` 新增「觀察訊號」區塊（訊號 badge + priority + reasons + risk）。
+  - 測試 `test_us_watch_signals.py`：五種訊號規則、大盤基準、fixture 端到端、no-data 誠實、endpoint schema。
+- **Changed Files:** 新增 `backend/app/services/us_watch_signal_service.py`、`backend/tests/test_us_watch_signals.py`；修改 `backend/app/routers/markets.py`、`backend/docs/api.md`、`frontend/src/pages/UsMarketPage.tsx`、`frontend/src/App.css`、`frontend/src/types/index.ts`、`frontend/src/api/client.ts`；docs（roadmap / current-status / handoff-log / validation）。
+- **Validation:** `python3.11 -m pytest -q` → **857 passed**（+14）；`npm run build` → 成功；實測（真實資料）`/markets/us/signals`：market_bias=bullish、AAPL/SPY watch_breakout(prio 80)、QQQ/TSLA trend_up、MSFT/NVDA avoid_weak；前端「觀察訊號」區塊顯示正常、無 console error。
+- **Git Status:** feat + docs 待 commit。
+- **Commit:** 見完成回報。**未 push。**
+- **Next Steps:** 逐步接近台股：完整 NYSE 假日曆 / 自動排程 US backfill、universe 擴充、Finnhub optional。**仍不做美股正式推薦 / 買賣 / 下單。**
+- **Notes / Warnings:** `signal` / `priority` 為觀察用、**非推薦、非買賣、非下單**；別升級成推薦桶或加買賣訊號。`ohlcv_us.csv` 本機真實資料、gitignored、不 commit。
+
+---
+
 ## 2026-07-10 — US 資料新鮮度（最小收尾切片）
 
 - **Date:** 2026-07-10

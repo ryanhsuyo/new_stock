@@ -58,7 +58,8 @@
 - **資料源方向**：主源 = **Yahoo Finance chart endpoint（免 API key、非官方、best-effort）**；**Stooq 已停用**（需瀏覽器 JS 驗證）；Finnhub = future optional（`FINNHUB_API_KEY`，不進 git）。
 
 **A. AI 可自行驗收（不需真實對外網路）：**
-- `python3.11 -m pytest -q` 全綠：`test_us_market.py`（Yahoo JSON 解析 / null 跳過 / error、Stooq 已停用、Finnhub 缺 key）、`test_us_analysis.py`（指標數學、四種狀態分類、**fixture `ohlcv_us.csv` 端到端**、`/markets/us/analysis` schema）。
+- `python3.11 -m pytest -q` 全綠：`test_us_market.py`（Yahoo 解析 / Stooq 停用 / Finnhub 缺 key / 資料新鮮度）、`test_us_analysis.py`（指標數學、四種狀態、fixture 端到端）、`test_us_watch_signals.py`（五種觀察訊號、SPY/QQQ 大盤基準、fixture 端到端、no-data 誠實、`/markets/us/signals` schema）。
+- US 觀察訊號：`/markets/us/signals` 用 **fixture `ohlcv_us.csv`** 或真實資料回 6 檔 + `market_bias`；`ohlcv_us.csv` 不存在 → 全 `avoid_weak` / `market_bias=unknown`（誠實）。**非推薦、非買賣、非下單。**
 - `npm run build` 成功。
 - API 在**無資料**時：`/markets/us/analysis` 回 `weak_or_no_data` + 指標 null；用 **fixture** 時算出 MA/RSI/漲跌幅並歸類狀態。
 - 前端：缺資料誠實顯示；有資料顯示指標 + 狀態 badge。**驗收用 fixture 後務必刪除 `backend/data/ohlcv_us.csv`（gitignored），以免污染真實回補。**
