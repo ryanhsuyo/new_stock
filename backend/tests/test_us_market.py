@@ -12,9 +12,11 @@ from app.main import app
 from app.services import us_market_service
 from app.services.price_source import (
     FinnhubPriceSource,
+    PriceSourceError,
     PriceSourceRateLimited,
     PriceSourceUnavailable,
     StooqPriceSource,
+    YahooFinancePriceSource,
 )
 from app.storage import us_market_store
 
@@ -74,57 +76,72 @@ def test_rate_limited_type_exists():
     assert issubclass(PriceSourceRateLimited, Exception)
 
 
-# ── Stooq 來源（US Phase 1 主源，免 key；mock _http_get_text）─────────────────
+# ── Stooq：已停用（需瀏覽器 JS 驗證）─────────────────────────────────────────
 
-_STOOQ_CSV = (
-    "Date,Open,High,Low,Close,Volume\n"
-    "2026-07-08,185.00,187.50,184.20,186.10,52000000\n"
-    "2026-07-09,186.20,188.00,185.50,187.40,48000000\n"
-)
-
-
-def test_stooq_available_without_key():
+def test_stooq_now_unavailable():
     src = StooqPriceSource()
+    assert src.region == "US"
+    assert src.is_available() is False
+    with pytest.raises(PriceSourceUnavailable):
+        src.fetch_ohlcv("AAPL")
+
+
+# ── Yahoo Finance（US 主源，免 key；mock _get_json）──────────────────────────
+
+def _yahoo_chart(ts, o, h, l, c, v):
+    return {"chart": {"error": None, "result": [{
+        "timestamp": ts,
+        "indicators": {"quote": [{"open": o, "high": h, "low": l, "close": c, "volume": v}]},
+    }]}}
+
+
+def test_yahoo_available_without_key():
+    src = YahooFinancePriceSource()
     assert src.region == "US"
     assert src.is_available() is True
 
 
-def test_stooq_fetch_ohlcv_parses_and_uses_us_suffix(monkeypatch):
-    src = StooqPriceSource()
+def test_yahoo_fetch_ohlcv_parses_and_uses_plain_ticker(monkeypatch):
+    src = YahooFinancePriceSource()
     seen = {}
 
     def fake_get(url):
         seen["url"] = url
-        return _STOOQ_CSV
+        return _yahoo_chart(
+            [1_700_000_000, 1_700_086_400],
+            [10.0, 11.0], [12.0, 13.0], [9.0, 10.5], [11.0, 12.5], [1000, 2000],
+        )
 
-    monkeypatch.setattr(src, "_http_get_text", fake_get)
+    monkeypatch.setattr(src, "_get_json", fake_get)
     rows = src.fetch_ohlcv("AAPL", months=1)
-    assert "s=aapl.us" in seen["url"] and "i=d" in seen["url"]
+    assert "/chart/AAPL?" in seen["url"] and "interval=1d" in seen["url"]
     assert len(rows) == 2
-    assert rows[0]["code"] == "AAPL" and rows[0]["date"] == "2026-07-08"
-    assert rows[1]["close"] == 187.4 and rows[1]["volume"] == 48000000
+    assert rows[0]["code"] == "AAPL"
+    assert rows[1]["close"] == 12.5 and rows[1]["volume"] == 2000
     assert set(rows[0]) == {"date", "code", "open", "high", "low", "close", "volume"}
 
 
-def test_stooq_no_data_returns_empty(monkeypatch):
-    src = StooqPriceSource()
-    monkeypatch.setattr(src, "_http_get_text", lambda url: "No data")
-    assert src.fetch_ohlcv("ZZZZ") == []
-
-
-def test_stooq_rate_limit_detected(monkeypatch):
-    src = StooqPriceSource()
-    monkeypatch.setattr(src, "_http_get_text", lambda url: "Exceeded the daily hits limit")
-    with pytest.raises(PriceSourceRateLimited):
-        src.fetch_ohlcv("AAPL")
-
-
-def test_stooq_skips_bad_value_rows(monkeypatch):
-    src = StooqPriceSource()
-    csv = "Date,Open,High,Low,Close,Volume\n2026-07-08,N/D,N/D,N/D,N/D,N/D\n2026-07-09,1,2,0.5,1.5,10\n"
-    monkeypatch.setattr(src, "_http_get_text", lambda url: csv)
+def test_yahoo_skips_null_close_rows(monkeypatch):
+    src = YahooFinancePriceSource()
+    monkeypatch.setattr(src, "_get_json", lambda url: _yahoo_chart(
+        [1_700_000_000, 1_700_086_400],
+        [10.0, 11.0], [12.0, 13.0], [9.0, 10.5], [None, 12.5], [1000, 2000],
+    ))
     rows = src.fetch_ohlcv("AAPL")
-    assert len(rows) == 1 and rows[0]["date"] == "2026-07-09"
+    assert len(rows) == 1 and rows[0]["close"] == 12.5
+
+
+def test_yahoo_empty_result_returns_empty(monkeypatch):
+    src = YahooFinancePriceSource()
+    monkeypatch.setattr(src, "_get_json", lambda url: {"chart": {"error": None, "result": []}})
+    assert src.fetch_ohlcv("AAPL") == []
+
+
+def test_yahoo_error_raises(monkeypatch):
+    src = YahooFinancePriceSource()
+    monkeypatch.setattr(src, "_get_json", lambda url: {"chart": {"error": {"code": "Not Found"}, "result": None}})
+    with pytest.raises(PriceSourceError):
+        src.fetch_ohlcv("ZZZZ")
 
 
 # ── us_market_store：合併去重 ─────────────────────────────────────────────────
@@ -156,13 +173,13 @@ def test_us_universe_all_us_region_and_no_data_when_no_csv(tmp_path, monkeypatch
         assert item["last_close"] is None
 
 
-def test_us_status_source_configured_true_via_stooq(tmp_path, monkeypatch):
-    # US Phase 1 主源 Stooq 免 key → source_configured 恆為 True
+def test_us_status_source_configured_true_via_yahoo(tmp_path, monkeypatch):
+    # US 主源 Yahoo 免 key → source_configured 恆為 True
     monkeypatch.setattr(us_market_store, "OHLCV_US_PATH", tmp_path / "missing.csv")
     status = us_market_service.get_us_market_status()
     assert status["region"] == "US"
     assert status["source_configured"] is True
-    assert status["source_label"] == "Stooq（美股）"
+    assert status["source_label"] == "Yahoo Finance（美股，非官方、免 key）"
     assert status["tickers_with_data"] == 0
     assert status["universe_size"] >= 1
 

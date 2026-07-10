@@ -1215,7 +1215,7 @@ Dry-run 預覽還原，不寫入任何檔案。
 {
   "region": "US",
   "source_configured": true,
-  "source_label": "Stooq（美股）",
+  "source_label": "Yahoo Finance（美股，非官方、免 key）",
   "universe_size": 6,
   "tickers_with_data": 0,
   "last_data_as_of": null,
@@ -1223,9 +1223,8 @@ Dry-run 預覽還原，不寫入任何檔案。
 }
 ```
 
-- US Phase 1 主資料源為 **Stooq（免 API key）**，故 `source_configured` 恆為 `true`。
+- US 主資料源為 **Yahoo Finance chart endpoint（免 API key、非官方、best-effort）**，故 `source_configured` 恆為 `true`。**Stooq 已停用**（改為需瀏覽器 JS 驗證）；**Finnhub** 保留為 future optional（官方、需 key）。
 - `source_configured=false` → 前端顯示「美股資料源尚未就緒」；`true` 但 `tickers_with_data=0` → 顯示「美股資料尚未更新」（請先跑 `backfill_command`）。
-- `source_label` 反映目前 US 主源；Finnhub 為 future optional，需 key。
 
 ### `GET /api/markets/us/analysis`
 

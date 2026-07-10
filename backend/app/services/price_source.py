@@ -7,12 +7,12 @@ price_source.py — 各 region 的行情資料來源 adapter。
 - 台股 `TwsePriceSource`：資料由既有 `scripts/backfill_ohlcv_twse.py` 的 TWSE/TPEX
   流程產生；本 adapter 為 seam，**尚未接管抓取**（`fetch_ohlcv` 刻意丟錯），台股
   行為不變。`test_markets_scaffold.py` 對此有斷言，勿順手修掉。
-- 美股（US Phase 1 主資料源）`StooqPriceSource`：Stooq 免 API key，直接抓歷史日
-  OHLCV CSV（`is_available()=True`）。非正式來源、無 SLA，重度抓取可能被限流；只做
-  少量 ticker、EOD、節流的個人用途。
-- 美股 optional 來源 `FinnhubPriceSource`：接 Finnhub（免金鑰時 `is_available()=False`、
-  `fetch_ohlcv` 丟 `PriceSourceUnavailable`）。**目前不在 US registry**，保留供之後
-  接 quote / 即時 / 基本面時使用。註：Finnhub 免費層歷史 candle 已改付費（403）。
+- 美股（US Phase 1 主資料源）`YahooFinancePriceSource`：Yahoo Finance chart endpoint，
+  **免 API key、非官方、best-effort**（`is_available()=True`）。無 SLA、可能變動 / 被限流。
+- 美股 `StooqPriceSource`：**已停用**（Stooq 改為需瀏覽器 JS 驗證，回 HTML 而非 CSV；
+  `is_available()=False`）。**不繞過驗證**；保留類別供歷史 / fallback 參考。
+- 美股 optional `FinnhubPriceSource`：官方 API（免金鑰時 `is_available()=False`），
+  **不在 US registry**，保留供之後接 quote / 即時 / 基本面（免費層歷史 candle 需付費）。
 
 不新增第三方依賴：HTTP 一律走標準庫 `urllib`（與既有 backfill 一致）。
 """
@@ -209,83 +209,121 @@ def _int(seq, i) -> int:
         return 0
 
 
-# ── 美股 Phase 1 主資料源：Stooq（免 key）─────────────────────────────────────
-
-_STOOQ_BASE = "https://stooq.com/q/d/l/"
+# ── 美股：Stooq（已停用）─────────────────────────────────────────────────────
+# Stooq 已改為需瀏覽器 JS 驗證（回傳 "This site requires JavaScript to verify your
+# browser" 的 HTML，而非 CSV），不適合程式化抓取。**不繞過驗證**，直接標記 unavailable。
 
 
 class StooqPriceSource:
+    """Stooq：已停用（需瀏覽器 JS 驗證，無法程式化抓 CSV）。保留類別供歷史 / fallback 參考。"""
+
+    region = "US"
+    label = "Stooq（美股，已停用）"
+
+    def is_available(self) -> bool:
+        return False
+
+    def fetch_ohlcv(self, code: str, months: int = 12) -> list[dict]:
+        raise PriceSourceUnavailable(
+            "Stooq 已改為需瀏覽器 JS 驗證，不適合程式化抓取；US 主源已改用 Yahoo Finance。"
+        )
+
+
+# ── 美股 Phase 1 主資料源：Yahoo Finance chart（免 key、非官方、best-effort）─────
+
+_YAHOO_BASE = "https://query1.finance.yahoo.com/v8/finance/chart/"
+
+
+class YahooFinancePriceSource:
     """
-    Stooq 美股歷史日 OHLCV（免 API key）。
+    Yahoo Finance chart endpoint（美股，**免 API key、非官方、best-effort**）。
 
     - `is_available()=True`（無金鑰門檻）。
-    - `fetch_ohlcv`：GET CSV（`s=<ticker>.us&i=d`），回傳日 OHLCV。無資料 / 壞代碼回
-      []；偵測到達下載上限則丟 `PriceSourceRateLimited`；非預期格式（可能被擋）丟
-      `PriceSourceError`。
-    - 非正式來源、無 SLA：請節流、少量 ticker、EOD 個人用途。
+    - `fetch_ohlcv`：GET `/v8/finance/chart/{ticker}?interval=1d&period1&period2`，把
+      timestamp + indicators.quote 轉成既有 OHLCV 格式；缺值列（null）跳過。
+    - 非官方端點、無 SLA：可能變動或被限流；節流、少量 ticker、個人用途。
     """
 
     region = "US"
-    label = "Stooq（美股）"
+    label = "Yahoo Finance（美股，非官方、免 key）"
 
     def is_available(self) -> bool:
         return True
 
-    def _http_get_text(self, url: str) -> str:
-        req = urllib.request.Request(url, headers={"User-Agent": "new_stock-us-backfill/1.0"})
+    def _get_json(self, url: str) -> dict:
+        req = urllib.request.Request(
+            url, headers={"User-Agent": "Mozilla/5.0 (compatible; new_stock-us/1.0)"}
+        )
         try:
             with urllib.request.urlopen(req, timeout=_TIMEOUT, context=_SSL_CTX) as resp:
-                return resp.read().decode("utf-8", errors="replace")
+                return json.loads(resp.read().decode("utf-8"))
         except urllib.error.HTTPError as exc:
             if exc.code == 429:
-                raise PriceSourceRateLimited("Stooq 限流（429），請稍後再試。") from exc
-            raise PriceSourceError(f"Stooq HTTP {exc.code}。") from exc
+                raise PriceSourceRateLimited("Yahoo 限流（429），請稍後再試。") from exc
+            raise PriceSourceError(f"Yahoo HTTP {exc.code}。") from exc
         except (urllib.error.URLError, TimeoutError) as exc:
-            raise PriceSourceError(f"連線 Stooq 失敗：{exc}") from exc
+            raise PriceSourceError(f"連線 Yahoo 失敗：{exc}") from exc
+        except json.JSONDecodeError as exc:
+            raise PriceSourceError("Yahoo 回應非合法 JSON。") from exc
 
     def fetch_ohlcv(self, code: str, months: int = 12) -> list[dict]:
         symbol = code.strip().upper()
-        today = datetime.now(timezone.utc).date()
-        d1 = (today - timedelta(days=max(1, months) * 31)).strftime("%Y%m%d")
-        d2 = today.strftime("%Y%m%d")
-        url = f"{_STOOQ_BASE}?s={symbol.lower()}.us&i=d&d1={d1}&d2={d2}"
-        text = self._http_get_text(url)
-        low = text.lower()
-        if "exceed" in low and "limit" in low:
-            raise PriceSourceRateLimited("Stooq 已達下載上限，請稍後再試。")
-        return _parse_stooq_csv(text, symbol)
+        now = datetime.now(timezone.utc)
+        p1 = int((now - timedelta(days=max(1, months) * 31)).timestamp())
+        p2 = int(now.timestamp())
+        url = f"{_YAHOO_BASE}{symbol}?interval=1d&period1={p1}&period2={p2}"
+        data = self._get_json(url)
+        return _parse_yahoo_chart(data, symbol)
 
 
-def _parse_stooq_csv(text: str, code: str) -> list[dict]:
-    lines = [ln for ln in text.strip().splitlines() if ln.strip()]
-    if not lines or not lines[0].lower().startswith("date,"):
-        return []  # "No data" / 壞代碼 / 非 CSV
+def _parse_yahoo_chart(data: dict, code: str) -> list[dict]:
+    chart = (data or {}).get("chart") or {}
+    if chart.get("error"):
+        raise PriceSourceError(f"Yahoo 回傳錯誤：{chart['error']}")
+    results = chart.get("result") or []
+    if not results:
+        return []
+    res = results[0]
+    timestamps = res.get("timestamp") or []
+    quote = ((res.get("indicators") or {}).get("quote") or [{}])[0]
+    opens = quote.get("open") or []
+    highs = quote.get("high") or []
+    lows = quote.get("low") or []
+    closes = quote.get("close") or []
+    volumes = quote.get("volume") or []
+
     rows: list[dict] = []
-    for line in lines[1:]:
-        parts = line.split(",")
-        if len(parts) < 6 or not parts[0] or parts[0][0].isalpha():
+    for i, ts in enumerate(timestamps):
+        close = _at(closes, i)
+        if close is None:            # 缺這天資料（停牌 / null）→ 跳過
             continue
-        try:
-            rows.append({
-                "date":   parts[0],
-                "code":   code,
-                "open":   float(parts[1]),
-                "high":   float(parts[2]),
-                "low":    float(parts[3]),
-                "close":  float(parts[4]),
-                "volume": int(float(parts[5])),
-            })
-        except ValueError:
-            continue  # 例如 "N/D" 缺值列
+        rows.append({
+            "date":   datetime.fromtimestamp(ts, tz=timezone.utc).date().isoformat(),
+            "code":   code,
+            "open":   _at(opens, i) if _at(opens, i) is not None else close,
+            "high":   _at(highs, i) if _at(highs, i) is not None else close,
+            "low":    _at(lows, i) if _at(lows, i) is not None else close,
+            "close":  close,
+            "volume": int(_at(volumes, i) or 0),
+        })
     return rows
 
 
+def _at(seq, i) -> float | None:
+    try:
+        v = seq[i]
+        return float(v) if v is not None else None
+    except (IndexError, TypeError, ValueError):
+        return None
+
+
 # ── registry ─────────────────────────────────────────────────────────────────
-# US Phase 1 主資料源 = Stooq（免 key）。Finnhub 保留為 future optional，不在此註冊。
+# US 主資料源 = Yahoo Finance（免 key、非官方、best-effort）。
+# Stooq 已停用（需瀏覽器 JS 驗證）。Finnhub 保留為 future optional（官方、需 key），皆不註冊為 US 主源。
 
 _REGISTRY: dict[str, PriceSource] = {
     "TW": TwsePriceSource(),
-    "US": StooqPriceSource(),
+    "US": YahooFinancePriceSource(),
 }
 
 

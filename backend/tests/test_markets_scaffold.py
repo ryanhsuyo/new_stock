@@ -42,15 +42,15 @@ def test_tw_source_available_but_not_taking_over_fetch():
         tw.fetch_ohlcv("2330")
 
 
-def test_us_source_is_stooq_and_available_without_key():
-    # US Phase 1 主源為 Stooq，免 API key
+def test_us_source_is_yahoo_and_available_without_key():
+    # US 主源為 Yahoo Finance（免 API key）；Stooq 已停用
     us = price_source.get_price_source("US")
     assert us.region == "US"
     assert us.is_available() is True
-    assert isinstance(us, price_source.StooqPriceSource)
+    assert isinstance(us, price_source.YahooFinancePriceSource)
 
 
-def test_available_regions_include_us_via_stooq():
+def test_available_regions_include_us_via_yahoo():
     assert price_source.available_regions() == ["TW", "US"]
 
 
