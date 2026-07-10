@@ -1162,8 +1162,18 @@ export interface UsMarketStatus {
   backfill_command?: string
 }
 
-/** Phase 2：美股基本技術狀態（描述性，非買賣建議） */
-export type UsTechStatus = 'trend_up' | 'pullback_watch' | 'overheated' | 'weak_or_no_data'
+/**
+ * Phase 2：美股基本技術狀態（描述性，非買賣建議）。
+ * `no_data`（算不出指標）與 `weak`（跌破 MA60，真正弱勢）刻意分開；
+ * `recovering` = 站上 MA20/MA60 但 MA20 < MA60（均線尚未翻多）。
+ */
+export type UsTechStatus =
+  | 'trend_up'
+  | 'recovering'
+  | 'pullback_watch'
+  | 'overheated'
+  | 'weak'
+  | 'no_data'
 
 export interface UsAnalysisItem {
   code: string

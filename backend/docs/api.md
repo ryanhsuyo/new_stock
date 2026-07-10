@@ -1247,10 +1247,23 @@ Dry-run 預覽還原，不寫入任何檔案。
 | `change_20d_pct` | 20 日漲跌幅（%） |
 | `dist_ma20_pct` / `dist_ma60_pct` | 收盤距 MA20 / MA60（%） |
 | `days_since_last` | 距最後資料日的天數（新鮮度） |
-| `status` | `trend_up` / `pullback_watch` / `overheated` / `weak_or_no_data` |
+| `status` | `trend_up` / `recovering` / `pullback_watch` / `overheated` / `weak` / `no_data` |
 | `status_label` | 狀態中文標籤（描述性，非推薦） |
 
-狀態純為描述性技術分類（趨勢向上 / 回檔觀察 / 過熱 / 弱勢或資料不足）；**不套用台股 old_wang / steady_momentum，不產生買賣訊號。**
+`status` 判斷順序與語意（**`no_data` 與 `weak` 刻意分開**——前者是「算不出來」，後者是「真的弱」）：
+
+| status | label | 條件 |
+|--------|-------|------|
+| `no_data` | 資料不足 | 筆數 < 20，或算不出 MA20 / 收盤。**僅代表無法計算，不代表弱勢。** |
+| `overheated` | 過熱 | RSI ≥ 70 或 距 MA20 ≥ +15% |
+| `weak` | 弱勢 | 收盤跌破 MA60（長線偏弱） |
+| `trend_up` | 趨勢向上 | 收盤 ≥ MA20，且 MA20 ≥ MA60（或尚無 MA60） |
+| `recovering` | 趨勢修復中 | 收盤同時站上 MA20 與 MA60，但 MA20 < MA60（均線尚未翻多） |
+| `pullback_watch` | 回檔觀察 | 收盤 < MA20，但仍守住 MA60（或尚無 MA60） |
+
+> `recovering` 於 2026-07-10 補上：先前 `weak_or_no_data` 混合桶會把「收盤站上 MA20/MA60 但 MA20 < MA60」（如當時的 META / TSLA）誤標為「弱勢 / 資料不足」。該混合桶**已移除**。
+
+狀態純為描述性技術分類；**不套用台股 old_wang / steady_momentum，不產生買賣訊號。**
 
 ### `GET /api/markets/us/signals`
 
@@ -1275,6 +1288,7 @@ Dry-run 預覽還原，不寫入任何檔案。
 ```
 
 - **`category`**：觀察用分類（同 universe，如 `"Mega-cap Tech"`）；前端可據此過濾，**非推薦分組**。
+- **`status`**：帶出 Phase 2 技術狀態（新 enum：`trend_up` / `recovering` / `pullback_watch` / `overheated` / `weak` / `no_data`）。觀察訊號（`signal`）規則本身**未改**，只是 `status` 欄位跟著新 enum。
 - **`market_bias`**：`bullish`（SPY/QQQ 皆在 MA60 上方）/ `bearish`（皆下方，個股 priority 降級）/ `mixed` / `unknown`（基準資料不足）。
 - **`signal`**：`watch_breakout` / `watch_pullback` / `trend_up` / `overheated` / `avoid_weak`（描述性觀察狀態）。
 - **`priority`**：觀察優先度（排序用，數字越大越優先看）；**非推薦分數、非買賣訊號**。大盤偏弱時整體降級。

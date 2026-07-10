@@ -3,7 +3,7 @@ us_analysis_service.py — 美股 Phase 2：基本技術狀態（唯讀，非策
 
 從 ohlcv_us.csv 讀美股資料，算基本技術指標（MA20 / MA60 / RSI14 / 20 日漲跌幅 /
 距 MA20、MA60 / 資料新鮮度），並歸類成**描述性技術狀態**（trend_up /
-pullback_watch / overheated / weak_or_no_data）。
+recovering / pullback_watch / overheated / weak / no_data）。
 
 **不套用 old_wang / steady_momentum，不產生買賣建議，不下單。** 與台股流程分離、
 自帶輕量指標函式（不耦合 signals_service）。
@@ -21,10 +21,12 @@ OVERHEATED_RSI = 70.0
 OVERHEATED_DIST_MA20 = 15.0   # 距 MA20 超過 +15% 視為過熱
 
 STATUS_LABELS = {
-    "trend_up":        "趨勢向上",
-    "pullback_watch":  "回檔觀察",
-    "overheated":      "過熱",
-    "weak_or_no_data": "弱勢 / 資料不足",
+    "trend_up":       "趨勢向上",
+    "recovering":     "趨勢修復中",
+    "pullback_watch": "回檔觀察",
+    "overheated":     "過熱",
+    "weak":           "弱勢",
+    "no_data":        "資料不足",
 }
 
 
@@ -90,28 +92,32 @@ def classify_status(
     dist_ma20: float | None,
 ) -> str:
     """
-    描述性技術狀態（非買賣建議）：
-      - weak_or_no_data：資料不足（< MIN_ROWS）或算不出 MA20。
+    描述性技術狀態（非買賣建議）。依序判斷：
+      - no_data：資料不足（< MIN_ROWS）或算不出 MA20 / 收盤 —— **只代表無法計算**。
       - overheated：RSI >= 70 或 距 MA20 >= +15%。
-      - trend_up：收盤 >= MA20，且（無 MA60 或 MA20 >= MA60）。
-      - pullback_watch：收盤 < MA20，但（無 MA60 或 收盤 >= MA60）。
-      - 其餘（跌破 MA60 等）：weak_or_no_data。
+      - weak：收盤跌破 MA60（長線偏弱）—— **真正弱勢，與 no_data 分開**。
+      - trend_up：收盤 >= MA20，且（無 MA60 或 MA20 >= MA60，均線已翻多）。
+      - recovering：收盤同時站上 MA20 與 MA60，但 MA20 < MA60（均線尚未翻多，趨勢修復中）。
+      - pullback_watch：收盤 < MA20，但仍守住 MA60（或尚無 MA60）。
     """
     if row_count < MIN_ROWS or close is None or ma20 is None:
-        return "weak_or_no_data"
+        return "no_data"
     if (rsi is not None and rsi >= OVERHEATED_RSI) or (
         dist_ma20 is not None and dist_ma20 >= OVERHEATED_DIST_MA20
     ):
         return "overheated"
-    if close >= ma20 and (ma60 is None or ma20 >= ma60):
-        return "trend_up"
-    if close < ma20 and (ma60 is None or close >= ma60):
-        return "pullback_watch"
-    return "weak_or_no_data"
+    if ma60 is not None and close < ma60:
+        return "weak"
+    # 至此：無 MA60，或收盤已站上 MA60
+    if close >= ma20:
+        if ma60 is None or ma20 >= ma60:
+            return "trend_up"
+        return "recovering"
+    return "pullback_watch"
 
 
 def get_us_analysis() -> list[dict]:
-    """回傳每檔美股的基本技術狀態；無資料時指標為 null、狀態 weak_or_no_data。"""
+    """回傳每檔美股的基本技術狀態；無資料時指標為 null、狀態 no_data（非 weak）。"""
     leaders = load_us_leaders()
     ohlcv = load_us_ohlcv()
     today = datetime.now(timezone.utc).date()

@@ -5,7 +5,9 @@
 
 ## Current Phase
 
-**US Market — universe 擴充 + 分類完成**（本階段程式待 commit）。`us_leaders.json` 擴到第一版 27 檔（ETF/Benchmark 4、Mega-cap Tech 7、Semiconductors/AI 6、Software/Cloud 5、Defensive/Consumer 5），每檔帶觀察用 `category`；`/universe`、`/analysis`、`/signals` 皆帶 `category`；前端美股頁加分類欄位 + 分類過濾 chip（同時過濾技術狀態表與觀察訊號表）。**仍非推薦、非買賣建議、無下單、不套台股策略；台股主流程零改動；本輪不做 launchd。** Phase 1（Yahoo 免 key 資料源）、Phase 2（基本技術狀態）、Phase 3（觀察訊號）、資料新鮮度皆已完成。
+**US Phase 2 狀態語意修正完成**（本階段程式待 commit）。拆掉 `weak_or_no_data` 混合桶 → `no_data`（算不出指標）/ `weak`（跌破 MA60）/ `recovering`（站上 MA20 與 MA60 但 MA20 < MA60）；保留 trend_up / pullback_watch / overheated。`/api/markets/us/analysis` schema、前端 badge + 圖例同步更新；**watch signals 規則未動**（`/signals` 訊號分佈與修正前一致）。**不做 launchd / 策略 / 推薦 / 下單；台股主流程零改動。**
+
+前一階段 **US universe 擴充 + 分類**（27 檔，真實 Yahoo 回補已驗收：每檔 256 筆、`tickers_with_data=27`、無資料不足）已完成並 commit（`2b2aaa7`）。`us_leaders.json` 擴到第一版 27 檔（ETF/Benchmark 4、Mega-cap Tech 7、Semiconductors/AI 6、Software/Cloud 5、Defensive/Consumer 5），每檔帶觀察用 `category`；`/universe`、`/analysis`、`/signals` 皆帶 `category`；前端美股頁加分類欄位 + 分類過濾 chip（同時過濾技術狀態表與觀察訊號表）。**仍非推薦、非買賣建議、無下單、不套台股策略；台股主流程零改動；本輪不做 launchd。** Phase 1（Yahoo 免 key 資料源）、Phase 2（基本技術狀態）、Phase 3（觀察訊號）、資料新鮮度皆已完成。
 
 後端資料流與兩策略推薦桶穩定（見 `backend/docs/status_overview.md`）；前端 dashboard usability 已收尾。
 
@@ -60,7 +62,8 @@
 - US 主源 = **Yahoo Finance（免 key、非官方）**；registry `US` → `YahooFinancePriceSource`。**Stooq 已停用**（需瀏覽器 JS 驗證，**不要嘗試繞過**）；**Finnhub 保留 optional、不在 registry**。
 - Yahoo 為**非官方 endpoint、無 SLA**：backfill 需節流、少量 ticker；被限流 / 錯誤要優雅降級（已有錯誤型別），別移除。
 - 美股 `us_watch_signal_service` 的 `signal`（watch_breakout 等）與 `priority` 是**觀察用描述性訊號 / 排序**，**非推薦、非買賣建議、非下單、非台股推薦桶**；`us_analysis`/`us_watch` 自帶輕量指標，**不耦合 signals_service、不套 old_wang / steady_momentum**。別把它升級成推薦或加買賣訊號（除非明確要求）。
-- 美股 Phase 2 的 `status`（trend_up / pullback_watch / overheated / weak_or_no_data）是**描述性技術狀態、非買賣建議**；`us_analysis_service` 自帶輕量指標、**不耦合 signals_service、不套兩策略**。別把它升級成推薦桶或加買賣訊號（除非明確要求）。
+- 美股 Phase 2 的 `status`（trend_up / recovering / pullback_watch / overheated / weak / no_data）是**描述性技術狀態、非買賣建議**；`us_analysis_service` 自帶輕量指標、**不耦合 signals_service、不套兩策略**。別把它升級成推薦桶或加買賣訊號（除非明確要求）。
+- `no_data` 與 `weak` **已刻意拆開**（前者=算不出指標，後者=跌破 MA60）；`recovering`=站上 MA20/MA60 但 MA20<MA60。**不要再合併回 `weak_or_no_data` 混合桶**——那會讓 META/TSLA 這類「站上雙均線但均線未翻多」的個股被誤標成「資料不足」。
 
 ## Latest Verified State
 

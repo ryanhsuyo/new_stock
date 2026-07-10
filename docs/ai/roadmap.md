@@ -12,7 +12,7 @@
 
 > 現在正在做 / 即將做的（對應 `current-status.md` 的 Current Phase）。
 
-- **US Market — universe 擴充 + 分類**。`us_leaders.json` 擴到第一版 27 檔並為每檔加觀察用 `category`（ETF/Benchmark、Mega-cap Tech、Semiconductors/AI、Software/Cloud、Defensive/Consumer）；`/universe`、`/analysis`、`/signals` 帶 `category`；前端加分類欄 + 分類過濾。**非推薦、非買賣建議、無下單、不套台股策略、不改台股主流程；本輪刻意不做 launchd。** Phase 1（Yahoo 免 key 資料源）、Phase 2（基本技術狀態）、Phase 3（觀察訊號）、資料新鮮度皆已完成。
+- **US Phase 2 狀態語意修正**（見下方規格）。拆掉 `weak_or_no_data` 混合桶 → `no_data`（算不出來）/ `weak`（跌破 MA60）/ `recovering`（站上 MA20、MA60 但 MA20 < MA60）。**不改 watch signals 規則、不做 launchd / 策略 / 推薦 / 下單、不改台股主流程。** Phase 1（Yahoo 免 key 資料源）、Phase 2（基本技術狀態）、Phase 3（觀察訊號）、資料新鮮度、universe 擴充 + 分類（27 檔，真實回補已驗收）皆已完成。
 
 ## Next
 
@@ -87,7 +87,7 @@
 **Scope**
 - 包含：
   - `us_analysis_service`：從 `ohlcv_us.csv` 算 MA20 / MA60 / RSI14 / 20 日漲跌幅 / 距 MA20、MA60 / 資料新鮮度（自帶輕量指標函式，不耦合 signals_service）。
-  - 描述性狀態：`trend_up` / `pullback_watch` / `overheated` / `weak_or_no_data`。
+  - 描述性狀態：`trend_up` / `pullback_watch` / `overheated` / `weak_or_no_data`（**後續已拆**，見下方「US Phase 2 狀態語意修正」）。
   - `GET /api/markets/us/analysis` + 前端美股頁顯示指標與狀態 badge。
 - **不包含（out of scope）**：
   - 套用 old_wang / steady_momentum 或任何台股推薦桶。
@@ -99,7 +99,7 @@
 AI 已驗收：
 - [x] `python3.11 -m pytest -q` → 837 passed（含指標數學、四種狀態分類、fixture 端到端、endpoint schema）。
 - [x] `npm run build` 成功。
-- [x] API 在**無資料**時回 `weak_or_no_data` + 指標 null；用 **fixture `ohlcv_us.csv`** 時算出 MA/RSI/漲跌幅並歸類狀態。
+- [x] API 在**無資料**時回 `weak_or_no_data` + 指標 null；用 **fixture `ohlcv_us.csv`** 時算出 MA/RSI/漲跌幅並歸類狀態。（`weak_or_no_data` 後續已改為 `no_data`。）
 - [x] 前端：缺資料誠實顯示、有資料顯示指標 + 狀態 badge（實測 fixture：AAPL 過熱 badge、其餘弱勢/資料不足）；台股主流程不受影響。
 
 需使用者本機（真實 Yahoo 資料）後續驗收：
@@ -151,6 +151,29 @@ AI 已驗收：
 - [x] `/api/markets/us/universe` 回 ~27 檔且每筆帶 `category`；`/signals` 帶 `category`。
 - [x] 前端顯示分類欄 + 分類過濾；新 ticker 尚未回補時誠實顯示資料不足。
 - [x] 未做買賣建議 / 下單 / 推薦；未套台股策略；未改台股；未做 launchd。
+
+
+### US Phase 2 狀態語意修正（拆 `weak_or_no_data`）
+
+**Purpose**
+27 檔真實資料補齊後暴露的語意問題：`weak_or_no_data` 把「資料不足」與「弱勢」混在同一桶，且 `close > MA20`、`close > MA60` 但 `MA20 < MA60` 的個股（如 META / TSLA）落入該桶，前端顯示「弱勢 / 資料不足」，語意誤導。
+
+**Scope**
+- 包含：
+  - `classify_status` 拆桶：`no_data`（筆數不足 / 算不出 MA20 或收盤）、`weak`（收盤跌破 MA60）、`recovering`（站上 MA20 與 MA60，但 MA20 < MA60，均線未翻多）。
+  - 保留 `trend_up` / `pullback_watch` / `overheated`。
+  - `/api/markets/us/analysis` schema + 前端 badge / 圖例文案。
+  - 測試涵蓋 no_data / weak / recovering，含 META / TSLA 真實數值案例。
+- **不包含（out of scope）**：
+  - 改動 watch signals（`/signals`）規則——僅相容新 enum。
+  - 美股策略 / 推薦 / 買賣建議 / 下單 / launchd。
+  - 台股主流程。
+
+**Acceptance Criteria**
+- [x] `python3.11 -m pytest -q` 全綠。
+- [x] `npm run build` 成功。
+- [x] 前端不再把資料完整的股票顯示為「資料不足」；`no_data` 僅出現在真的算不出指標時。
+- [x] `/signals` 觀察訊號分佈與修正前一致（規則未動）。
 
 
 ### Phase 1: 資料更新穩定化

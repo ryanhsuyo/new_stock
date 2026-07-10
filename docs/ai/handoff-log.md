@@ -12,6 +12,29 @@
 
 ---
 
+## 2026-07-10 — US Phase 2 狀態語意修正（拆 `weak_or_no_data` 混合桶）
+
+- **Date:** 2026-07-10
+- **Task:** 27 檔真實回補後暴露的語意問題：`weak_or_no_data` 把「資料不足」與「弱勢」混在一桶，且 `close > MA20`、`close > MA60` 但 `MA20 < MA60` 的個股（META / TSLA）落入該桶，前端顯示「弱勢 / 資料不足」。
+- **Goal:** 狀態語意誠實可讀；資料完整的股票不得被標成「資料不足」。
+- **Completed:**
+  - `classify_status` 拆桶（判斷順序：`no_data` → `overheated` → `weak` → `trend_up` / `recovering` → `pullback_watch`）：
+    - `no_data`：筆數 < 20 或算不出 MA20 / 收盤 —— **僅代表無法計算**。
+    - `weak`：收盤跌破 MA60 —— **真正弱勢**。
+    - `recovering`：收盤同時站上 MA20 與 MA60，但 MA20 < MA60（均線尚未翻多）。
+    - 保留 `trend_up` / `pullback_watch` / `overheated`。
+  - `STATUS_LABELS` 六種標籤；`/api/markets/us/analysis` schema + api.md 條件表。
+  - 前端：`UsTechStatus` 改新 enum、`.us-status-{recovering,weak,no_data}` badge（no_data 灰 / weak 紅，刻意不同色）、新增狀態圖例列。
+  - 測試：新增 no_data（筆數不足 / MA20 或 close 缺）、weak（跌破 MA60、含「站上 MA20 但跌破 MA60」）、recovering（含 **META / TSLA 真實數值**）、無 MA60 的 trend_up / pullback_watch、label 對應、端點「no_data 必定真的算不出來」不變量。
+- **Changed Files:** `backend/app/services/us_analysis_service.py`、`backend/tests/test_us_analysis.py`、`backend/docs/api.md`、`frontend/src/types/index.ts`、`frontend/src/pages/UsMarketPage.tsx`、`frontend/src/App.css`；docs（roadmap / current-status / validation / handoff-log）。
+- **Validation:** `python3.11 -m pytest -q` → **866 passed**（+8）；`npm run build` → 成功。真實 27 檔：analysis `no_data=0`、`weak=11`、`recovering=2`（META / TSLA）、`trend_up=8`、`pullback_watch=5`、`overheated=1`；`/signals` 訊號分佈與修正前**完全一致**（規則未動）。
+- **Git Status:** 乾淨（feat commit 完成後）。
+- **Commit:** 見完成回報。**未 push。**
+- **Next Steps:** 候選：完整 NYSE 假日曆 + launchd 排程 US backfill、Finnhub optional、再擴 universe。**仍不做美股正式推薦 / 買賣 / 下單。**
+- **Notes / Warnings:** **不要把 `no_data` 與 `weak` 合併回混合桶。** `us_watch_signal_service` 規則未改（`derive_watch_signal` 直接讀指標、不讀 status），只是 signal item 的 `status` 欄位跟著新 enum。
+
+---
+
 ## 2026-07-10 — US universe 擴充 + 分類（非推薦、非買賣建議）
 
 - **Date:** 2026-07-10

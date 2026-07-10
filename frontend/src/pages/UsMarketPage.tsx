@@ -86,6 +86,14 @@ export default function UsMarketPage() {
       <p className="us-note">
         以下為<strong>基本技術狀態</strong>（MA / RSI / 漲跌幅 / 距均線）；<strong>非買賣建議、非策略、無下單</strong>。
       </p>
+      <p className="us-note us-status-legend">
+        <span className="us-status us-status-trend_up">趨勢向上</span> 站上 MA20，均線已翻多
+        <span className="us-status us-status-recovering">趨勢修復中</span> 站上 MA20 / MA60，但 MA20 仍在 MA60 下方
+        <span className="us-status us-status-pullback_watch">回檔觀察</span> 跌破 MA20，仍守 MA60
+        <span className="us-status us-status-overheated">過熱</span> RSI 偏高或距 MA20 過遠
+        <span className="us-status us-status-weak">弱勢</span> 跌破 MA60
+        <span className="us-status us-status-no_data">資料不足</span> 指標算不出來（非弱勢）
+      </p>
 
       {categories.length > 1 && (
         <div className="us-cat-filter" role="group" aria-label="分類過濾">
