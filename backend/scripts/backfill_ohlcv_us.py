@@ -4,8 +4,8 @@ backfill_ohlcv_us.py — 回補美股日 OHLCV 至 backend/data/ohlcv_us.csv（�
 
 用法：
     cd backend
-    python3 scripts/backfill_ohlcv_us.py               # 回補最近 12 個月
-    python3 scripts/backfill_ohlcv_us.py --months 1
+    python3.11 scripts/backfill_ohlcv_us.py               # 回補最近 12 個月
+    python3.11 scripts/backfill_ohlcv_us.py --months 1
 
 資料源：US 主源為 Yahoo Finance chart endpoint（免 API key、非官方、best-effort）。
 腳本走 `get_price_source("US")`，與資料源實作解耦；換源（Stooq 已停用、Finnhub optional）

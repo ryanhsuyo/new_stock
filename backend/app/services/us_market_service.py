@@ -57,7 +57,7 @@ def get_us_market_status() -> dict:
         "universe_size":       len(universe),
         "tickers_with_data":   len(with_data),
         "last_data_as_of":     max(last_dates) if last_dates else None,
-        "backfill_command":    "cd backend && python3 scripts/backfill_ohlcv_us.py",
+        "backfill_command":    "cd backend && python3.11 scripts/backfill_ohlcv_us.py",
     }
 
 

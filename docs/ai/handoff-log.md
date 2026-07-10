@@ -12,6 +12,27 @@
 
 ---
 
+## 2026-07-10 — Yahoo 真實資料端到端驗收通過 + python3.11 指令修正
+
+- **Date:** 2026-07-10
+- **Task:** AI 自行做 US Yahoo Finance 真實資料驗收（不等使用者本機），並把美股 backfill 指令由 `python3` 修為 `python3.11`。
+- **Goal:** 確認 YahooFinancePriceSource + backfill 能實際產生 `ohlcv_us.csv` 並讓 API / 前端顯示真實資料。
+- **Completed（真實驗收，非 mock）:**
+  - `python3.11 scripts/backfill_ohlcv_us.py --months 12` **成功**：六檔 AAPL/MSFT/NVDA/TSLA/SPY/QQQ **各 255 rows、total 1530**；`last_data_as_of=2026-07-09`。
+  - `/api/markets/us/status` → `tickers_with_data=6`、`source_label=Yahoo Finance…`。
+  - `/api/markets/us/analysis` → 六檔皆有 MA20/MA60/RSI/status（3 trend_up、3 weak_or_no_data）。
+  - 前端美股頁顯示真實收盤/資料日/指標/狀態 badge，「資料尚未更新」消失、無 console error。
+  - `python3.11 -m pytest -q` → **838 passed**（含真實 `ohlcv_us.csv` 存在時）；`npm run build` → 成功。
+  - 修正：所有美股 backfill 指令 `python3` → `python3.11`（`us_market_service.status.backfill_command`、`api.md`、backfill 腳本 docstring、validation / current-status）。**本機 `python3`=3.9 無法 import 後端（缺依賴 + `X|None` 需 3.10+）。**
+- **Changed Files:** `backend/app/services/us_market_service.py`（backfill_command → python3.11，API 輸出）、`backend/docs/api.md`、`backend/scripts/backfill_ohlcv_us.py`（docstring）、`docs/ai/validation.md`、`docs/ai/current-status.md`、`docs/ai/handoff-log.md`。
+- **Validation:** 動到 `backfill_command`（API 輸出）→ 跑 `python3.11 -m pytest -q` = 838 passed。
+- **Git Status:** 待 commit（docs/status + 一處 API 字串）。
+- **Commit:** 見完成回報。**未 push。**
+- **Next Steps:** US 資料流可用；後續候選（交易日曆/時區、universe 擴充、Finnhub optional）仍不做策略/下單。
+- **Notes / Warnings:** `ohlcv_us.csv` 是本機真實資料、**gitignored、不 commit**。US backfill 一律用 `python3.11`。未改 Yahoo source 的 round 行為（close 仍為原始 float 精度）。
+
+---
+
 ## 2026-07-10 — US 資料源改用 Yahoo Finance（Stooq 停用）
 
 - **Date:** 2026-07-10

@@ -63,14 +63,14 @@
 
 ## Latest Verified State
 
-- **Verified at: 2026-07-10**，commit `52a0dfc` 之後的工作樹（資料源改 Yahoo；**尚未 commit**）。
-- What was verified: `cd backend && python3.11 -m pytest -q` → **838 passed**（Yahoo JSON 解析 / null 跳過 / error、Stooq 已停用、Finnhub 缺 key、Phase 2 指標與狀態、fixture 端到端）；`cd frontend && npm run build` → 成功；`/api/markets/us/status` 回 `source_label=Yahoo Finance…`、`source_configured=true`。前端 fixture 實測（AAPL 過熱 badge）在上一輪已驗，本輪前端未改。
-- **未實測真實 Yahoo 抓取**：本 sandbox 對外走自簽憑證代理（`CERTIFICATE_VERIFY_FAILED`），Yahoo/Stooq/TWSE 皆無法連外；Yahoo 解析全用 mock 驗證。正常對外網路（同 TWSE backfill 環境）即可抓取。
-- 更早基準：`bd5f4f0`/`52a0dfc`（Phase 2）、`0a8adb0`/`3633ad0`（Stooq 方向，已被 Yahoo 取代）、`6ed907a`（骨架）。
+- **Verified at: 2026-07-10**，Yahoo 資料源 + Phase 2 已 commit（`7c9fe4d` / `cd933ff`）。
+- **真實 Yahoo 端到端已驗證通過**（AI 直接跑，非 mock）：`python3.11 scripts/backfill_ohlcv_us.py --months 12` 成功 → 六檔 AAPL/MSFT/NVDA/TSLA/SPY/QQQ **各 255 rows、total 1530**，`ohlcv_us.csv` 產生（本機資料、gitignored、未 commit），`last_data_as_of=2026-07-09`。`/api/markets/us/status` `tickers_with_data=6`；`/api/markets/us/analysis` 六檔皆有 MA20/MA60/RSI/status（3 檔 trend_up、3 檔 weak_or_no_data）；前端美股頁顯示真實收盤/資料日/指標/狀態 badge，「資料尚未更新」橫幅消失、無 console error。
+- 測試 / build：`python3.11 -m pytest -q` → **838 passed**（含真實 `ohlcv_us.csv` 存在時亦綠）；`npm run build` → 成功。
+- **執行注意**：US backfill 需以 **`python3.11`** 執行（本機 `python3`=3.9，無法 import 後端：缺依賴 + `X | None` 語法需 3.10+）。
+- 更早基準：`bd5f4f0`/`52a0dfc`（Phase 2）、`6ed907a`（骨架）。
 
 ## Next Recommended Task
 
-- **本輪（Yahoo 資料源）尚未 commit** —— 驗收全綠後先 local commit（不 push）。
-- 使用者本機（真實 Yahoo）後續驗收：`cd backend && python3 scripts/backfill_ohlcv_us.py --months 12`（免 key）→ 確認 `ohlcv_us.csv` 產生、六檔筆數 > 60、`/api/markets/us/status` `tickers_with_data>0`、`/api/markets/us/analysis` 有 MA20/MA60/RSI/狀態、前端顯示真實資料 + badge。
+- 真實 Yahoo 驗收已過；US Phase 1+2 資料流可用。
 - US 後續候選（未做）：交易日曆 / 時區分 region、US universe 擴充、Finnhub optional（quote / 即時 / 基本面）。**仍不做美股推薦策略 / 下單。**
 - 與美股無關：把 `connectionLost` 連線偵測抽成共用 hook（單例探測，避免多頁各起 interval）。

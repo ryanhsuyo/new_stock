@@ -1219,7 +1219,7 @@ Dry-run 預覽還原，不寫入任何檔案。
   "universe_size": 6,
   "tickers_with_data": 0,
   "last_data_as_of": null,
-  "backfill_command": "cd backend && python3 scripts/backfill_ohlcv_us.py"
+  "backfill_command": "cd backend && python3.11 scripts/backfill_ohlcv_us.py"
 }
 ```
 
