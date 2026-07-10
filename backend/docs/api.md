@@ -1217,14 +1217,21 @@ Dry-run 預覽還原，不寫入任何檔案。
   "source_configured": true,
   "source_label": "Yahoo Finance（美股，非官方、免 key）",
   "universe_size": 6,
-  "tickers_with_data": 0,
-  "last_data_as_of": null,
+  "tickers_with_data": 6,
+  "last_data_as_of": "2026-07-09",
+  "expected_trading_day": "2026-07-10",
+  "days_since_last": 1,
+  "is_stale": false,
   "backfill_command": "cd backend && python3.11 scripts/backfill_ohlcv_us.py"
 }
 ```
 
 - US 主資料源為 **Yahoo Finance chart endpoint（免 API key、非官方、best-effort）**，故 `source_configured` 恆為 `true`。**Stooq 已停用**（改為需瀏覽器 JS 驗證）；**Finnhub** 保留為 future optional（官方、需 key）。
 - `source_configured=false` → 前端顯示「美股資料源尚未就緒」；`true` 但 `tickers_with_data=0` → 顯示「美股資料尚未更新」（請先跑 `backfill_command`）。
+- **資料新鮮度**（weekend-aware、**不含 NYSE 假日**、容忍 1 個交易日以避免收盤前誤判）：
+  - `expected_trading_day`：以 America/New_York 為準的最近應有交易日。
+  - `days_since_last`：`last_data_as_of` 之後到 `expected_trading_day` 的**交易日數**（缺資料時 `null`）。
+  - `is_stale`：`last_data_as_of` 缺失、或落後超過 1 個交易日 → `true`；前端顯示「資料可能已過期，請重跑 backfill」。
 
 ### `GET /api/markets/us/analysis`
 

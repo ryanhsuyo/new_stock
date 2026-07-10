@@ -5,6 +5,8 @@ test_us_market.py — 美股 Phase 1：Finnhub 來源、universe / status 服務
 缺 key 的行為（明確錯誤 / 不可用）也涵蓋，且不使整體測試失敗。
 """
 
+from datetime import date, timedelta
+
 import pytest
 from fastapi.testclient import TestClient
 
@@ -201,6 +203,52 @@ def test_us_status_endpoint_schema():
     res = client.get("/api/markets/us/status")
     assert res.status_code == 200
     body = res.json()
-    for key in ("region", "source_configured", "universe_size", "tickers_with_data", "last_data_as_of"):
+    for key in ("region", "source_configured", "universe_size", "tickers_with_data", "last_data_as_of",
+                "expected_trading_day", "days_since_last", "is_stale"):
         assert key in body
     assert body["region"] == "US"
+
+
+# ── 資料新鮮度（compute_us_freshness，固定 today 求確定性）──────────────────────
+
+def _first_monday() -> date:
+    d = date(2026, 7, 6)
+    while d.weekday() != 0:
+        d += timedelta(days=1)
+    return d
+
+
+def test_freshness_missing_is_stale():
+    mon = _first_monday()
+    f = us_market_service.compute_us_freshness(None, today=mon)
+    assert f["is_stale"] is True
+    assert f["days_since_last"] is None
+    assert f["expected_trading_day"] == mon.isoformat()
+
+
+def test_freshness_up_to_date_not_stale():
+    mon = _first_monday()
+    f = us_market_service.compute_us_freshness(mon.isoformat(), today=mon)
+    assert f["days_since_last"] == 0 and f["is_stale"] is False
+
+
+def test_freshness_one_trading_day_behind_tolerated():
+    mon = _first_monday()
+    fri = mon - timedelta(days=3)  # 前一交易日（週五，跨週末）
+    f = us_market_service.compute_us_freshness(fri.isoformat(), today=mon)
+    assert f["days_since_last"] == 1 and f["is_stale"] is False
+
+
+def test_freshness_two_trading_days_behind_is_stale():
+    mon = _first_monday()
+    thu = mon - timedelta(days=4)  # 週四
+    f = us_market_service.compute_us_freshness(thu.isoformat(), today=mon)
+    assert f["days_since_last"] == 2 and f["is_stale"] is True
+
+
+def test_freshness_weekend_today_uses_previous_trading_day():
+    mon = _first_monday()
+    sat = mon - timedelta(days=2)  # 週六 → 預期最新交易日為前一週五
+    fri = mon - timedelta(days=3)
+    f = us_market_service.compute_us_freshness(None, today=sat)
+    assert f["expected_trading_day"] == fri.isoformat()

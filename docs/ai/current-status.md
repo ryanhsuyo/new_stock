@@ -65,12 +65,13 @@
 
 - **Verified at: 2026-07-10**，Yahoo 資料源 + Phase 2 已 commit（`7c9fe4d` / `cd933ff`）。
 - **真實 Yahoo 端到端已驗證通過**（AI 直接跑，非 mock）：`python3.11 scripts/backfill_ohlcv_us.py --months 12` 成功 → 六檔 AAPL/MSFT/NVDA/TSLA/SPY/QQQ **各 255 rows、total 1530**，`ohlcv_us.csv` 產生（本機資料、gitignored、未 commit），`last_data_as_of=2026-07-09`。`/api/markets/us/status` `tickers_with_data=6`；`/api/markets/us/analysis` 六檔皆有 MA20/MA60/RSI/status（3 檔 trend_up、3 檔 weak_or_no_data）；前端美股頁顯示真實收盤/資料日/指標/狀態 badge，「資料尚未更新」橫幅消失、無 console error。
-- 測試 / build：`python3.11 -m pytest -q` → **838 passed**（含真實 `ohlcv_us.csv` 存在時亦綠）；`npm run build` → 成功。
+- **US 資料新鮮度（最小收尾切片，本輪，待 commit）**：`/api/markets/us/status` 加 `expected_trading_day` / `days_since_last`（交易日）/ `is_stale`（weekend-aware、容忍 1 個交易日、**不含 NYSE 假日**，複用既有 trading_calendar 函式並傳空 calendar）；前端美股頁顯示「資料日 X（N 個交易日前）」，stale 時琥珀提示重跑 backfill。
+- 測試 / build：`python3.11 -m pytest -q` → **843 passed**（+5 新鮮度測試）；`npm run build` → 成功；實測 status `days_since_last=1`、`is_stale=false`。
 - **執行注意**：US backfill 需以 **`python3.11`** 執行（本機 `python3`=3.9，無法 import 後端：缺依賴 + `X | None` 語法需 3.10+）。
 - 更早基準：`bd5f4f0`/`52a0dfc`（Phase 2）、`6ed907a`（骨架）。
 
 ## Next Recommended Task
 
-- 真實 Yahoo 驗收已過；US Phase 1+2 資料流可用。
-- US 後續候選（未做）：交易日曆 / 時區分 region、US universe 擴充、Finnhub optional（quote / 即時 / 基本面）。**仍不做美股推薦策略 / 下單。**
+- 真實 Yahoo 驗收 + 資料新鮮度已完成；US Phase 1+2 資料流可用。
+- US 後續候選（未做）：完整 NYSE 假日曆 / 自動排程 US backfill、US universe 擴充、Finnhub optional（quote / 即時 / 基本面）。**仍不做美股推薦策略 / 下單。**
 - 與美股無關：把 `connectionLost` 連線偵測抽成共用 hook（單例探測，避免多頁各起 interval）。

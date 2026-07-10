@@ -50,6 +50,27 @@ export default function UsMarketPage() {
           </div>
         </div>
       )}
+      {sourceReady && hasAnyData && status?.is_stale && (
+        <div className="alert alert-stale" role="alert" style={{ marginBottom: 16 }}>
+          <div className="alert-title">美股資料可能已過期</div>
+          <div className="alert-meta">
+            資料日 {status.last_data_as_of ?? '—'}
+            {status.days_since_last != null ? `（落後約 ${status.days_since_last} 個交易日`
+              + `${status.expected_trading_day ? `，預期最新 ${status.expected_trading_day}` : ''}）` : ''}
+            。請重跑 <code>{backfillCmd}</code>。
+          </div>
+        </div>
+      )}
+      {sourceReady && hasAnyData && !status?.is_stale && (
+        <p className="us-freshness">
+          資料日 <strong>{status?.last_data_as_of ?? '—'}</strong>
+          {status?.days_since_last === 0
+            ? '（最新）'
+            : status?.days_since_last != null
+              ? `（${status.days_since_last} 個交易日前）`
+              : ''}
+        </p>
+      )}
 
       <p className="us-note">
         以下為<strong>基本技術狀態</strong>（MA / RSI / 漲跌幅 / 距均線）；<strong>非買賣建議、非策略、無下單</strong>。

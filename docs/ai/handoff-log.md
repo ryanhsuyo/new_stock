@@ -12,6 +12,26 @@
 
 ---
 
+## 2026-07-10 — US 資料新鮮度（最小收尾切片）
+
+- **Date:** 2026-07-10
+- **Task:** US 資料更新流程小收尾——在 `/api/markets/us/status` 加資料新鮮度，前端美股頁顯示；weekend-aware、容忍 1 個交易日、不做完整 NYSE 假日曆。
+- **Goal:** 讓「US 資料是否過期」誠實可見（US backfill 手動、無排程，需訊號提醒重跑）。
+- **Completed:**
+  - `us_market_service`：新增 `compute_us_freshness`——複用既有 `is_trading_day` / `previous_trading_day` / `count_missed_trading_days_since`，**傳空 calendar（weekend-only，不套台股假日）**；以 `America/New_York` 取「今天」。`/markets/us/status` 加 `expected_trading_day` / `days_since_last`（交易日數）/ `is_stale`。
+  - stale 判斷：`last_data_as_of` 缺失 → stale；否則落後 > 1 個交易日 → stale（容忍 1 日避免收盤前誤判）。
+  - 前端 `UsMarketPage`：非 stale 顯示「資料日 X（N 個交易日前 / 最新）」；stale 顯示琥珀 banner + 重跑 backfill 提示。
+  - api.md 更新 status 範例與欄位說明。
+  - 未碰台股；未做策略 / 推薦 / 下單；未做 check_us_ohlcv.py；未把 US status 塞進台股 Dashboard；未做 US launchd。
+- **Changed Files:** `backend/app/services/us_market_service.py`、`backend/tests/test_us_market.py`、`backend/docs/api.md`、`frontend/src/pages/UsMarketPage.tsx`、`frontend/src/App.css`、`frontend/src/types/index.ts`、docs（current-status / handoff-log）。
+- **Validation:** `python3.11 -m pytest -q` → **843 passed**（+5 新鮮度測試，固定 today 求確定性）；`npm run build` → 成功；實測 `/markets/us/status`（真實資料）：`last_data_as_of=2026-07-09`、`expected_trading_day=2026-07-10`、`days_since_last=1`、`is_stale=false`；前端顯示「資料日 2026-07-09（1 個交易日前）」、無 console error。
+- **Git Status:** feat + docs 待 commit。
+- **Commit:** 見完成回報。**未 push。**
+- **Next Steps:** US 資料流小收尾完成。後續（未做）：完整 NYSE 假日曆 / 自動排程 US backfill（另評估）；仍不做策略。
+- **Notes / Warnings:** 新鮮度**不含 NYSE 假日**（週末感知即可）；stale banner 的視覺在本輪未親眼驗證（真實資料僅落後 1 日，未達 stale），但 is_stale 邏輯有單元測試、banner 沿用既有 alert-stale 標記。
+
+---
+
 ## 2026-07-10 — Yahoo 真實資料端到端驗收通過 + python3.11 指令修正
 
 - **Date:** 2026-07-10

@@ -1153,6 +1153,10 @@ export interface UsMarketStatus {
   universe_size: number
   tickers_with_data: number
   last_data_as_of: string | null
+  /** 資料新鮮度（weekend-aware，容忍 1 個交易日；不含 NYSE 假日） */
+  expected_trading_day?: string | null
+  days_since_last?: number | null
+  is_stale?: boolean
   backfill_command?: string
 }
 

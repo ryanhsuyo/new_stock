@@ -46,6 +46,7 @@ body {
 
 /* 美股頁提示 */
 .us-note { font-size: 13px; color: #64748b; margin: 4px 0 12px; }
+.us-freshness { font-size: 13px; color: #334155; margin: 0 0 10px; }
 
 /* 美股技術狀態 badge（描述性，非買賣建議）*/
 .us-status {
