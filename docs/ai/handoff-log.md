@@ -12,6 +12,28 @@
 
 ---
 
+## 2026-07-11 — US status 回補可觀測性（missing / insufficient / min_row_count）
+
+- **Date:** 2026-07-11
+- **Task:** 手動回補後難以一眼判斷「補齊了沒」。`/status` 只有 `tickers_with_data`，不知道少了誰、也不知道誰有資料但太短。做最小高值切片改善可觀測性。
+- **Goal:** `/api/markets/us/status` 能直接回答「哪些 ticker 沒資料 / 哪些有資料但不足以算 MA60 / 目前最小筆數」。
+- **Completed:**
+  - `get_us_market_status()` 新增三欄（聚合放 service，router 不動、維持薄）：
+    - `missing_tickers`：`has_data=false` 的代碼清單（已排序）。
+    - `insufficient_tickers`：有資料但 `row_count < MIN_SIGNAL_ROWS`（=60）的代碼清單（已排序）。
+    - `min_row_count`：所有有資料 ticker 的最小 `row_count`（無資料 → `None`）。
+  - **門檻引用既有常數**：`us_market_service` 從 `us_watch_signal_service` `import MIN_SIGNAL_ROWS`，不在此處另寫死 60（CLAUDE.md §10）。import 方向無循環（watch_signal_service 不反向依賴 market_service，已驗證）。
+  - 修 `backfill_ohlcv_us.py` argparse 描述殘留的「Stooq，免 key」→「Yahoo Finance，免 key」。
+  - 測試：status schema 增三欄 + 型別；no-data 全 missing / insufficient=[] / min=None；混合 fixture（AAPL 65、MSFT 30）驗 missing 與 insufficient 互斥、`min_row_count=30`、門檻=60。
+- **Changed Files:** `backend/app/services/us_market_service.py`、`backend/scripts/backfill_ohlcv_us.py`、`backend/tests/test_us_market.py`、`backend/docs/api.md`；docs（current-status / validation / handoff-log）。**未動前端**（本切片不做 UI）。
+- **Validation:** `python3.11 -m pytest -q` → 見完成回報；真實 27 檔：`missing_tickers=[]`、`insufficient_tickers=[]`、`min_row_count`≈256。
+- **Git Status:** 乾淨（commit 後）。
+- **Commit:** 見完成回報。**未 push。**
+- **Next Steps:** 候選：回補腳本結尾驗收摘要（呼叫 service，本輪刻意未做）、完整 NYSE 假日曆 + launchd、前端把 missing/insufficient 顯示在美股頁。**仍不做美股正式推薦 / 買賣 / 下單。**
+- **Notes / Warnings:** `insufficient_tickers` 門檻**只有一個來源** `MIN_SIGNAL_ROWS`——別在 market_service 重寫 60。`missing`（沒資料）與 `insufficient`（有資料但短）語意不同、互斥，別合併。
+
+---
+
 ## 2026-07-10 — US Phase 2 狀態語意修正（拆 `weak_or_no_data` 混合桶）
 
 - **Date:** 2026-07-10

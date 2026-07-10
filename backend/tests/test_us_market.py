@@ -186,6 +186,48 @@ def test_us_status_source_configured_true_via_yahoo(tmp_path, monkeypatch):
     assert status["universe_size"] >= 1
 
 
+def _write_us_ohlcv(path, rows_by_code: dict[str, int]):
+    """寫最小 ohlcv_us.csv：{code: n_rows}。價格線性上升即可（本測試只看筆數）。"""
+    start = date(2026, 1, 1)
+    lines = ["date,code,open,high,low,close,volume"]
+    for code, n in rows_by_code.items():
+        for i in range(n):
+            d = (start + timedelta(days=i)).isoformat()
+            px = 100 + i
+            lines.append(f"{d},{code},{px},{px + 1},{px - 1},{px},1000")
+    path.write_text("\n".join(lines) + "\n", encoding="utf-8")
+
+
+def test_us_status_no_data_all_tickers_missing(tmp_path, monkeypatch):
+    # ohlcv_us.csv 不存在 → 全部 missing、無 insufficient、min_row_count=None
+    monkeypatch.setattr(us_market_store, "OHLCV_US_PATH", tmp_path / "missing.csv")
+    status = us_market_service.get_us_market_status()
+    assert status["tickers_with_data"] == 0
+    assert status["missing_tickers"] == sorted(status["missing_tickers"])
+    assert len(status["missing_tickers"]) == status["universe_size"]
+    assert status["insufficient_tickers"] == []
+    assert status["min_row_count"] is None
+
+
+def test_us_status_missing_and_insufficient_are_disjoint(tmp_path, monkeypatch):
+    # AAPL 充足（>=60）、MSFT 有資料但不足（<60）、其餘完全無資料。
+    csv_path = tmp_path / "ohlcv_us.csv"
+    _write_us_ohlcv(csv_path, {"AAPL": 65, "MSFT": 30})
+    monkeypatch.setattr(us_market_store, "OHLCV_US_PATH", csv_path)
+
+    status = us_market_service.get_us_market_status()
+    assert status["tickers_with_data"] == 2
+    assert "MSFT" in status["insufficient_tickers"]          # 30 < MIN_SIGNAL_ROWS
+    assert "AAPL" not in status["insufficient_tickers"]      # 65 充足
+    assert "AAPL" not in status["missing_tickers"]           # 有資料 → 不在 missing
+    assert "MSFT" not in status["missing_tickers"]           # 有資料（但不足）→ 不在 missing
+    # missing 與 insufficient 不重疊（一個是「沒資料」、一個是「有資料但不足」）
+    assert not (set(status["missing_tickers"]) & set(status["insufficient_tickers"]))
+    assert status["min_row_count"] == 30                     # 目前有資料 ticker 的最小筆數
+    # insufficient 門檻引用 watch signal 常數，非另寫死
+    assert us_market_service.MIN_SIGNAL_ROWS == 60
+
+
 # ── HTTP 端點 ─────────────────────────────────────────────────────────────────
 
 def test_us_universe_endpoint_schema():
@@ -216,10 +258,13 @@ def test_us_status_endpoint_schema():
     res = client.get("/api/markets/us/status")
     assert res.status_code == 200
     body = res.json()
-    for key in ("region", "source_configured", "universe_size", "tickers_with_data", "last_data_as_of",
+    for key in ("region", "source_configured", "universe_size", "tickers_with_data",
+                "missing_tickers", "insufficient_tickers", "min_row_count", "last_data_as_of",
                 "expected_trading_day", "days_since_last", "is_stale"):
         assert key in body
     assert body["region"] == "US"
+    assert isinstance(body["missing_tickers"], list)
+    assert isinstance(body["insufficient_tickers"], list)
 
 
 # ── 資料新鮮度（compute_us_freshness，固定 today 求確定性）──────────────────────

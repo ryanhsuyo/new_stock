@@ -16,6 +16,9 @@ from app.services.trading_calendar_service import (
     is_trading_day,
     previous_trading_day,
 )
+# 引用 watch signal 既有門檻（需 ≥ 60 筆才算得出 MA60 / 觀察訊號），
+# 避免在此處另寫死 60 造成規則散落（CLAUDE.md §10）。
+from app.services.us_watch_signal_service import MIN_SIGNAL_ROWS
 from app.storage.us_market_store import load_us_leaders, load_us_ohlcv
 
 try:
@@ -111,6 +114,13 @@ def get_us_market_status() -> dict:
     last_data_as_of = max(last_dates) if last_dates else None
     freshness = compute_us_freshness(last_data_as_of)
 
+    # 回補可觀測性：哪些 ticker 完全無資料、哪些有資料但不足以算 MA60 / 觀察訊號。
+    missing_tickers = sorted(u["code"] for u in universe if not u["has_data"])
+    insufficient_tickers = sorted(
+        u["code"] for u in with_data if u["row_count"] < MIN_SIGNAL_ROWS
+    )
+    min_row_count = min((u["row_count"] for u in with_data), default=None)
+
     return {
         "region":              "US",
         # source_configured：資料源是否就緒（Yahoo 免 key → 恆 True）
@@ -118,6 +128,10 @@ def get_us_market_status() -> dict:
         "source_label":        getattr(source, "label", "US"),
         "universe_size":       len(universe),
         "tickers_with_data":   len(with_data),
+        # 回補可觀測性（門檻 = MIN_SIGNAL_ROWS，需算得出 MA60 才做觀察判斷）
+        "missing_tickers":      missing_tickers,
+        "insufficient_tickers": insufficient_tickers,
+        "min_row_count":        min_row_count,
         "last_data_as_of":     last_data_as_of,
         # 資料新鮮度（weekend-aware，容忍 1 個交易日；不含 NYSE 假日）
         "expected_trading_day": freshness["expected_trading_day"],

@@ -1220,6 +1220,9 @@ Dry-run 預覽還原，不寫入任何檔案。
   "source_label": "Yahoo Finance（美股，非官方、免 key）",
   "universe_size": 27,
   "tickers_with_data": 27,
+  "missing_tickers": [],
+  "insufficient_tickers": [],
+  "min_row_count": 256,
   "last_data_as_of": "2026-07-09",
   "expected_trading_day": "2026-07-10",
   "days_since_last": 1,
@@ -1230,6 +1233,12 @@ Dry-run 預覽還原，不寫入任何檔案。
 
 - US 主資料源為 **Yahoo Finance chart endpoint（免 API key、非官方、best-effort）**，故 `source_configured` 恆為 `true`。**Stooq 已停用**（改為需瀏覽器 JS 驗證）；**Finnhub** 保留為 future optional（官方、需 key）。
 - `source_configured=false` → 前端顯示「美股資料源尚未就緒」；`true` 但 `tickers_with_data=0` → 顯示「美股資料尚未更新」（請先跑 `backfill_command`）。
+- **回補可觀測性**（讓「回補是否補齊」一眼可判，供手動回補後驗收；皆由 universe × ohlcv 交叉比對）：
+  - `missing_tickers`：**完全無資料**的 ticker（`has_data=false`）代碼清單，已排序。
+  - `insufficient_tickers`：**有資料但筆數不足**（`row_count < 60`）的代碼清單，已排序。門檻沿用 watch signal 的 `MIN_SIGNAL_ROWS`（需 ≥ 60 筆才算得出 MA60 / 觀察訊號），不另寫死。
+  - `min_row_count`：目前**所有有資料 ticker** 的最小 `row_count`（無任何資料時為 `null`）。
+  - 27 檔全數回補後預期：`missing_tickers=[]`、`insufficient_tickers=[]`、`min_row_count` ≈ 256。
+  - `missing_tickers` 與 `insufficient_tickers` **互斥**：前者沒資料、後者有資料但太短。每檔逐筆 `row_count` 仍可從 `GET /api/markets/us/universe` 取得。
 - **資料新鮮度**（weekend-aware、**不含 NYSE 假日**、容忍 1 個交易日以避免收盤前誤判）：
   - `expected_trading_day`：以 America/New_York 為準的最近應有交易日。
   - `days_since_last`：`last_data_as_of` 之後到 `expected_trading_day` 的**交易日數**（缺資料時 `null`）。

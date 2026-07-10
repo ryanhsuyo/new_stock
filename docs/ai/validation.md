@@ -58,7 +58,8 @@
 - **資料源方向**：主源 = **Yahoo Finance chart endpoint（免 API key、非官方、best-effort）**；**Stooq 已停用**（需瀏覽器 JS 驗證）；Finnhub = future optional（`FINNHUB_API_KEY`，不進 git）。
 
 **A. AI 可自行驗收（不需真實對外網路）：**
-- `python3.11 -m pytest -q` 全綠：`test_us_market.py`（Yahoo 解析 / Stooq 停用 / Finnhub 缺 key / 資料新鮮度 / universe + category）、`test_us_analysis.py`（指標數學、**六種狀態**、fixture 端到端）、`test_us_watch_signals.py`（五種觀察訊號、SPY/QQQ 大盤基準、fixture 端到端、no-data 誠實、`/markets/us/signals` schema）。
+- `python3.11 -m pytest -q` 全綠：`test_us_market.py`（Yahoo 解析 / Stooq 停用 / Finnhub 缺 key / 資料新鮮度 / universe + category / status 回補可觀測性 `missing_tickers` · `insufficient_tickers` · `min_row_count`）、`test_us_analysis.py`（指標數學、**六種狀態**、fixture 端到端）、`test_us_watch_signals.py`（五種觀察訊號、SPY/QQQ 大盤基準、fixture 端到端、no-data 誠實、`/markets/us/signals` schema）。
+- `/api/markets/us/status` 回補可觀測性：27 檔全數回補後 `missing_tickers=[]`、`insufficient_tickers=[]`、`min_row_count`≈256；缺資料 / 筆數不足的 fixture 下能正確分出「無資料」與「有資料但 < 60 筆」（互斥）。門檻沿用 `MIN_SIGNAL_ROWS`，非另寫死。
 - US 觀察訊號：`/markets/us/signals` 用 **fixture `ohlcv_us.csv`** 或真實資料回**每檔 leader 一筆** + `market_bias`；`ohlcv_us.csv` 不存在 → 全 `avoid_weak` / `market_bias=unknown`（誠實）。**非推薦、非買賣、非下單。**
 - `npm run build` 成功。
 - API 在**無資料**時：`/markets/us/analysis` 回 `no_data` + 指標 null；用 **fixture** 時算出 MA/RSI/漲跌幅並歸類狀態。狀態六種：`trend_up` / `recovering` / `pullback_watch` / `overheated` / `weak` / `no_data`——**`no_data`（算不出來）與 `weak`（跌破 MA60）必須分開**，資料完整的股票不得顯示為「資料不足」。

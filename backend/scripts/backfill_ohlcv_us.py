@@ -43,7 +43,7 @@ THROTTLE_SECONDS = 1.5   # 非官方來源：節流、少量 ticker、避免被�
 
 def main() -> int:
     parser = argparse.ArgumentParser(
-        description="回補美股日 OHLCV 至 backend/data/ohlcv_us.csv（Stooq，免 key）"
+        description="回補美股日 OHLCV 至 backend/data/ohlcv_us.csv（Yahoo Finance，免 key）"
     )
     parser.add_argument("--months", type=int, default=12, help="回補月數")
     args = parser.parse_args()
