@@ -12,6 +12,29 @@
 
 ---
 
+## 2026-07-12 — us_wang_breakout（老王美股版）5 年回放驗證（evaluation-only）
+
+- **Date:** 2026-07-12
+- **Task:** 使用者要「老王型：有拼有止損」的美股策略。設計突破+量能進場、MA10 波段、−8% 硬止損、SPY/QQQ 軟濾網；一年首測 +1.46%/筆後**參數凍結**，回補 5 年資料（`--months 60`，2021-06～2026-07 含 2022 空頭）做樣本外重測 + 生存者偏差敏感度測試。**不下單、不推薦、不調參、不改 production。**
+- **Goal:** 回答「這種策略能不能信」。
+- **Completed:**
+  - 5 年回補：27 檔 × 1,279 rows（ARM 自 2023-09 IPO 起），total 33,961（本機 gitignored）。
+  - `us_breakout_replay_service.py`：walk-forward（窗口只用 index ≤ i）、D+1 open 成交、止損優先於 MA10 出場、`params_frozen` 記錄在 config、summary 含尾部集中度（top1/top5 share）與逐筆累計和最大回落；`scripts/replay_us_breakout.py` 輸出 out/*.{json,csv}（gitignored）。
+  - `test_us_breakout_replay.py`（11 測試）：進場三條件、量能 1.5x 邊界、竄改未來 bar 不影響訊號、濾網擋訊號計數、ETF 不交易、−8% 止損（跳空以次日 open 結算）、MA10 連 2 日（單日不出）、最後一日 unresolved、確定性、參數凍結斷言。
+  - 報告 `docs/ai/us-wang-breakout-replay-5y.md`（規則、方法學、年度分解、敏感度、結論下修）。
+- **Key findings:**
+  - 全 23 檔：343 筆、勝率 46.1%、**+1.77%/筆**、+607 點；2022 空頭年濾網把訊號壓到 20 筆、只虧 −23 點；top1 僅佔 8.6%；止損平均 −9.83%（最差 −22.18% 跳空穿價）。**機制層健全。**
+  - **敏感度測試翻盤**：拿掉貢獻前 5（NVDA/TSLA/AMD/MU/ARM）→ 269 筆 **+0.39%/筆、+106 點、6 年中 5 年虧損**（只剩 2024 正）。利潤 ≈ 「2026 年選的 universe 裡剛好有 AI 五大贏家」= 生存者偏差。**edge 無法與後見之明分離。**
+  - **評級：不建議照此下單**；可考慮做成第二套觀察策略（candidate/watch + 理由），其價值取決於使用者滾動維護 universe 的品質（回測無法驗證）。
+- **Changed Files:** 新增 `backend/app/services/us_breakout_replay_service.py`、`backend/scripts/replay_us_breakout.py`、`backend/tests/test_us_breakout_replay.py`、`docs/ai/us-wang-breakout-replay-5y.md`；修改 docs（roadmap / current-status / validation / handoff-log）。production / API / 前端零改動。
+- **Validation:** `python3.11 -m pytest -q` 見完成回報；5 年真實回放 + 敏感度重跑成功。
+- **Git Status:** 乾淨（commit 後）。
+- **Commit:** 見完成回報。**未 push。**
+- **Next Steps（若續）:** 1) 做成觀察策略上線（非推薦）；2) 資金配置模擬；3) 時點 universe 資料（唯一能真正回答 edge 的路）。
+- **Notes / Warnings:** **參數已凍結，不得調參重測**（過擬合）；**別引用 +607 點當策略有效的證據**（敏感度已否定）；out/ 結果檔與 5 年 ohlcv_us.csv 均不 commit。
+
+---
+
 ## 2026-07-11 — us_trend_follow 逐日回放驗證（evaluation-only）
 
 - **Date:** 2026-07-11

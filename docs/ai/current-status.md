@@ -5,7 +5,9 @@
 
 ## Current Phase
 
-**us_trend_follow 逐日回放驗證（evaluation-only）完成**（本階段程式待 commit）。`us_strategy_replay_service` + `scripts/replay_us_strategy.py`：walk-forward（as-of D 切片重算指標，測試證明無未來資料洩漏）、D+1 open 成交、兩套 evaluation-only 退出（candidate_exit / trend_protect_exit）比較，輸出 `backend/out/us_strategy_replay_*.{json,csv}`（gitignored）。結論見 `docs/ai/us-trend-follow-replay-2026-06.md`：**candidate_exit 證實太敏感**（平均持有 1.9 天、8/16 三日內再入選；主因 dist>8% 與 RSI<50 邊界被對稱當退出用）；trend_protect 結構較合理（9.3 天、再入選 1 次）；gate 本窗口全 bullish 未被壓力測試。**production 規則零改動、無參數最佳化、不下單。**
+**us_wang_breakout（老王美股版）5 年回放驗證完成（evaluation-only）**（本階段程式待 commit）。突破+量能進場、MA10 波段、−8% 硬止損、SPY/QQQ 軟濾網；參數凍結後以 5 年資料（2021-06～2026-07，含 2022 空頭）樣本外重測。**機制層通過**（343 筆 +1.77%/筆、2022 空頭年濾網壓到 20 筆小虧、尾部不再單點依賴）；**edge 層被敏感度測試否定**——拿掉 NVDA/TSLA/AMD/MU/ARM 後 6 年有 5 年虧損（+607→+106 點，只剩 2024 為正），利潤主要是 2026 版 universe 的生存者偏差。**評級：不建議照此下單；可考慮做成第二套觀察策略。** 完整證據：`docs/ai/us-wang-breakout-replay-5y.md`。`ohlcv_us.csv` 已擴到 5 年（27 檔 33,961 rows，本機 gitignored）。**production 規則零改動、不下單、無參數最佳化。**
+
+前一階段 **us_trend_follow 逐日回放驗證（evaluation-only）**（`136c865`）。`us_strategy_replay_service` + `scripts/replay_us_strategy.py`：walk-forward（as-of D 切片重算指標，測試證明無未來資料洩漏）、D+1 open 成交、兩套 evaluation-only 退出（candidate_exit / trend_protect_exit）比較，輸出 `backend/out/us_strategy_replay_*.{json,csv}`（gitignored）。結論見 `docs/ai/us-trend-follow-replay-2026-06.md`：**candidate_exit 證實太敏感**（平均持有 1.9 天、8/16 三日內再入選；主因 dist>8% 與 RSI<50 邊界被對稱當退出用）；trend_protect 結構較合理（9.3 天、再入選 1 次）；gate 本窗口全 bullish 未被壓力測試。**production 規則零改動、無參數最佳化、不下單。**
 
 前一階段 **US 觀察策略第一套 us_trend_follow**（`bb5414c`）：大盤守門的趨勢延續觀察：`us_strategy_service`（純函式規則 + 聚合）、`GET /api/markets/us/strategy/trend-follow`（candidates/excluded 皆有 reasons、candidate 另有 risk_notes、rank 排序無分數）、前端「策略觀察：趨勢延續」區塊（gate 橫幅 / candidates 表 / excluded 摺疊「為何不在清單」）。守門：bullish 啟用、mixed 降 watch、bearish/unknown 誠實空清單（規則關門非故障）。**非推薦、非買賣建議、非下單、不套台股策略；第二套 us_pullback_watch 刻意未做。**
 
@@ -77,6 +79,7 @@
 - `/status` 的 `insufficient_tickers` 門檻用 `us_market_service` 從 `us_watch_signal_service` import 的 `MIN_SIGNAL_ROWS`（=60）。**不要在 `us_market_service` 另寫死 60**——規則要單一來源（CLAUDE.md §10）。此 import 方向（market_service → watch_signal_service）無循環，watch_signal_service 不反向 import market_service。
 - `us_trend_follow` 是**觀察策略**：state 只有 candidate/watch/avoid/overheated、rank 只是排序。**不要**加 0–100 分數、進出場價、買賣語言，或把它升級成台股式推薦桶。策略自有門檻（RSI 50–68、dist ≤ +8）只在 `us_strategy_service` 定義；過熱 / 資料量門檻引用既有常數（`OVERHEATED_*`、`MIN_SIGNAL_ROWS`），別複製數字。守門 bearish/unknown 回空 candidates 是**規則**——別「修」成永遠有輸出。
 - `us_strategy_replay_service` 是 **evaluation-only 回放工具**：candidate_exit / trend_protect_exit 是評估用退出規則，**不是 production contract**——別接進 API / 前端 / 排程，別依回放結果直接改策略參數（樣本僅 11 天）。回放的候選判定直接呼叫 production `classify_trend_follow`，**不要**在 replay 裡複製或 fork 規則。out/ 回放結果檔 gitignored，不 commit。
+- `us_breakout_replay_service`（us_wang_breakout）同為 **evaluation-only**，且**參數已凍結**（stop 0.92 / vol 1.5x / 20 日高 / MA10×2，2026-07-11 定案）——**不得調參重測**（那是過擬合）；改參數 = 新策略、需另案記錄。5 年結果的 edge 已被生存者敏感度測試否定（拿掉前 5 貢獻檔 → 5/6 年虧損），**別引用 +607 點當「策略會賺」的證據**；別據此上推薦 / 下單功能。
 
 ## Latest Verified State
 
