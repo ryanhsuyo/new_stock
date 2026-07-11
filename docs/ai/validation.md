@@ -34,6 +34,7 @@
 
 - 啟動後端 + 前端後，打開 `http://localhost:5173`，確認 Dashboard 有資料（資料日 / 最後更新非「—」）。
 - 研究頁動線：Today → 研究 → rail 切股 → 搜尋切股 → 瀏覽器 back/forward 一致；deep link（`#/research/<code>`）重整能還原。
+- 美股頁動線：`#/us`（或別名 `#/markets/us`）直達美股頁、重整仍留在美股頁；header 台股/美股切換同步 hash、back/forward 一致；頂部資料狀態面板：資料完整時「27/27 已更新，最少 N 筆」，缺資料 / 筆數不足時列出代碼；手動更新指令只顯示（不執行）。
 - 後端關閉時，Dashboard 頂部應出現明確錯誤 / 連線中斷橫幅（不是靜默空白）。
 
 ## Known Test Commands

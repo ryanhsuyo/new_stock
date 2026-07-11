@@ -12,6 +12,24 @@
 
 ---
 
+## 2026-07-11 — US 美股頁操作體驗：資料狀態面板 + hash deep link
+
+- **Date:** 2026-07-11
+- **Task:** 美股頁頂部加資料狀態面板（消費 e323291 的 status 欄位）；美股頁支援 hash deep link（`#/us` / `#/markets/us`），header 切換同步 hash。前端純呈現，不做策略 / 推薦 / 下單 / launchd / 自動回補。
+- **Goal:** 回補缺口在 UI 一眼可見；美股頁可分享連結、重整不掉回台股。
+- **Completed:**
+  - **資料狀態面板**（`UsMarketPage`）：資料源 `source_label`、`tickers_with_data`/`universe_size` pill（完整=綠「27/27 已更新，最少 256 筆」、不完整=黃）、資料日 + `days_since_last` +（stale 時）「已過期」tag、`min_row_count`、`missing_tickers` / `insufficient_tickers` 非空時以紅字列出代碼與數量、手動更新指令 `cd backend && python3.11 scripts/backfill_ohlcv_us.py --months 12`（**只顯示**，`user-select: all` 方便複製；無 run-backfill API）。原單行 `us-freshness` 資料日併入面板（CSS 已移除）。
+  - **hash deep link**（`App.tsx`，沿用既有 hash routing、未引 React Router）：`parseHash` 回傳 `region`；`#/us` 正準、`#/markets/us` 別名（`US_HASH_PATHS`）；`region` 由 hash **lazy-init**（同 tab 的 StrictMode-safe 模式）；hashchange handler 用 `regionRef` 同步 region（US 時不動台股 tab 狀態）；state→hash effect：region=US 時若 hash 已是美股路徑（含別名）**不改寫**，否則設 `#/us`；切回台股還原原 tab path。
+  - types：`UsMarketStatus` 補 `missing_tickers` / `insufficient_tickers` / `min_row_count`（e323291 後端已提供）。
+- **Changed Files:** `frontend/src/App.tsx`、`frontend/src/pages/UsMarketPage.tsx`、`frontend/src/types/index.ts`、`frontend/src/App.css`；docs（current-status / validation / handoff-log）。**未動後端**；api.md 無 API 變更故未動。
+- **Validation:** `npm run build` 成功；`python3.11 -m pytest -q` 見完成回報。瀏覽器實測：`#/us` 直達美股頁、重整仍在美股頁、`#/markets/us` 別名可用且不被改寫、台股↔美股切換 hash 同步（`#/today` ↔ `#/us`）、back/forward 正常；真實資料面板「27/27 已更新，最少 256 筆」；mock 缺資料變體正確列出「無資料（2）：DIA、IWM」「筆數不足（1）：ARM」+ 黃 pill + 已過期 tag；無 console error。
+- **Git Status:** 乾淨（commit 後）。
+- **Commit:** 見完成回報。**未 push。**
+- **Next Steps:** 候選：回補腳本結尾驗收摘要、完整 NYSE 假日曆 + launchd。**仍不做美股正式推薦 / 買賣 / 下單。**
+- **Notes / Warnings:** `#/markets/us` 別名**刻意不改寫**成 `#/us`（避免多餘歷史紀錄），別統一。region 必須維持 hash lazy-init，別改回 skip-first ref（StrictMode 會掉 deep link）。指令只顯示——**不要**加 run-backfill API 或前端觸發回補。
+
+---
+
 ## 2026-07-11 — US status 回補可觀測性（missing / insufficient / min_row_count）
 
 - **Date:** 2026-07-11

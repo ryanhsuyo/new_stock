@@ -5,9 +5,13 @@
 
 ## Current Phase
 
-**US status 回補可觀測性完成**（本階段程式待 commit）。`/api/markets/us/status` 新增 `missing_tickers`（完全無資料）/ `insufficient_tickers`（有資料但 `row_count < MIN_SIGNAL_ROWS=60`，門檻引用 watch signal 常數、不另寫死）/ `min_row_count`（有資料 ticker 最小筆數）；聚合放 service、router 維持薄；順手修 `backfill_ohlcv_us.py` 過時的「Stooq」描述為 Yahoo。**無前端改動、無回補腳本大型摘要、無 launchd / 策略 / 推薦 / 下單；台股主流程零改動。**
+**US 美股頁操作體驗完善完成**（本階段程式待 commit）：
+- **資料狀態面板**：美股頁頂部顯示資料源 / `tickers_with_data`/`universe_size` / 資料日（含 days_since_last、已過期 tag）/ `min_row_count` / `missing_tickers` / `insufficient_tickers`（非空時清楚列代碼）；資料完整時顯示「27/27 已更新，最少 256 筆」綠 pill。手動更新指令**只顯示**（`… --months 12`），無 run-backfill API、無自動回補。
+- **hash deep link**：`#/us`（正準）與 `#/markets/us`（別名）直達美股頁；重整仍留在美股頁；header「台股/美股」切換同步 hash（美股→`#/us`、台股→原 tab path）；back/forward 正常。沿用既有 hash routing、未引 React Router；region 與 tab 一樣由 hash lazy-init（StrictMode-safe）。
 
-前一階段 **US Phase 2 狀態語意修正**（拆 `weak_or_no_data` → `no_data` / `weak` / `recovering`）已完成並 commit（`608bd33`）。拆掉 `weak_or_no_data` 混合桶 → `no_data`（算不出指標）/ `weak`（跌破 MA60）/ `recovering`（站上 MA20 與 MA60 但 MA20 < MA60）；保留 trend_up / pullback_watch / overheated。`/api/markets/us/analysis` schema、前端 badge + 圖例同步更新；**watch signals 規則未動**（`/signals` 訊號分佈與修正前一致）。**不做 launchd / 策略 / 推薦 / 下單；台股主流程零改動。**
+前端純呈現（消費 `/status` 既有欄位，e323291 已提供），**未動後端**。**無策略 / 推薦 / 下單 / launchd；台股主流程零改動。**
+
+前一階段 **US status 回補可觀測性**（missing/insufficient/min_row_count）已完成並 commit（`e323291`）。拆掉 `weak_or_no_data` 混合桶 → `no_data`（算不出指標）/ `weak`（跌破 MA60）/ `recovering`（站上 MA20 與 MA60 但 MA20 < MA60）；保留 trend_up / pullback_watch / overheated。`/api/markets/us/analysis` schema、前端 badge + 圖例同步更新；**watch signals 規則未動**（`/signals` 訊號分佈與修正前一致）。**不做 launchd / 策略 / 推薦 / 下單；台股主流程零改動。**
 
 前一階段 **US universe 擴充 + 分類**（27 檔，真實 Yahoo 回補已驗收：每檔 256 筆、`tickers_with_data=27`、無資料不足）已完成並 commit（`2b2aaa7`）。`us_leaders.json` 擴到第一版 27 檔（ETF/Benchmark 4、Mega-cap Tech 7、Semiconductors/AI 6、Software/Cloud 5、Defensive/Consumer 5），每檔帶觀察用 `category`；`/universe`、`/analysis`、`/signals` 皆帶 `category`；前端美股頁加分類欄位 + 分類過濾 chip（同時過濾技術狀態表與觀察訊號表）。**仍非推薦、非買賣建議、無下單、不套台股策略；台股主流程零改動；本輪不做 launchd。** Phase 1（Yahoo 免 key 資料源）、Phase 2（基本技術狀態）、Phase 3（觀察訊號）、資料新鮮度皆已完成。
 
@@ -56,7 +60,7 @@
 
 - 兩策略限制（`old_wang` / `steady_momentum`）已定案；不要在前端重算策略 / 分數 / 推薦桶。
 - vite proxy 已改用 `127.0.0.1:19000`；**不要改回 `localhost`**（Node 會走 IPv6 連不到只綁 IPv4 的 uvicorn，整個 Dashboard 會變空白）。
-- App 路由已改為「由 hash lazy-init state」以修 StrictMode 下 deep link 重整掉回首頁的問題；**不要改回 skip-first ref 的寫法**。
+- App 路由已改為「由 hash lazy-init state」以修 StrictMode 下 deep link 重整掉回首頁的問題；**不要改回 skip-first ref 的寫法**。`region`（台股/美股）同樣由 hash lazy-init：`#/us` 正準、`#/markets/us` 別名（state→hash effect 對別名**刻意不改寫**，避免多餘歷史紀錄）——別「順手統一」成單一路徑。
 - rail 為研究頁 AnalysisPage 的 sibling（在 `{tab === 'analysis'}` 內），跨分頁會 remount 重抓；已知且刻意。
 - US scaffold：`TwsePriceSource.fetch_ohlcv()` **刻意丟 `PriceSourceError`**（seam，不接管台股抓取），`test_markets_scaffold.py` 對此有斷言。要讓 TW adapter 真的接管抓取是**有意識的下一步**，屆時需同步更新該測試——不是 bug，別「順手修掉」。
 - 美股 OHLCV 寫**獨立** `ohlcv_us.csv`、US universe 用**獨立** `us_leaders.json`；**不要把美股資料混進台股 `ohlcv.csv` / `leaders.json`**（會回歸台股流程）。

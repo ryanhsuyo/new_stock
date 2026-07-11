@@ -39,10 +39,17 @@ export default function UsMarketPage() {
   const shownItems = items.filter(u => matchCat(u.category))
   const shownSignals = signals?.signals.filter(s => matchCat(s.category)) ?? []
 
+  // 資料狀態面板：回補是否補齊一眼可判（missing / insufficient / min_row_count）
+  const missing = status?.missing_tickers ?? []
+  const insufficient = status?.insufficient_tickers ?? []
+  const dataComplete = hasAnyData && missing.length === 0 && insufficient.length === 0
+  // 手動更新指令（只顯示，不執行；--months 12 為完整回補）
+  const backfillFullCmd = `${backfillCmd} --months 12`
+
   return (
     <main className="app-main">
       <div className="page-actions">
-        <h2 className="page-subtitle">美股 · US Market（Phase 2：基本技術狀態）</h2>
+        <h2 className="page-subtitle">美股 · US Market（觀察用：技術狀態 / 觀察訊號，非推薦）</h2>
       </div>
 
       {!sourceReady && (
@@ -72,15 +79,53 @@ export default function UsMarketPage() {
           </div>
         </div>
       )}
-      {sourceReady && hasAnyData && !status?.is_stale && (
-        <p className="us-freshness">
-          資料日 <strong>{status?.last_data_as_of ?? '—'}</strong>
-          {status?.days_since_last === 0
-            ? '（最新）'
-            : status?.days_since_last != null
-              ? `（${status.days_since_last} 個交易日前）`
-              : ''}
-        </p>
+      {/* 資料狀態面板：資料源 / 覆蓋率 / 新鮮度 / 回補缺口，指令只顯示不執行 */}
+      {status && (
+        <section className="us-data-panel" aria-label="美股資料狀態">
+          <div className="us-data-panel-head">
+            <span className="us-data-panel-title">資料狀態</span>
+            <span className={`us-data-pill ${dataComplete ? 'us-data-pill-ok' : 'us-data-pill-warn'}`}>
+              {dataComplete && status.min_row_count != null
+                ? `${status.tickers_with_data}/${status.universe_size} 已更新，最少 ${status.min_row_count} 筆`
+                : `${status.tickers_with_data}/${status.universe_size} 已更新`}
+            </span>
+          </div>
+          <dl className="us-data-grid">
+            <div className="us-data-item">
+              <dt>資料源</dt>
+              <dd>{status.source_label ?? 'US'}</dd>
+            </div>
+            <div className="us-data-item">
+              <dt>資料日</dt>
+              <dd>
+                {status.last_data_as_of ?? '—'}
+                {status.days_since_last === 0
+                  ? '（最新）'
+                  : status.days_since_last != null
+                    ? `（${status.days_since_last} 個交易日前）`
+                    : ''}
+                {status.is_stale && <span className="us-data-stale-tag">已過期</span>}
+              </dd>
+            </div>
+            <div className="us-data-item">
+              <dt>最少筆數</dt>
+              <dd>{status.min_row_count != null ? `${status.min_row_count} 筆` : '—'}</dd>
+            </div>
+          </dl>
+          {missing.length > 0 && (
+            <p className="us-data-issue">
+              <strong>無資料（{missing.length}）：</strong>{missing.join('、')}
+            </p>
+          )}
+          {insufficient.length > 0 && (
+            <p className="us-data-issue">
+              <strong>筆數不足（{insufficient.length}，&lt; 60 筆無法算 MA60）：</strong>{insufficient.join('、')}
+            </p>
+          )}
+          <p className="us-data-cmd">
+            手動更新（本機終端機執行）：<code>{backfillFullCmd}</code>
+          </p>
+        </section>
       )}
 
       <p className="us-note">

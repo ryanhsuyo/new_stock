@@ -1149,11 +1149,17 @@ export interface UsUniverseItem {
 
 export interface UsMarketStatus {
   region: 'US'
-  /** 資料源是否就緒（Stooq 免 key → 恆 true；Finnhub optional 需 key） */
+  /** 資料源是否就緒（Yahoo 免 key → 恆 true；Finnhub optional 需 key） */
   source_configured: boolean
   source_label?: string
   universe_size: number
   tickers_with_data: number
+  /** 回補可觀測性：完全無資料的 ticker 代碼（已排序） */
+  missing_tickers?: string[]
+  /** 回補可觀測性：有資料但筆數 < 60（算不出 MA60 / 觀察訊號）的代碼（已排序） */
+  insufficient_tickers?: string[]
+  /** 所有有資料 ticker 的最小 row_count；無資料時 null */
+  min_row_count?: number | null
   last_data_as_of: string | null
   /** 資料新鮮度（weekend-aware，容忍 1 個交易日；不含 NYSE 假日） */
   expected_trading_day?: string | null

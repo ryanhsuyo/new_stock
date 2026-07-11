@@ -67,13 +67,22 @@ function pathForState(tab: Tab, analysisCode?: string): string {
   return TAB_TO_PATH[tab]
 }
 
-function parseHash(hash: string): { tab: Tab; code?: string } {
+// 美股頁 deep link：#/us 為正準；#/markets/us 為別名（兩者都保留，不互相改寫）
+const US_HASH_PATHS = new Set(['us', 'markets/us'])
+
+function isUsHash(hash: string): boolean {
+  return US_HASH_PATHS.has(hash.replace(/^#/, '').replace(/^\/+/, ''))
+}
+
+function parseHash(hash: string): { region: 'TW' | 'US'; tab: Tab; code?: string } {
   const raw = hash.replace(/^#/, '').replace(/^\/+/, '')
+  // #/us 或 #/markets/us → 美股頁（美股頁內部無 tab，tab 僅回台股時使用）
+  if (US_HASH_PATHS.has(raw)) return { region: 'US', tab: 'dashboard' }
   const [head, second] = raw.split('/')
   // #/research/2330 → 技術分析深連結
-  if (head === 'research' && second) return { tab: 'analysis', code: decodeURIComponent(second) }
+  if (head === 'research' && second) return { region: 'TW', tab: 'analysis', code: decodeURIComponent(second) }
   const tab = PATH_TO_TAB[head]
-  return tab ? { tab } : { tab: 'dashboard' }
+  return tab ? { region: 'TW', tab } : { region: 'TW', tab: 'dashboard' }
 }
 
 export default function App() {
@@ -85,19 +94,23 @@ export default function App() {
   const [universeJournalFilter, setUniverseJournalFilter] = useState<UniverseJournalFilter>('all')
   // 遞增以通知左 rail 重新抓取（例如在研究頁成功加入觀察清單後）
   const [railRefreshKey, setRailRefreshKey] = useState(0)
-  // 市場切換入口（scaffold）：目前只有台股 TW；US 尚未開放，選擇不影響任何資料流
-  const [region, setRegion] = useState<'TW' | 'US'>('TW')
+  // 市場切換（TW / US）：與 tab 一樣由 hash lazy-init，支援 #/us deep link 重整還原
+  const [region, setRegion] = useState<'TW' | 'US'>(() => parseHash(window.location.hash).region)
 
   // 用 ref 讀取最新值，避免 hashchange handler 抓到過時 closure
   const tabRef = useRef(tab)
   tabRef.current = tab
   const codeRef = useRef(analysisCode)
   codeRef.current = analysisCode
+  const regionRef = useRef(region)
+  regionRef.current = region
 
   // 網址 hash → state：支援重整還原、deep link 與瀏覽器上一頁 / 下一頁
   useEffect(() => {
     const applyHash = () => {
-      const { tab: ht, code } = parseHash(window.location.hash)
+      const { region: hr, tab: ht, code } = parseHash(window.location.hash)
+      if (regionRef.current !== hr) setRegion(hr)
+      if (hr === 'US') return // 美股頁無內部 tab，不動台股 tab 狀態
       if (tabRef.current !== ht) setTab(ht)
       if (ht === 'analysis' && codeRef.current !== code) {
         setAnalysisCode(code)
@@ -114,14 +127,19 @@ export default function App() {
     return () => window.removeEventListener('hashchange', applyHash)
   }, [])
 
-  // state → 網址 hash：tab / analysisCode 變動時反映到網址（產生歷史紀錄）
+  // state → 網址 hash：region / tab / analysisCode 變動時反映到網址（產生歷史紀錄）
   // 掛載時 state 已由 lazy initializer 對齊 hash，故此處會是 no-op，不會覆蓋 deep link。
   useEffect(() => {
+    if (region === 'US') {
+      // #/markets/us 為合法別名：已在美股 hash 上就不改寫，避免多餘歷史紀錄
+      if (!isUsHash(window.location.hash)) window.location.hash = '/us'
+      return
+    }
     const desired = pathForState(tab, analysisCode)
     if (window.location.hash.replace(/^#/, '') !== desired) {
       window.location.hash = desired
     }
-  }, [tab, analysisCode])
+  }, [region, tab, analysisCode])
 
   function handleTabClick(t: Tab) {
     // 手動點選「技術分析」tab 時清除自動跳轉代碼
