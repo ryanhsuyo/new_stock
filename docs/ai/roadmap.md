@@ -12,7 +12,7 @@
 
 > 現在正在做 / 即將做的（對應 `current-status.md` 的 Current Phase）。
 
-- **US Phase 2 狀態語意修正**（見下方規格）。拆掉 `weak_or_no_data` 混合桶 → `no_data`（算不出來）/ `weak`（跌破 MA60）/ `recovering`（站上 MA20、MA60 但 MA20 < MA60）。**不改 watch signals 規則、不做 launchd / 策略 / 推薦 / 下單、不改台股主流程。** Phase 1（Yahoo 免 key 資料源）、Phase 2（基本技術狀態）、Phase 3（觀察訊號）、資料新鮮度、universe 擴充 + 分類（27 檔，真實回補已驗收）皆已完成。
+- **US 觀察策略第一套：us_trend_follow（大盤守門的趨勢延續觀察）**（見下方 Phase 規格）。在 Phase 2 指標上做跨檔收斂：SPY/QQQ 大盤守門（bearish/unknown 誠實空清單）、入選/排除規則 + rank 排序、candidates/excluded 皆有 reasons。**非推薦、非買賣建議、非下單、無 0–100 分數、不套台股策略、不改台股主流程；第二套 us_pullback_watch 刻意未做。** 更早：Phase 1（Yahoo 資料源）、Phase 2（技術狀態 + 語意修正）、Phase 3（觀察訊號）、新鮮度、universe 27 檔 + 分類、status 回補可觀測性、美股頁面板 + deep link 皆已完成。
 
 ## Next
 
@@ -151,6 +151,31 @@ AI 已驗收：
 - [x] `/api/markets/us/universe` 回 ~27 檔且每筆帶 `category`；`/signals` 帶 `category`。
 - [x] 前端顯示分類欄 + 分類過濾；新 ticker 尚未回補時誠實顯示資料不足。
 - [x] 未做買賣建議 / 下單 / 推薦；未套台股策略；未改台股；未做 launchd。
+
+
+### US 觀察策略：us_trend_follow（大盤守門的趨勢延續）
+
+**Purpose**
+watch signals 是單檔描述，缺跨檔收斂——27 檔裡「值得優先看哪幾檔、其他為何不在清單」。第一套觀察策略：趨勢追蹤 + ETF benchmark filter + 防追高。**非推薦、非買賣建議、非下單。**
+
+**Scope**
+- 包含：
+  - `us_strategy_service.py`：純函式 `classify_trend_follow` + 聚合 `get_us_trend_follow`。
+  - 大盤守門：bullish 啟用 / mixed 降 watch / bearish、unknown 關門（`active=false`、candidates 空、note 明講規則關門）。
+  - 入選：`close > MA20 > MA60`、`50 ≤ RSI ≤ 68`、`0 ≤ dist_ma20 ≤ +8`、20 日漲跌幅 > 0、非 ETF。
+  - 排除（附 reasons）：ETF 量尺 watch / 資料不足 avoid / 過熱（沿用 Phase 2 門檻）overheated / 跌破 MA60 avoid / recovering watch / 條件不符 watch。
+  - 排序：dist 小→大 → 20 日漲幅大→小 → code；rank 1 起。
+  - `GET /api/markets/us/strategy/trend-follow` + 前端「策略觀察：趨勢延續」區塊（gate 橫幅 / candidates 表 / excluded 摺疊）。
+- **不包含（out of scope）**：
+  - 第二套 us_pullback_watch（刻意留待下一輪評估）。
+  - 買賣建議 / 進場價 / 停損價 / 下單 / 0–100 分數 / 回測 / MACD、ATR、布林、量能等新指標 / launchd / universe 擴充 / 台股主流程。
+
+**Acceptance Criteria**
+- [x] `python3.11 -m pytest -q` 全綠（gate 三態、RSI 68/69/70 與 dist 8/10/15 邊界、ETF 不進候選、candidate 必有 reasons+risk_notes、排序 tiebreak、無 score、endpoint schema）。
+- [x] `npm run build` 成功。
+- [x] 真實 27 檔：gate bullish、candidates 2 檔（AMD #1、AAPL #2）、excluded 25 檔各有原因。
+- [x] 前端：gate 橫幅 + candidates 表 + excluded 摺疊 + 非推薦聲明；空清單時明講是規則關門。
+- [x] 未做推薦 / 買賣 / 下單；未套台股策略；未改台股。
 
 
 ### US Phase 2 狀態語意修正（拆 `weak_or_no_data`）

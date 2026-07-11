@@ -1,23 +1,24 @@
 import { useEffect, useState } from 'react'
 import { api } from '../api/client'
-import type { UsAnalysisItem, UsMarketStatus, UsWatchSignals } from '../types'
+import type { UsAnalysisItem, UsMarketStatus, UsTrendFollow, UsWatchSignals } from '../types'
 
 /**
- * 美股頁：Phase 2 基本技術狀態 + Phase 3 觀察訊號。
- * **非推薦、非買賣建議、非策略、無下單**；缺 key 或無資料時誠實顯示。
+ * 美股頁：基本技術狀態 + 觀察訊號 + 觀察策略（us_trend_follow）。
+ * **非推薦、非買賣建議、無下單**；缺資料時誠實顯示。
  */
 export default function UsMarketPage() {
   const [status, setStatus] = useState<UsMarketStatus | null>(null)
   const [items, setItems] = useState<UsAnalysisItem[]>([])
   const [signals, setSignals] = useState<UsWatchSignals | null>(null)
+  const [strategy, setStrategy] = useState<UsTrendFollow | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
   const [categoryFilter, setCategoryFilter] = useState<string>('all')
 
   useEffect(() => {
     let alive = true
-    Promise.all([api.getUsMarketStatus(), api.getUsAnalysis(), api.getUsSignals()])
-      .then(([s, a, sig]) => { if (alive) { setStatus(s); setItems(a); setSignals(sig) } })
+    Promise.all([api.getUsMarketStatus(), api.getUsAnalysis(), api.getUsSignals(), api.getUsTrendFollow()])
+      .then(([s, a, sig, strat]) => { if (alive) { setStatus(s); setItems(a); setSignals(sig); setStrategy(strat) } })
       .catch(e => { if (alive) setError(e instanceof Error ? e.message : '載入失敗') })
       .finally(() => { if (alive) setLoading(false) })
     return () => { alive = false }
@@ -191,6 +192,77 @@ export default function UsMarketPage() {
         </tbody>
       </table>
 
+      {strategy && (
+        <section className="us-strategy-section">
+          <h3 className="us-section-title">策略觀察：趨勢延續</h3>
+          <p className="us-note">
+            <strong>us_trend_follow</strong>（{strategy.strategy_label}）——
+            <strong>非推薦、非買賣建議、非下單</strong>；state / rank 只是觀察語言與排序，不是分數。
+          </p>
+          <div
+            className={`us-gate-banner ${strategy.market_gate.active
+              ? (strategy.market_gate.bias === 'bullish' ? 'us-gate-open' : 'us-gate-mixed')
+              : 'us-gate-closed'}`}
+            role="status"
+          >
+            {strategy.market_gate.active ? '✓' : '✕'} 大盤守門（{strategy.market_gate.bias}）：{strategy.market_gate.note}
+          </div>
+
+          {strategy.candidates.length > 0 ? (
+            <table className="data-table">
+              <thead>
+                <tr>
+                  <th>#</th><th>Ticker</th><th>名稱</th><th>分類</th><th>收盤</th><th>狀態</th><th>理由</th><th>風險</th>
+                </tr>
+              </thead>
+              <tbody>
+                {strategy.candidates.map(c => (
+                  <tr key={c.code}>
+                    <td>{c.rank}</td>
+                    <td><span className="td-id">{c.code}</span></td>
+                    <td>{c.name}</td>
+                    <td><span className="us-cat-tag">{c.category || '—'}</span></td>
+                    <td>{fmt(c.close)}</td>
+                    <td><span className={`us-strat-state us-strat-state-${c.state}`}>{stateLabel(c.state)}</span></td>
+                    <td className="us-cell-list">{c.reasons.join('、')}</td>
+                    <td className="us-cell-list">{c.risk_notes.join('、')}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          ) : (
+            <p className="us-strategy-empty">
+              目前沒有觀察候選——{strategy.market_gate.active
+                ? '所有股票皆被規則排除（見下方「為何不在清單」）。'
+                : '這不是故障：大盤守門關閉時本策略依規則不產生觀察對象。'}
+            </p>
+          )}
+
+          <details className="us-strategy-excluded">
+            <summary>為何不在清單（{strategy.excluded.length} 檔）</summary>
+            <table className="data-table">
+              <thead>
+                <tr>
+                  <th>Ticker</th><th>名稱</th><th>分類</th><th>收盤</th><th>狀態</th><th>原因</th>
+                </tr>
+              </thead>
+              <tbody>
+                {strategy.excluded.map(e => (
+                  <tr key={e.code}>
+                    <td><span className="td-id">{e.code}</span></td>
+                    <td>{e.name}</td>
+                    <td><span className="us-cat-tag">{e.category || '—'}</span></td>
+                    <td>{fmt(e.close)}</td>
+                    <td><span className={`us-strat-state us-strat-state-${e.state}`}>{stateLabel(e.state)}</span></td>
+                    <td className="us-cell-list">{e.reasons.join('、')}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </details>
+        </section>
+      )}
+
       {signals && (
         <section className="us-signals-section">
           <h3 className="us-section-title">觀察訊號</h3>
@@ -222,6 +294,16 @@ export default function UsMarketPage() {
       )}
     </main>
   )
+}
+
+const STRATEGY_STATE_LABELS: Record<string, string> = {
+  candidate:  '候選觀察',
+  watch:      '觀察',
+  avoid:      '暫不觀察',
+  overheated: '過熱',
+}
+function stateLabel(state: string): string {
+  return STRATEGY_STATE_LABELS[state] ?? state
 }
 
 function fmt(n: number | null): string {

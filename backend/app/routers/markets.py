@@ -9,6 +9,7 @@ from fastapi import APIRouter
 
 from app.services.us_analysis_service import get_us_analysis
 from app.services.us_market_service import get_us_market_status, get_us_universe
+from app.services.us_strategy_service import get_us_trend_follow
 from app.services.us_watch_signal_service import get_us_watch_signals
 
 router = APIRouter()
@@ -36,3 +37,9 @@ def us_analysis() -> list[dict]:
 def us_signals() -> dict:
     """美股觀察訊號（含 SPY/QQQ 大盤基準）。**非推薦、非買賣建議、非下單。**"""
     return get_us_watch_signals()
+
+
+@router.get("/markets/us/strategy/trend-follow")
+def us_strategy_trend_follow() -> dict:
+    """美股觀察策略 us_trend_follow（大盤守門的趨勢延續）。**非推薦、非買賣建議、非下單。**"""
+    return get_us_trend_follow()

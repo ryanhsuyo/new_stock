@@ -1229,6 +1229,47 @@ export interface UsWatchSignals {
   signals: UsWatchSignalItem[]
 }
 
+/**
+ * 美股觀察策略 us_trend_follow（大盤守門的趨勢延續）。
+ * **非推薦、非買賣建議、非下單**；state 只有觀察語言，rank 只是觀察排序。
+ */
+export type UsStrategyState = 'candidate' | 'watch' | 'avoid' | 'overheated'
+
+export interface UsStrategyCandidate {
+  code: string
+  name: string
+  category: string
+  close: number | null
+  state: UsStrategyState
+  rank: number
+  reasons: string[]
+  risk_notes: string[]
+  data_as_of: string | null
+}
+
+export interface UsStrategyExcluded {
+  code: string
+  name: string
+  category: string
+  close: number | null
+  state: UsStrategyState
+  reasons: string[]
+  data_as_of: string | null
+}
+
+export interface UsTrendFollow {
+  as_of: string | null
+  strategy: 'us_trend_follow'
+  strategy_label: string
+  market_gate: {
+    active: boolean
+    bias: 'bullish' | 'bearish' | 'mixed' | 'unknown'
+    note: string
+  }
+  candidates: UsStrategyCandidate[]
+  excluded: UsStrategyExcluded[]
+}
+
 export interface WatchlistItem {
   code: string
   name: string

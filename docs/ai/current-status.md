@@ -5,7 +5,9 @@
 
 ## Current Phase
 
-**US 美股頁操作體驗完善完成**（本階段程式待 commit）：
+**US 觀察策略第一套 us_trend_follow 完成**（本階段程式待 commit）。大盤守門的趨勢延續觀察：`us_strategy_service`（純函式規則 + 聚合）、`GET /api/markets/us/strategy/trend-follow`（candidates/excluded 皆有 reasons、candidate 另有 risk_notes、rank 排序無分數）、前端「策略觀察：趨勢延續」區塊（gate 橫幅 / candidates 表 / excluded 摺疊「為何不在清單」）。守門：bullish 啟用、mixed 降 watch、bearish/unknown 誠實空清單（規則關門非故障）。**非推薦、非買賣建議、非下單、不套台股策略；第二套 us_pullback_watch 刻意未做。**
+
+前一階段 **US 美股頁操作體驗完善**（資料狀態面板 + `#/us` deep link）已完成並 commit（`69bfc6a`）：
 - **資料狀態面板**：美股頁頂部顯示資料源 / `tickers_with_data`/`universe_size` / 資料日（含 days_since_last、已過期 tag）/ `min_row_count` / `missing_tickers` / `insufficient_tickers`（非空時清楚列代碼）；資料完整時顯示「27/27 已更新，最少 256 筆」綠 pill。手動更新指令**只顯示**（`… --months 12`），無 run-backfill API、無自動回補。
 - **hash deep link**：`#/us`（正準）與 `#/markets/us`（別名）直達美股頁；重整仍留在美股頁；header「台股/美股」切換同步 hash（美股→`#/us`、台股→原 tab path）；back/forward 正常。沿用既有 hash routing、未引 React Router；region 與 tab 一樣由 hash lazy-init（StrictMode-safe）。
 
@@ -71,6 +73,7 @@
 - 美股 Phase 2 的 `status`（trend_up / recovering / pullback_watch / overheated / weak / no_data）是**描述性技術狀態、非買賣建議**；`us_analysis_service` 自帶輕量指標、**不耦合 signals_service、不套兩策略**。別把它升級成推薦桶或加買賣訊號（除非明確要求）。
 - `no_data` 與 `weak` **已刻意拆開**（前者=算不出指標，後者=跌破 MA60）；`recovering`=站上 MA20/MA60 但 MA20<MA60。**不要再合併回 `weak_or_no_data` 混合桶**——那會讓 META/TSLA 這類「站上雙均線但均線未翻多」的個股被誤標成「資料不足」。
 - `/status` 的 `insufficient_tickers` 門檻用 `us_market_service` 從 `us_watch_signal_service` import 的 `MIN_SIGNAL_ROWS`（=60）。**不要在 `us_market_service` 另寫死 60**——規則要單一來源（CLAUDE.md §10）。此 import 方向（market_service → watch_signal_service）無循環，watch_signal_service 不反向 import market_service。
+- `us_trend_follow` 是**觀察策略**：state 只有 candidate/watch/avoid/overheated、rank 只是排序。**不要**加 0–100 分數、進出場價、買賣語言，或把它升級成台股式推薦桶。策略自有門檻（RSI 50–68、dist ≤ +8）只在 `us_strategy_service` 定義；過熱 / 資料量門檻引用既有常數（`OVERHEATED_*`、`MIN_SIGNAL_ROWS`），別複製數字。守門 bearish/unknown 回空 candidates 是**規則**——別「修」成永遠有輸出。
 
 ## Latest Verified State
 

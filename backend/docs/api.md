@@ -1197,9 +1197,9 @@ Dry-run 預覽還原，不寫入任何檔案。
 
 ---
 
-## 美股（US Market — Phase 1）
+## 美股（US Market）
 
-> 唯讀，只做清單 / 基本行情呈現；**不做美股訊號 / 策略 / 推薦 / 下單**。與台股端點分離。
+> 唯讀觀察層：清單 / 基本行情 / 技術狀態 / 觀察訊號 / 觀察策略；**全部非推薦、非買賣建議、不下單**。與台股端點分離，不套台股 old_wang / steady_momentum。
 
 ### `GET /api/markets/us/universe`
 
@@ -1304,6 +1304,42 @@ Dry-run 預覽還原，不寫入任何檔案。
 - **`reasons` / `risk_notes`**：字串陣列，解釋觀察狀態與風險（描述性）。
 - `ohlcv_us.csv` 不存在 / 無資料 → 每檔 `avoid_weak`、`market_bias=unknown`（誠實回報資料不足，不假裝有訊號）。
 - **明確不做**：買賣建議、下單、正式推薦；**不套用台股 old_wang / steady_momentum**。
+
+### `GET /api/markets/us/strategy/trend-follow`
+
+美股**觀察策略 `us_trend_follow`：大盤守門的趨勢延續**（唯讀，**非推薦 / 非買賣建議 / 非下單**）。在 Phase 2 指標上做跨檔收斂：回答「大盤允許的前提下，哪幾檔處於健康趨勢延續段且未追高、其他為何不在清單」。
+
+```json
+{
+  "as_of": "2026-07-10",
+  "strategy": "us_trend_follow",
+  "strategy_label": "趨勢延續（大盤守門）",
+  "market_gate": { "active": true, "bias": "bullish", "note": "SPY / QQQ 皆在 MA60 上方，策略啟用" },
+  "candidates": [
+    {
+      "code": "AAPL", "name": "Apple Inc.", "category": "Mega-cap Tech", "close": 314.08,
+      "state": "candidate", "rank": 1,
+      "reasons": ["收盤 314.08 > MA20 298.04 > MA60 293.04（多頭排列）", "RSI 61 介於 50–68，有動能未過熱", "距 MA20 +5.4%（≤ +8%，未追高）", "20 日漲跌幅 +7.7%"],
+      "risk_notes": ["趨勢延續觀察，非入場建議；跌破 MA20 即離開清單", "盤整市清單會反覆進出（whipsaw），清單變動不代表訊號翻轉"],
+      "data_as_of": "2026-07-10"
+    }
+  ],
+  "excluded": [
+    { "code": "SPY", "name": "SPDR S&P 500 ETF", "category": "ETF / Benchmark", "close": 751.71, "state": "watch", "reasons": ["ETF 作為大盤量尺，不列入個股候選"], "data_as_of": "2026-07-10" }
+  ]
+}
+```
+
+**大盤守門（market_gate）**：
+- `bullish`（SPY 且 QQQ 在 MA60 上方）→ `active=true`，正常輸出。
+- `mixed` → `active=true`，但全體 candidate 的 `state` 降為 `watch` 並加 reason「大盤分歧」。
+- `bearish` / `unknown` → `active=false`、`candidates=[]`，`note` = 「大盤在 MA60 下方或資料不足，本策略今日不產生觀察對象」；原本符合條件者移入 `excluded` 並註明守門關閉。**空清單是規則，不是故障。**
+
+**入選條件**（全部滿足）：`close > MA20 > MA60`、`50 ≤ RSI14 ≤ 68`、`0 ≤ dist_ma20_pct ≤ +8`（防追高）、`20 日漲跌幅 > 0`、`category ≠ ETF / Benchmark`。
+
+**排除規則**（依序，附 reasons）：ETF 量尺 → `watch`；資料不足（< 60 筆）→ `avoid`；RSI ≥ 70 或 dist ≥ +15%（沿用 Phase 2 過熱門檻）→ `overheated`；跌破 MA60 → `avoid`；`recovering`（均線未翻多）→ `watch`；入選條件任一不符 → `watch`（逐項列出未通過原因）。
+
+**排序**：`dist_ma20_pct` 小→大（防追高排序化）→ `change_20d_pct` 大→小 → code 字母序；`rank` 為 1 起排序位置。**不產出 0–100 分數**；`state` 只有觀察語言（`candidate` / `watch` / `avoid` / `overheated`）。每筆（含 excluded）必有 `reasons`；candidate 另有 `risk_notes`。
 
 ---
 

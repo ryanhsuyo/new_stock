@@ -12,6 +12,29 @@
 
 ---
 
+## 2026-07-11 — US 觀察策略第一套：us_trend_follow（大盤守門的趨勢延續）
+
+- **Date:** 2026-07-11
+- **Task:** 依 Fable 策略設計採用第一套：趨勢追蹤 + ETF benchmark filter + 防追高的**觀察策略**（非推薦、非買賣建議、非下單）；第二套 us_pullback_watch 刻意不做。
+- **Goal:** 27 檔裡「值得優先看哪幾檔、其他為何不在清單」一眼可判，且大盤不允許時誠實關門。
+- **Completed:**
+  - `us_strategy_service.py`：純函式 `classify_trend_follow(analysis_item, bias)` + 聚合 `get_us_trend_follow()`。
+    - **守門**：bullish → active；mixed → active 但 candidate 降 watch + reason「大盤分歧」；bearish/unknown → `active=false`、candidates=[]、note=「大盤在 MA60 下方或資料不足，本策略今日不產生觀察對象」，原符合者移入 excluded 註明守門關閉。bias 複用 `us_watch_signal_service._market_context`。
+    - **入選**：close > MA20 > MA60、50 ≤ RSI ≤ 68、0 ≤ dist_ma20 ≤ +8、20 日漲跌幅 > 0、非 ETF/Benchmark。
+    - **排除**（依序，各附 reasons）：ETF 量尺→watch；資料不足（< `MIN_SIGNAL_ROWS`）→avoid；RSI ≥ 70 或 dist ≥ +15（引用 `OVERHEATED_*`）→overheated；跌破 MA60→avoid；recovering→watch「均線尚未翻多，修復中」；入選條件不符→watch（逐項列未通過原因）。
+    - **排序**：dist 小→大 → 20 日漲幅大→小 → code；rank 1 起。**無 0–100 分數。**
+  - `GET /api/markets/us/strategy/trend-follow`（router 薄轉發）+ api.md 完整規格（含 gate 三態、規則、範例）。
+  - 前端：「策略觀察：趨勢延續」區塊（**放觀察訊號上方**）：gate 橫幅（綠/黃/灰）、candidates 表（rank/分類/狀態 badge/理由/風險）、excluded `<details>`「為何不在清單（N 檔）」、固定非推薦聲明；空清單時明講「不是故障，是規則關門」。types + client + CSS。
+  - `test_us_strategy.py` 16 測試：合成 analysis item 驗規則邊界（RSI 68 進 / 69 watch / 70 過熱；dist 8 進 / 10 防追高 / 15 過熱）、gate 三態（monkeypatch get_us_analysis）、排序 tiebreak、ETF 不進候選、candidate 必有 reasons+risk_notes、無 score、endpoint schema。
+- **Changed Files:** 新增 `backend/app/services/us_strategy_service.py`、`backend/tests/test_us_strategy.py`；修改 `backend/app/routers/markets.py`、`backend/docs/api.md`（含美股段落標題更新為觀察層總述）、`frontend/src/types/index.ts`、`frontend/src/api/client.ts`、`frontend/src/pages/UsMarketPage.tsx`、`frontend/src/App.css`；docs（roadmap / current-status / validation / handoff-log）。
+- **Validation:** `python3.11 -m pytest -q` → **884 passed**（+16）；`npm run build` 成功。真實 27 檔實測：gate bullish、candidates=[AMD #1（dist +4.5%）、AAPL #2（dist +5.38%）]、excluded 25（avoid 11 / watch 13 / overheated 1）全部有 reasons；前端區塊在觀察訊號上方、摺疊 25 檔、無 console error。（截圖工具本輪故障，以 DOM 驗證替代。）
+- **Git Status:** 乾淨（commit 後）。
+- **Commit:** 見完成回報。**未 push。**
+- **Next Steps:** 觀察 us_trend_follow 清單抖動 1–2 週後再評估第二套 us_pullback_watch（規則已在 Fable 設計 C 段）。**仍不做推薦 / 買賣 / 下單 / launchd / 回測 / 新指標。**
+- **Notes / Warnings:** 策略門檻 RSI 50–68、dist ≤ +8 **只在 us_strategy_service 定義**；過熱與資料量門檻引用既有常數，別複製。守門空清單是規則——別「修」成永遠有輸出。別把 state 升級成買賣語言或加分數。
+
+---
+
 ## 2026-07-11 — US 美股頁操作體驗：資料狀態面板 + hash deep link
 
 - **Date:** 2026-07-11
