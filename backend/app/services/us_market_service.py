@@ -141,6 +141,26 @@ def get_us_market_status() -> dict:
     }
 
 
+def get_us_data_freshness() -> dict:
+    """
+    美股資料新鮮度精簡契約（供前端 freshness badge 呈現）。
+
+    只回傳「資料源 / 最後更新日 / 是否過期」三個核心欄位（外加落後交易日數與
+    預期最新交易日供文案使用）。規則不另寫死：直接複用 get_us_market_status，
+    避免新鮮度判斷散落多處（CLAUDE.md §10）。
+    """
+    status = get_us_market_status()
+    return {
+        "region":               "US",
+        "source":               status["source_label"],
+        "source_configured":    status["source_configured"],
+        "last_updated":         status["last_data_as_of"],
+        "stale":                status["is_stale"],
+        "days_since_last":      status["days_since_last"],
+        "expected_trading_day": status["expected_trading_day"],
+    }
+
+
 def _to_float(value) -> float | None:
     try:
         return float(value)

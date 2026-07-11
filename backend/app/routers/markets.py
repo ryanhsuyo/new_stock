@@ -8,7 +8,11 @@ markets.py — 市場（region）相關 HTTP 端點。
 from fastapi import APIRouter
 
 from app.services.us_analysis_service import get_us_analysis
-from app.services.us_market_service import get_us_market_status, get_us_universe
+from app.services.us_market_service import (
+    get_us_data_freshness,
+    get_us_market_status,
+    get_us_universe,
+)
 from app.services.us_strategy_service import get_us_trend_follow
 from app.services.us_watch_signal_service import get_us_watch_signals
 
@@ -25,6 +29,12 @@ def us_universe() -> list[dict]:
 def us_status() -> dict:
     """美股資料源 / 資料狀態：source_configured 反映資料源是否就緒。"""
     return get_us_market_status()
+
+
+@router.get("/markets/us/data-freshness")
+def us_data_freshness() -> dict:
+    """美股資料新鮮度精簡契約：source / last_updated / stale。供前端 freshness badge。"""
+    return get_us_data_freshness()
 
 
 @router.get("/markets/us/analysis")

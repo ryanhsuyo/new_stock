@@ -1169,6 +1169,26 @@ export interface UsMarketStatus {
 }
 
 /**
+ * 美股資料新鮮度精簡契約（/markets/us/data-freshness）。
+ * 供 freshness badge 呈現：資料源 / 最後更新日 / 是否過期。
+ */
+export interface UsDataFreshness {
+  region: 'US'
+  /** 資料源標籤（如 "Yahoo Finance（美股，非官方、免 key）"） */
+  source: string
+  /** 資料源是否就緒 */
+  source_configured: boolean
+  /** 最後有資料的交易日；尚無資料時 null */
+  last_updated: string | null
+  /** 是否過期（weekend-aware，容忍 1 個交易日；資料缺失亦視為過期） */
+  stale: boolean
+  /** 落後幾個交易日；無法判斷時 null */
+  days_since_last: number | null
+  /** 預期最新交易日 */
+  expected_trading_day: string | null
+}
+
+/**
  * Phase 2：美股基本技術狀態（描述性，非買賣建議）。
  * `no_data`（算不出指標）與 `weak`（跌破 MA60，真正弱勢）刻意分開；
  * `recovering` = 站上 MA20/MA60 但 MA20 < MA60（均線尚未翻多）。

@@ -267,6 +267,44 @@ def test_us_status_endpoint_schema():
     assert isinstance(body["insufficient_tickers"], list)
 
 
+# ── 資料新鮮度精簡契約（get_us_data_freshness / data-freshness 端點）─────────────
+
+def test_us_data_freshness_contract_no_data(tmp_path, monkeypatch):
+    # 無 CSV → last_updated=None、stale=True，且複用 status 的資料源標籤。
+    monkeypatch.setattr(us_market_store, "OHLCV_US_PATH", tmp_path / "missing.csv")
+    fresh = us_market_service.get_us_data_freshness()
+    assert fresh["region"] == "US"
+    assert fresh["source"] == "Yahoo Finance（美股，非官方、免 key）"
+    assert fresh["source_configured"] is True
+    assert fresh["last_updated"] is None
+    assert fresh["stale"] is True
+    assert fresh["days_since_last"] is None
+
+
+def test_us_data_freshness_matches_status(tmp_path, monkeypatch):
+    # 新鮮度契約不得與 status 的判斷分歧（同源複用，非另寫死）。
+    csv_path = tmp_path / "ohlcv_us.csv"
+    _write_us_ohlcv(csv_path, {"AAPL": 65, "MSFT": 65})
+    monkeypatch.setattr(us_market_store, "OHLCV_US_PATH", csv_path)
+    status = us_market_service.get_us_market_status()
+    fresh = us_market_service.get_us_data_freshness()
+    assert fresh["last_updated"] == status["last_data_as_of"]
+    assert fresh["stale"] == status["is_stale"]
+    assert fresh["source"] == status["source_label"]
+    assert fresh["expected_trading_day"] == status["expected_trading_day"]
+
+
+def test_us_data_freshness_endpoint_schema():
+    res = client.get("/api/markets/us/data-freshness")
+    assert res.status_code == 200
+    body = res.json()
+    assert body["region"] == "US"
+    for key in ("source", "source_configured", "last_updated", "stale",
+                "days_since_last", "expected_trading_day"):
+        assert key in body
+    assert isinstance(body["stale"], bool)
+
+
 # ── 資料新鮮度（compute_us_freshness，固定 today 求確定性）──────────────────────
 
 def _first_monday() -> date:

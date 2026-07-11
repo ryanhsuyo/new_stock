@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { api } from '../api/client'
-import type { UsAnalysisItem, UsMarketStatus, UsTrendFollow, UsWatchSignals } from '../types'
+import type { UsAnalysisItem, UsDataFreshness, UsMarketStatus, UsTrendFollow, UsWatchSignals } from '../types'
 
 /**
  * 美股頁：基本技術狀態 + 觀察訊號 + 觀察策略（us_trend_follow）。
@@ -8,6 +8,7 @@ import type { UsAnalysisItem, UsMarketStatus, UsTrendFollow, UsWatchSignals } fr
  */
 export default function UsMarketPage() {
   const [status, setStatus] = useState<UsMarketStatus | null>(null)
+  const [freshness, setFreshness] = useState<UsDataFreshness | null>(null)
   const [items, setItems] = useState<UsAnalysisItem[]>([])
   const [signals, setSignals] = useState<UsWatchSignals | null>(null)
   const [strategy, setStrategy] = useState<UsTrendFollow | null>(null)
@@ -17,8 +18,8 @@ export default function UsMarketPage() {
 
   useEffect(() => {
     let alive = true
-    Promise.all([api.getUsMarketStatus(), api.getUsAnalysis(), api.getUsSignals(), api.getUsTrendFollow()])
-      .then(([s, a, sig, strat]) => { if (alive) { setStatus(s); setItems(a); setSignals(sig); setStrategy(strat) } })
+    Promise.all([api.getUsMarketStatus(), api.getUsDataFreshness(), api.getUsAnalysis(), api.getUsSignals(), api.getUsTrendFollow()])
+      .then(([s, f, a, sig, strat]) => { if (alive) { setStatus(s); setFreshness(f); setItems(a); setSignals(sig); setStrategy(strat) } })
       .catch(e => { if (alive) setError(e instanceof Error ? e.message : '載入失敗') })
       .finally(() => { if (alive) setLoading(false) })
     return () => { alive = false }
@@ -51,6 +52,18 @@ export default function UsMarketPage() {
     <main className="app-main">
       <div className="page-actions">
         <h2 className="page-subtitle">美股 · US Market（觀察用：技術狀態 / 觀察訊號，非推薦）</h2>
+        {freshness && (
+          <span
+            className={`us-freshness-badge ${freshness.stale ? 'us-freshness-stale' : 'us-freshness-fresh'}`}
+            role="status"
+            title={`資料源：${freshness.source}`}
+          >
+            <span className="us-freshness-dot" aria-hidden="true" />
+            {freshness.last_updated
+              ? `資料日 ${freshness.last_updated}${freshness.stale ? '（已過期）' : '（最新）'}`
+              : '尚無資料'}
+          </span>
+        )}
       </div>
 
       {!sourceReady && (

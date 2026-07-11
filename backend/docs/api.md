@@ -1244,6 +1244,25 @@ Dry-run 預覽還原，不寫入任何檔案。
   - `days_since_last`：`last_data_as_of` 之後到 `expected_trading_day` 的**交易日數**（缺資料時 `null`）。
   - `is_stale`：`last_data_as_of` 缺失、或落後超過 1 個交易日 → `true`；前端顯示「資料可能已過期，請重跑 backfill」。
 
+### `GET /api/markets/us/data-freshness`
+
+美股資料新鮮度**精簡契約**（供前端 US 頁 freshness badge；規則直接複用 `GET /api/markets/us/status`，不另寫死判斷）：
+
+```json
+{
+  "region": "US",
+  "source": "Yahoo Finance（美股，非官方、免 key）",
+  "source_configured": true,
+  "last_updated": "2026-07-09",
+  "stale": false,
+  "days_since_last": 1,
+  "expected_trading_day": "2026-07-10"
+}
+```
+
+- `source` / `last_updated` / `stale` 為三個核心欄位；`days_since_last`、`expected_trading_day` 供 badge 文案使用。
+- `stale=true` → 前端 badge 顯示過期樣式（「資料可能已過期」）；新鮮度規則（weekend-aware、容忍 1 個交易日）同 `us/status`。
+
 ### `GET /api/markets/us/analysis`
 
 美股**基本技術狀態**（Phase 2，唯讀，**非買賣建議 / 非策略**）。每筆在 universe 欄位外（含 `category` 觀察分類），另含技術指標與描述性狀態：
