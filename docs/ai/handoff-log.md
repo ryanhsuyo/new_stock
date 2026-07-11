@@ -12,6 +12,25 @@
 
 ---
 
+## 2026-07-11 — us_trend_follow 逐日回放驗證（evaluation-only）
+
+- **Date:** 2026-07-11
+- **Task:** 用既有 `ohlcv_us.csv` 對 us_trend_follow 做 walk-forward 逐日回放（訊號窗 2026-06-15～06-30，退出觀察到 2026-07-10），比較兩套 evaluation-only 退出規則，找出候選進出邏輯的問題證據。**不改 production 規則、不做參數最佳化、不下單、不重新抓資料。**
+- **Goal:** 用證據回答「candidate_exit 是否太敏感、trend_protect 是否較合理、gate / 邊界是否有問題」。
+- **Completed:**
+  - `us_strategy_replay_service.py`：walk-forward（`_build_asof_item` 只吃 `date<=D` 前綴切片；候選判定直接呼叫 production `classify_trend_follow`，零複製）；D+1 open 成交、無下一 open → unresolved；兩套退出（candidate_exit / trend_protect_exit：gate inactive／close<MA60／連續 2 日 close<MA20）；每日快照 + churn；每筆 trade 含 mfe/mae/entry_reasons；摘要含 win rate、再入選、exit_reason 統計；`limitations` 揭露 Yahoo 非官方、無股息滑價、小樣本、規則層後見之明。
+  - `scripts/replay_us_strategy.py`：輸出 `out/us_strategy_replay_<start>_<end>.{json,csv}`（gitignored）+ 終端摘要。
+  - `test_us_strategy_replay.py`（13 測試）：竄改未來資料不影響 as-of 結果（無洩漏）、D+1 open 成交、最後一日訊號 unresolved、candidate_exit（含進場當日觸發）、連續 2 日 MA20 計數（單日跌破不出）、MA60 / gate 觸發、gate 關閉不產生訊號、MFE/MAE 數學、trade/summary 契約、確定性（跑兩次相等）。
+  - 報告：`docs/ai/us-trend-follow-replay-2026-06.md`（方法 / 每日候選表 / 兩套比較 / 逐題證據 / 限制）。
+- **Key findings（證據，未改規則）：** gate 全程 bullish（未被壓力測試）；11 天中 10 天清單變動；**candidate_exit 太敏感成立**——平均持有 1.9 天、16 筆中 8 筆 3 日內再入選，主因入選邊界被對稱當退出（dist>8% 移除 6 次=「因漲太快被踢出」、RSI<50 移除 5 次、ASML 差 0.03% 貼線移除）；**trend_protect 結構較合理**（9.3 天、再入選 1 次）但本窗口報酬 −2.29%（持有穿越 7 月初回檔，6 筆樣本不可下結論）；資料完整（窗口內零 no_data）→ 抖動是策略邊界特性非資料問題。
+- **Changed Files:** 新增 `backend/app/services/us_strategy_replay_service.py`、`backend/scripts/replay_us_strategy.py`、`backend/tests/test_us_strategy_replay.py`、`docs/ai/us-trend-follow-replay-2026-06.md`；修改 docs（roadmap / current-status / validation / handoff-log）。**production 策略 / API / 前端零改動；out 結果檔不 commit。**
+- **Validation:** `python3.11 -m pytest -q` 見完成回報；真實 27 檔回放成功（16 / 8 筆訊號）。
+- **Git Status:** 乾淨（commit 後）。
+- **Commit:** 見完成回報。**未 push。**
+- **Next Steps:** 若要正式 entry/exit contract：以 trend_protect 型為基底 + 遲滯設計（另案、需更長樣本）；gate 壓力測試需含 bearish 時段的窗口。**仍不做推薦 / 買賣 / 下單 / 參數最佳化。**
+- **Notes / Warnings:** replay 是 evaluation-only——**別接進 API / 前端 / 排程**；別在 replay 複製策略規則（必須 import production 的 classify）；別依 11 天樣本改參數。
+---
+
 ## 2026-07-11 — US 觀察策略第一套：us_trend_follow（大盤守門的趨勢延續）
 
 - **Date:** 2026-07-11

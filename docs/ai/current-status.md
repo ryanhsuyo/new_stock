@@ -5,7 +5,9 @@
 
 ## Current Phase
 
-**US 觀察策略第一套 us_trend_follow 完成**（本階段程式待 commit）。大盤守門的趨勢延續觀察：`us_strategy_service`（純函式規則 + 聚合）、`GET /api/markets/us/strategy/trend-follow`（candidates/excluded 皆有 reasons、candidate 另有 risk_notes、rank 排序無分數）、前端「策略觀察：趨勢延續」區塊（gate 橫幅 / candidates 表 / excluded 摺疊「為何不在清單」）。守門：bullish 啟用、mixed 降 watch、bearish/unknown 誠實空清單（規則關門非故障）。**非推薦、非買賣建議、非下單、不套台股策略；第二套 us_pullback_watch 刻意未做。**
+**us_trend_follow 逐日回放驗證（evaluation-only）完成**（本階段程式待 commit）。`us_strategy_replay_service` + `scripts/replay_us_strategy.py`：walk-forward（as-of D 切片重算指標，測試證明無未來資料洩漏）、D+1 open 成交、兩套 evaluation-only 退出（candidate_exit / trend_protect_exit）比較，輸出 `backend/out/us_strategy_replay_*.{json,csv}`（gitignored）。結論見 `docs/ai/us-trend-follow-replay-2026-06.md`：**candidate_exit 證實太敏感**（平均持有 1.9 天、8/16 三日內再入選；主因 dist>8% 與 RSI<50 邊界被對稱當退出用）；trend_protect 結構較合理（9.3 天、再入選 1 次）；gate 本窗口全 bullish 未被壓力測試。**production 規則零改動、無參數最佳化、不下單。**
+
+前一階段 **US 觀察策略第一套 us_trend_follow**（`bb5414c`）：大盤守門的趨勢延續觀察：`us_strategy_service`（純函式規則 + 聚合）、`GET /api/markets/us/strategy/trend-follow`（candidates/excluded 皆有 reasons、candidate 另有 risk_notes、rank 排序無分數）、前端「策略觀察：趨勢延續」區塊（gate 橫幅 / candidates 表 / excluded 摺疊「為何不在清單」）。守門：bullish 啟用、mixed 降 watch、bearish/unknown 誠實空清單（規則關門非故障）。**非推薦、非買賣建議、非下單、不套台股策略；第二套 us_pullback_watch 刻意未做。**
 
 前一階段 **US 美股頁操作體驗完善**（資料狀態面板 + `#/us` deep link）已完成並 commit（`69bfc6a`）：
 - **資料狀態面板**：美股頁頂部顯示資料源 / `tickers_with_data`/`universe_size` / 資料日（含 days_since_last、已過期 tag）/ `min_row_count` / `missing_tickers` / `insufficient_tickers`（非空時清楚列代碼）；資料完整時顯示「27/27 已更新，最少 256 筆」綠 pill。手動更新指令**只顯示**（`… --months 12`），無 run-backfill API、無自動回補。
@@ -74,6 +76,7 @@
 - `no_data` 與 `weak` **已刻意拆開**（前者=算不出指標，後者=跌破 MA60）；`recovering`=站上 MA20/MA60 但 MA20<MA60。**不要再合併回 `weak_or_no_data` 混合桶**——那會讓 META/TSLA 這類「站上雙均線但均線未翻多」的個股被誤標成「資料不足」。
 - `/status` 的 `insufficient_tickers` 門檻用 `us_market_service` 從 `us_watch_signal_service` import 的 `MIN_SIGNAL_ROWS`（=60）。**不要在 `us_market_service` 另寫死 60**——規則要單一來源（CLAUDE.md §10）。此 import 方向（market_service → watch_signal_service）無循環，watch_signal_service 不反向 import market_service。
 - `us_trend_follow` 是**觀察策略**：state 只有 candidate/watch/avoid/overheated、rank 只是排序。**不要**加 0–100 分數、進出場價、買賣語言，或把它升級成台股式推薦桶。策略自有門檻（RSI 50–68、dist ≤ +8）只在 `us_strategy_service` 定義；過熱 / 資料量門檻引用既有常數（`OVERHEATED_*`、`MIN_SIGNAL_ROWS`），別複製數字。守門 bearish/unknown 回空 candidates 是**規則**——別「修」成永遠有輸出。
+- `us_strategy_replay_service` 是 **evaluation-only 回放工具**：candidate_exit / trend_protect_exit 是評估用退出規則，**不是 production contract**——別接進 API / 前端 / 排程，別依回放結果直接改策略參數（樣本僅 11 天）。回放的候選判定直接呼叫 production `classify_trend_follow`，**不要**在 replay 裡複製或 fork 規則。out/ 回放結果檔 gitignored，不 commit。
 
 ## Latest Verified State
 
