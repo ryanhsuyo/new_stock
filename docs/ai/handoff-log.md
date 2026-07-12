@@ -12,6 +12,26 @@
 
 ---
 
+## 2026-07-12 — 美股第二套觀察策略上線：us_wbottom_target（W 底突破 + 量幅目標）
+
+- **Date:** 2026-07-12
+- **Task:** 使用者要「勝率最高」並指示採用（「那美股就採用這個 然後幫我做起來」）。W 底 + 量幅目標在多出場法對比中勝率 62.4% 為所有測試最高，做成第二套觀察策略。**非推薦、非買賣建議、非下單；關鍵價位為觀察用。**
+- **Goal:** production 觀察輸出 + 回放證據 + 已知代價全部落檔，UI 誠實揭露。
+- **Completed:**
+  - `us_wbottom_service.py`：偵測（`find_w_breakout`，swing±3 需 3 日確認 / 低距 10–40 / 價差 ≤3% / 頸線 = 兩低間最高 high / 突破 ≤20 日 / 軟濾網 SPY 或 QQQ > MA60）+ production 觀察輸出 `get_us_wbottom()`（狀態機：forming / breakout_today / breakout_in_progress / target_reached / invalidated；無型態只計數 `no_pattern_count`）+ 回放 `run_wbottom_replay()`（V1：量幅目標 / 型態低停損，D+1 open）——**單一規則來源，三者共用偵測**。參數凍結 2026-07-12。
+  - `GET /api/markets/us/strategy/w-bottom`（router 薄轉發）+ api.md 完整規格（含回放證據與已知代價）。
+  - `scripts/replay_us_wbottom.py`：輸出 `out/us_wbottom_replay_*.{json,csv}`（gitignored）；**重現對話中 scratchpad 評估**（282 筆 / 62.4% / target 183 / stop 99）。
+  - 前端：「策略觀察：W 底型態」區塊（trend-follow 與觀察訊號之間）：軟濾網橫幅、型態表（狀態 badge / 頸線 / 型態低=失效 / 量幅目標 / 距目標 / 說明）、空清單明講是常態、風險提醒列（高勝率≠高獲利、空頭年為負、非下單）。types / client / CSS。
+  - `test_us_wbottom.py` 15 測試：偵測邊界（間距 9/10、價差 3.9% 拒絕、突破新鮮度、>20 日拒絕）、竄改未來 bar 不影響訊號、觀察五態分類、gate 關閉註記、無型態=常態、回放 D+1 open / 目標 / 停損 / 確定性、endpoint schema。
+  - 報告 `docs/ai/us-wbottom-replay-5y.md`（5 年年度分解含 2022 −5.87%、已知代價、結論：合格觀察工具、非 alpha）。
+- **Changed Files:** 新增 `backend/app/services/us_wbottom_service.py`、`backend/scripts/replay_us_wbottom.py`、`backend/tests/test_us_wbottom.py`、`docs/ai/us-wbottom-replay-5y.md`；修改 `backend/app/routers/markets.py`、`backend/docs/api.md`、`frontend/src/types/index.ts`、`frontend/src/api/client.ts`、`frontend/src/pages/UsMarketPage.tsx`、`frontend/src/App.css`、docs/ai（roadmap / current-status / validation / handoff-log）。
+- **Validation:** 見完成回報（pytest / build / 瀏覽器實測）。
+- **Git Status:** 乾淨（commit 後）。**未 push。**
+- **Next Steps:** 觀察實際使用中型態出現頻率與狀態機是否直覺；候選：把 target_reached / invalidated 的歷史寫入決策日誌供覆盤。
+- **Notes / Warnings:** 參數凍結不得調參；UI/API 的已知代價揭露不得移除；別把關鍵價位升級成買賣指令或自動觸發；偵測規則別複製到第三處（單一來源 `find_w_breakout`）。同輪較早的台股 old_wang 回放與美股型態三出場對比為 ad-hoc 分析（scratchpad），證據記錄於對話與本檔前後文。
+
+---
+
 ## 2026-07-12 — us_wang_breakout（老王美股版）5 年回放驗證（evaluation-only）
 
 - **Date:** 2026-07-12

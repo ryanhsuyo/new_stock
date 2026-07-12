@@ -1290,6 +1290,48 @@ export interface UsTrendFollow {
   excluded: UsStrategyExcluded[]
 }
 
+/**
+ * 美股觀察策略 us_wbottom_target（W 底突破 + 量幅目標）。
+ * **非推薦、非買賣建議、非下單**；頸線 / 目標 / 失效價為觀察用關鍵價位。
+ */
+export type UsWbottomState =
+  | 'breakout_today'
+  | 'breakout_in_progress'
+  | 'target_reached'
+  | 'invalidated'
+  | 'forming'
+
+export interface UsWbottomPattern {
+  code: string
+  name: string
+  category: string
+  state: UsWbottomState
+  state_label: string
+  close: number | null
+  neckline: number
+  pattern_low: number
+  target_price: number
+  dist_to_target_pct: number | null
+  breakout_date: string | null
+  low_dates: string[]
+  reasons: string[]
+  risk_notes: string[]
+}
+
+export interface UsWbottom {
+  as_of: string | null
+  strategy: 'us_wbottom_target'
+  strategy_label: string
+  market_gate: {
+    active: boolean
+    detail: Record<string, boolean>
+    note: string
+  }
+  patterns: UsWbottomPattern[]
+  no_pattern_count: number
+  note: string
+}
+
 export interface WatchlistItem {
   code: string
   name: string

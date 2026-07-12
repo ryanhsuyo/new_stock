@@ -15,6 +15,7 @@ from app.services.us_market_service import (
 )
 from app.services.us_strategy_service import get_us_trend_follow
 from app.services.us_watch_signal_service import get_us_watch_signals
+from app.services.us_wbottom_service import get_us_wbottom
 
 router = APIRouter()
 
@@ -53,3 +54,9 @@ def us_signals() -> dict:
 def us_strategy_trend_follow() -> dict:
     """美股觀察策略 us_trend_follow（大盤守門的趨勢延續）。**非推薦、非買賣建議、非下單。**"""
     return get_us_trend_follow()
+
+
+@router.get("/markets/us/strategy/w-bottom")
+def us_strategy_wbottom() -> dict:
+    """美股觀察策略 us_wbottom_target（W 底突破 + 量幅目標）。**非推薦、非買賣建議、非下單。**"""
+    return get_us_wbottom()

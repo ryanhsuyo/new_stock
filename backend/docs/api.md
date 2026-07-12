@@ -1360,6 +1360,38 @@ Dry-run 預覽還原，不寫入任何檔案。
 
 **排序**：`dist_ma20_pct` 小→大（防追高排序化）→ `change_20d_pct` 大→小 → code 字母序；`rank` 為 1 起排序位置。**不產出 0–100 分數**；`state` 只有觀察語言（`candidate` / `watch` / `avoid` / `overheated`）。每筆（含 excluded）必有 `reasons`；candidate 另有 `risk_notes`。
 
+### `GET /api/markets/us/strategy/w-bottom`
+
+美股**觀察策略 `us_wbottom_target`：W 底突破 + 量幅目標**（唯讀，**非推薦 / 非買賣建議 / 非下單**）。頸線 / 型態低（失效價）/ 量幅目標為**觀察用關鍵價位，不是下單指令**。
+
+```json
+{
+  "as_of": "2026-07-10",
+  "strategy": "us_wbottom_target",
+  "strategy_label": "W 底突破 + 量幅目標（觀察用，勝率型）",
+  "market_gate": { "active": true, "detail": { "SPY": true, "QQQ": true }, "note": "SPY 或 QQQ 在 MA60 上方，型態觀察啟用" },
+  "patterns": [
+    {
+      "code": "MSFT", "name": "Microsoft Corp.", "category": "Mega-cap Tech",
+      "state": "breakout_in_progress", "state_label": "突破後觀察中",
+      "close": 390.12, "neckline": 385.5, "pattern_low": 362.0, "target_price": 409.0,
+      "dist_to_target_pct": 4.84, "breakout_date": "2026-07-06",
+      "low_dates": ["2026-06-02", "2026-06-24"],
+      "reasons": ["2026-07-06 收盤 388.10 突破頸線 385.5（雙低 …）", "量幅目標 409.0；失效價 = 型態低 362.0"],
+      "risk_notes": ["關鍵價位為觀察參考，非下單指令", "…"]
+    }
+  ],
+  "no_pattern_count": 20,
+  "note": "觀察用型態掃描：非推薦、非買賣建議、非下單；多數股票多數時間沒有 W 底，空清單是常態。"
+}
+```
+
+**規則（參數凍結於 2026-07-12 的 5 年回放，不得調參）**：swing low = ±3 日局部最低且需 3 日後確認（無未來洩漏）；兩低點相距 10–40 交易日、價差 ≤ 3%；頸線 = 兩低間最高 high；突破 = 收盤首次站上頸線且距第二低點 ≤ 20 日；大盤軟濾網 = SPY **或** QQQ 收盤 > MA60；量幅目標 = 頸線 + (頸線 − 型態低)。
+
+**`state`**：`breakout_today`（今日突破）/ `breakout_in_progress`（突破後未達標未失效）/ `forming`（型態成形未突破，附觀察條件）/ `target_reached`（已達量幅目標）/ `invalidated`（跌破型態低失效）。無型態者只計入 `no_pattern_count` 不逐檔列出——**空清單是常態不是故障**。
+
+**回放證據**（`docs/ai/us-wbottom-replay-5y.md`；重現：`python3.11 scripts/replay_us_wbottom.py`）：5 年 282 筆、勝率 62.4%（全部測試最高）、成本後 +1.35%/筆；**已知弱點**：2022 型空頭年平均 −5.87%/筆、贏家被目標封頂（最大 +29% vs 最差 −27%）、生存者折扣後 +0.48%/筆。**高勝率 ≠ 高獲利**。
+
 ---
 
 ## 錯誤格式

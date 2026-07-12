@@ -5,7 +5,9 @@
 
 ## Current Phase
 
-**us_wang_breakout（老王美股版）5 年回放驗證完成（evaluation-only）**（本階段程式待 commit）。突破+量能進場、MA10 波段、−8% 硬止損、SPY/QQQ 軟濾網；參數凍結後以 5 年資料（2021-06～2026-07，含 2022 空頭）樣本外重測。**機制層通過**（343 筆 +1.77%/筆、2022 空頭年濾網壓到 20 筆小虧、尾部不再單點依賴）；**edge 層被敏感度測試否定**——拿掉 NVDA/TSLA/AMD/MU/ARM 後 6 年有 5 年虧損（+607→+106 點，只剩 2024 為正），利潤主要是 2026 版 universe 的生存者偏差。**評級：不建議照此下單；可考慮做成第二套觀察策略。** 完整證據：`docs/ai/us-wang-breakout-replay-5y.md`。`ohlcv_us.csv` 已擴到 5 年（27 檔 33,961 rows，本機 gitignored）。**production 規則零改動、不下單、無參數最佳化。**
+**美股第二套觀察策略 us_wbottom_target（W 底突破 + 量幅目標）上線**（本階段程式待 commit）。使用者以「所有測試中勝率最高（5 年 62.4%）」選定採用；`us_wbottom_service.py`（偵測 / 觀察輸出 / 回放**單一規則來源**，共用 `find_w_breakout`）、`GET /api/markets/us/strategy/w-bottom`（頸線 / 型態低=失效價 / 量幅目標 = **觀察用關鍵價位，非下單指令**；狀態機 forming → breakout_today/in_progress → target_reached/invalidated；無型態只計數，空清單是常態）、前端「策略觀察：W 底型態」區塊（位於 trend-follow 與觀察訊號之間）。**已知代價寫死在 UI/API**：高勝率≠高獲利（贏家封頂 +29%/最差 −27%）、2022 型空頭年平均 −5.87%、生存者折扣後 +0.48%/筆。參數凍結（2026-07-12），證據：`docs/ai/us-wbottom-replay-5y.md`。**非推薦、非買賣建議、不下單。**
+
+前一階段 **us_wang_breakout 5 年回放驗證（evaluation-only）**（`34c4ade`）。突破+量能進場、MA10 波段、−8% 硬止損、SPY/QQQ 軟濾網；參數凍結後以 5 年資料（2021-06～2026-07，含 2022 空頭）樣本外重測。**機制層通過**（343 筆 +1.77%/筆、2022 空頭年濾網壓到 20 筆小虧、尾部不再單點依賴）；**edge 層被敏感度測試否定**——拿掉 NVDA/TSLA/AMD/MU/ARM 後 6 年有 5 年虧損（+607→+106 點，只剩 2024 為正），利潤主要是 2026 版 universe 的生存者偏差。**評級：不建議照此下單；可考慮做成第二套觀察策略。** 完整證據：`docs/ai/us-wang-breakout-replay-5y.md`。`ohlcv_us.csv` 已擴到 5 年（27 檔 33,961 rows，本機 gitignored）。**production 規則零改動、不下單、無參數最佳化。**
 
 前一階段 **us_trend_follow 逐日回放驗證（evaluation-only）**（`136c865`）。`us_strategy_replay_service` + `scripts/replay_us_strategy.py`：walk-forward（as-of D 切片重算指標，測試證明無未來資料洩漏）、D+1 open 成交、兩套 evaluation-only 退出（candidate_exit / trend_protect_exit）比較，輸出 `backend/out/us_strategy_replay_*.{json,csv}`（gitignored）。結論見 `docs/ai/us-trend-follow-replay-2026-06.md`：**candidate_exit 證實太敏感**（平均持有 1.9 天、8/16 三日內再入選；主因 dist>8% 與 RSI<50 邊界被對稱當退出用）；trend_protect 結構較合理（9.3 天、再入選 1 次）；gate 本窗口全 bullish 未被壓力測試。**production 規則零改動、無參數最佳化、不下單。**
 
@@ -80,6 +82,7 @@
 - `us_trend_follow` 是**觀察策略**：state 只有 candidate/watch/avoid/overheated、rank 只是排序。**不要**加 0–100 分數、進出場價、買賣語言，或把它升級成台股式推薦桶。策略自有門檻（RSI 50–68、dist ≤ +8）只在 `us_strategy_service` 定義；過熱 / 資料量門檻引用既有常數（`OVERHEATED_*`、`MIN_SIGNAL_ROWS`），別複製數字。守門 bearish/unknown 回空 candidates 是**規則**——別「修」成永遠有輸出。
 - `us_strategy_replay_service` 是 **evaluation-only 回放工具**：candidate_exit / trend_protect_exit 是評估用退出規則，**不是 production contract**——別接進 API / 前端 / 排程，別依回放結果直接改策略參數（樣本僅 11 天）。回放的候選判定直接呼叫 production `classify_trend_follow`，**不要**在 replay 裡複製或 fork 規則。out/ 回放結果檔 gitignored，不 commit。
 - `us_breakout_replay_service`（us_wang_breakout）同為 **evaluation-only**，且**參數已凍結**（stop 0.92 / vol 1.5x / 20 日高 / MA10×2，2026-07-11 定案）——**不得調參重測**（那是過擬合）；改參數 = 新策略、需另案記錄。5 年結果的 edge 已被生存者敏感度測試否定（拿掉前 5 貢獻檔 → 5/6 年虧損），**別引用 +607 點當「策略會賺」的證據**；別據此上推薦 / 下單功能。
+- `us_wbottom_target` 是**觀察策略**：頸線 / 型態低 / 量幅目標是**觀察用關鍵價位**，別改成買賣指令或加自動觸發。參數凍結（swing±3 / 低點距 10–40 / 價差 3% / 突破 ≤20 日 / 目標=量幅），**不得調參**。UI/API 的已知代價揭露（空頭年為負、贏家封頂、生存者折扣）**不得移除**——使用者採用的是高勝率紀律結構，不是 alpha。偵測規則單一來源在 `us_wbottom_service.find_w_breakout`（production 觀察與 replay 共用），**別複製到第三處**。空清單 / `no_pattern_count` 是常態不是 bug。
 
 ## Latest Verified State
 

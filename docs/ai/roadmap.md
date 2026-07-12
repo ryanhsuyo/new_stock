@@ -12,7 +12,8 @@
 
 > 現在正在做 / 即將做的（對應 `current-status.md` 的 Current Phase）。
 
-- **us_wang_breakout（老王美股版）5 年回放驗證（evaluation-only）**：突破+量能+MA10 波段+硬止損，參數凍結後 5 年樣本外重測（含 2022 空頭）。機制通過、edge 被生存者敏感度測試否定（拿掉前 5 貢獻檔 → 5/6 年虧損）。**不建議照此下單；可考慮做成第二套觀察策略。** 證據：`docs/ai/us-wang-breakout-replay-5y.md`。
+- **美股第二套觀察策略 us_wbottom_target（W 底突破 + 量幅目標）上線**：使用者選定「勝率最高」（5 年 62.4%）；偵測 / 觀察輸出 / 回放單一規則來源、參數凍結；關鍵價位為觀察用非下單指令；已知代價（空頭年為負、贏家封頂、生存者折扣）寫死在 UI/API。證據：`docs/ai/us-wbottom-replay-5y.md`。**非推薦、非買賣建議、不下單。**
+- 前一輪：**us_wang_breakout（老王美股版）5 年回放驗證（evaluation-only）**：突破+量能+MA10 波段+硬止損，參數凍結後 5 年樣本外重測（含 2022 空頭）。機制通過、edge 被生存者敏感度測試否定（拿掉前 5 貢獻檔 → 5/6 年虧損）。**不建議照此下單；可考慮做成第二套觀察策略。** 證據：`docs/ai/us-wang-breakout-replay-5y.md`。
 - 前一輪：**us_trend_follow 逐日回放驗證（evaluation-only）**：walk-forward 回放 2026-06-15～06-30、兩套退出規則比較，證實 candidate_exit 太敏感、trend_protect 結構較合理；gate 本窗口未被壓力測試。**production 規則零改動**；結論與證據見 `docs/ai/us-trend-follow-replay-2026-06.md`。
 - 前一輪：**US 觀察策略第一套：us_trend_follow（大盤守門的趨勢延續觀察）**（見下方 Phase 規格）。在 Phase 2 指標上做跨檔收斂：SPY/QQQ 大盤守門（bearish/unknown 誠實空清單）、入選/排除規則 + rank 排序、candidates/excluded 皆有 reasons。**非推薦、非買賣建議、非下單、無 0–100 分數、不套台股策略、不改台股主流程；第二套 us_pullback_watch 刻意未做。** 更早：Phase 1（Yahoo 資料源）、Phase 2（技術狀態 + 語意修正）、Phase 3（觀察訊號）、新鮮度、universe 27 檔 + 分類、status 回補可觀測性、美股頁面板 + deep link 皆已完成。
 

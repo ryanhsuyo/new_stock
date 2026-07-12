@@ -1,9 +1,9 @@
 import { useEffect, useState } from 'react'
 import { api } from '../api/client'
-import type { UsAnalysisItem, UsDataFreshness, UsMarketStatus, UsTrendFollow, UsWatchSignals } from '../types'
+import type { UsAnalysisItem, UsDataFreshness, UsMarketStatus, UsTrendFollow, UsWatchSignals, UsWbottom } from '../types'
 
 /**
- * 美股頁：基本技術狀態 + 觀察訊號 + 觀察策略（us_trend_follow）。
+ * 美股頁：基本技術狀態 + 觀察訊號 + 觀察策略（us_trend_follow / us_wbottom_target）。
  * **非推薦、非買賣建議、無下單**；缺資料時誠實顯示。
  */
 export default function UsMarketPage() {
@@ -12,14 +12,15 @@ export default function UsMarketPage() {
   const [items, setItems] = useState<UsAnalysisItem[]>([])
   const [signals, setSignals] = useState<UsWatchSignals | null>(null)
   const [strategy, setStrategy] = useState<UsTrendFollow | null>(null)
+  const [wbottom, setWbottom] = useState<UsWbottom | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
   const [categoryFilter, setCategoryFilter] = useState<string>('all')
 
   useEffect(() => {
     let alive = true
-    Promise.all([api.getUsMarketStatus(), api.getUsDataFreshness(), api.getUsAnalysis(), api.getUsSignals(), api.getUsTrendFollow()])
-      .then(([s, f, a, sig, strat]) => { if (alive) { setStatus(s); setFreshness(f); setItems(a); setSignals(sig); setStrategy(strat) } })
+    Promise.all([api.getUsMarketStatus(), api.getUsDataFreshness(), api.getUsAnalysis(), api.getUsSignals(), api.getUsTrendFollow(), api.getUsWbottom()])
+      .then(([s, f, a, sig, strat, wb]) => { if (alive) { setStatus(s); setFreshness(f); setItems(a); setSignals(sig); setStrategy(strat); setWbottom(wb) } })
       .catch(e => { if (alive) setError(e instanceof Error ? e.message : '載入失敗') })
       .finally(() => { if (alive) setLoading(false) })
     return () => { alive = false }
@@ -273,6 +274,57 @@ export default function UsMarketPage() {
               </tbody>
             </table>
           </details>
+        </section>
+      )}
+
+      {wbottom && (
+        <section className="us-strategy-section">
+          <h3 className="us-section-title">策略觀察：W 底型態</h3>
+          <p className="us-note">
+            <strong>us_wbottom_target</strong>（{wbottom.strategy_label}）——
+            <strong>非推薦、非買賣建議、非下單</strong>；頸線 / 目標 / 失效價為<strong>觀察用關鍵價位</strong>。
+            5 年回放勝率 62.4%，但<strong>高勝率 ≠ 高獲利</strong>：贏家被目標封頂、2022 型空頭年平均為負。
+          </p>
+          <div
+            className={`us-gate-banner ${wbottom.market_gate.active ? 'us-gate-open' : 'us-gate-closed'}`}
+            role="status"
+          >
+            {wbottom.market_gate.active ? '✓' : '✕'} 大盤軟濾網：{wbottom.market_gate.note}
+          </div>
+
+          {wbottom.patterns.length > 0 ? (
+            <table className="data-table">
+              <thead>
+                <tr>
+                  <th>Ticker</th><th>名稱</th><th>狀態</th><th>收盤</th><th>頸線</th><th>型態低（失效）</th><th>量幅目標</th><th>距目標</th><th>說明</th>
+                </tr>
+              </thead>
+              <tbody>
+                {wbottom.patterns.map(p => (
+                  <tr key={p.code}>
+                    <td><span className="td-id">{p.code}</span></td>
+                    <td>{p.name}</td>
+                    <td><span className={`us-wb-state us-wb-state-${p.state}`}>{p.state_label}</span></td>
+                    <td>{fmt(p.close)}</td>
+                    <td>{p.neckline.toFixed(2)}</td>
+                    <td>{p.pattern_low.toFixed(2)}</td>
+                    <td>{p.target_price.toFixed(2)}</td>
+                    <td>{p.dist_to_target_pct != null ? `${p.dist_to_target_pct > 0 ? '+' : ''}${p.dist_to_target_pct.toFixed(1)}%` : '—'}</td>
+                    <td className="us-cell-list">{p.reasons.join('、')}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          ) : (
+            <p className="us-strategy-empty">
+              目前 {wbottom.no_pattern_count} 檔皆無 W 底型態——多數股票多數時間沒有這個型態，空清單是常態不是故障。
+            </p>
+          )}
+          {wbottom.patterns.length > 0 && (
+            <p className="us-note">
+              其餘 {wbottom.no_pattern_count} 檔目前無 W 底型態。風險提醒：{wbottom.patterns[0].risk_notes.join('；')}。
+            </p>
+          )}
         </section>
       )}
 
