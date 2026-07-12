@@ -5,7 +5,9 @@
 
 ## Current Phase
 
-**美股第二套觀察策略 us_wbottom_target（W 底突破 + 量幅目標）上線**（本階段程式待 commit）。使用者以「所有測試中勝率最高（5 年 62.4%）」選定採用；`us_wbottom_service.py`（偵測 / 觀察輸出 / 回放**單一規則來源**，共用 `find_w_breakout`）、`GET /api/markets/us/strategy/w-bottom`（頸線 / 型態低=失效價 / 量幅目標 = **觀察用關鍵價位，非下單指令**；狀態機 forming → breakout_today/in_progress → target_reached/invalidated；無型態只計數，空清單是常態）、前端「策略觀察：W 底型態」區塊（位於 trend-follow 與觀察訊號之間）。**已知代價寫死在 UI/API**：高勝率≠高獲利（贏家封頂 +29%/最差 −27%）、2022 型空頭年平均 −5.87%、生存者折扣後 +0.48%/筆。參數凍結（2026-07-12），證據：`docs/ai/us-wbottom-replay-5y.md`。**非推薦、非買賣建議、不下單。**
+**US universe 擴充：軍工航太 + AI 基礎設施（27 → 35 檔）**（本階段程式待 commit）。新增 `Defense / Aerospace`（LMT / RTX / NOC / GD / RKLB——**SpaceX 未上市**，以 RKLB 為太空類公開上市代表，IPO 後再加）與 `AI Infrastructure`（SMCI / VRT / CRWV）。已回補 5 年（新檔各 1,278 rows；CRWV 2025-03 IPO 為 322 rows，`min_row_count=322` 屬正常非缺資料）。既有 API / 兩套觀察策略 / 分類過濾全部動態承接，零程式改動（僅資料 + 文件）。實測：`tickers_with_data=35`、`missing/insufficient=[]`；RTX 進 trend-follow 候選 #1、GD 在 W 底突破觀察中。**非推薦、非買賣建議、不下單。**
+
+前一階段 **美股第二套觀察策略 us_wbottom_target（W 底突破 + 量幅目標）上線**（本階段程式待 commit）。使用者以「所有測試中勝率最高（5 年 62.4%）」選定採用；`us_wbottom_service.py`（偵測 / 觀察輸出 / 回放**單一規則來源**，共用 `find_w_breakout`）、`GET /api/markets/us/strategy/w-bottom`（頸線 / 型態低=失效價 / 量幅目標 = **觀察用關鍵價位，非下單指令**；狀態機 forming → breakout_today/in_progress → target_reached/invalidated；無型態只計數，空清單是常態）、前端「策略觀察：W 底型態」區塊（位於 trend-follow 與觀察訊號之間）。**已知代價寫死在 UI/API**：高勝率≠高獲利（贏家封頂 +29%/最差 −27%）、2022 型空頭年平均 −5.87%、生存者折扣後 +0.48%/筆。參數凍結（2026-07-12），證據：`docs/ai/us-wbottom-replay-5y.md`。**非推薦、非買賣建議、不下單。**
 
 前一階段 **us_wang_breakout 5 年回放驗證（evaluation-only）**（`34c4ade`）。突破+量能進場、MA10 波段、−8% 硬止損、SPY/QQQ 軟濾網；參數凍結後以 5 年資料（2021-06～2026-07，含 2022 空頭）樣本外重測。**機制層通過**（343 筆 +1.77%/筆、2022 空頭年濾網壓到 20 筆小虧、尾部不再單點依賴）；**edge 層被敏感度測試否定**——拿掉 NVDA/TSLA/AMD/MU/ARM 後 6 年有 5 年虧損（+607→+106 點，只剩 2024 為正），利潤主要是 2026 版 universe 的生存者偏差。**評級：不建議照此下單；可考慮做成第二套觀察策略。** 完整證據：`docs/ai/us-wang-breakout-replay-5y.md`。`ohlcv_us.csv` 已擴到 5 年（27 檔 33,961 rows，本機 gitignored）。**production 規則零改動、不下單、無參數最佳化。**
 

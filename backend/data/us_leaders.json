@@ -1,6 +1,6 @@
 {
   "market": "US",
-  "note": "US Market 小型 universe（第一版 27 檔）；代碼為美股 ticker，region=US。與台股 leaders.json 完全分離。category 為觀察用分類（非產業標準分類、非推薦、非買賣建議）。",
+  "note": "US Market 小型 universe（35 檔）；代碼為美股 ticker，region=US。與台股 leaders.json 完全分離。category 為觀察用分類（非產業標準分類、非推薦、非買賣建議）。太空類：SpaceX 未上市無法納入，以 RKLB（Rocket Lab）為最接近的公開上市代表；SpaceX 若 IPO 再加。",
   "stocks": [
     { "code": "SPY",  "name": "SPDR S&P 500 ETF",        "category": "ETF / Benchmark" },
     { "code": "QQQ",  "name": "Invesco QQQ Trust",        "category": "ETF / Benchmark" },
@@ -32,6 +32,16 @@
     { "code": "WMT",  "name": "Walmart Inc.",             "category": "Defensive / Consumer" },
     { "code": "MCD",  "name": "McDonald's Corp.",         "category": "Defensive / Consumer" },
     { "code": "KO",   "name": "Coca-Cola Co.",            "category": "Defensive / Consumer" },
-    { "code": "PG",   "name": "Procter & Gamble Co.",     "category": "Defensive / Consumer" }
+    { "code": "PG",   "name": "Procter & Gamble Co.",     "category": "Defensive / Consumer" },
+
+    { "code": "LMT",  "name": "Lockheed Martin Corp.",    "category": "Defense / Aerospace" },
+    { "code": "RTX",  "name": "RTX Corp.",                "category": "Defense / Aerospace" },
+    { "code": "NOC",  "name": "Northrop Grumman Corp.",   "category": "Defense / Aerospace" },
+    { "code": "GD",   "name": "General Dynamics Corp.",   "category": "Defense / Aerospace" },
+    { "code": "RKLB", "name": "Rocket Lab Corp.",         "category": "Defense / Aerospace" },
+
+    { "code": "SMCI", "name": "Super Micro Computer Inc.","category": "AI Infrastructure" },
+    { "code": "VRT",  "name": "Vertiv Holdings Co.",      "category": "AI Infrastructure" },
+    { "code": "CRWV", "name": "CoreWeave Inc.",           "category": "AI Infrastructure" }
   ]
 }

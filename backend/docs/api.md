@@ -1203,9 +1203,10 @@ Dry-run 預覽還原，不寫入任何檔案。
 
 ### `GET /api/markets/us/universe`
 
-美股追蹤清單（`us_leaders.json` × `ohlcv_us.csv`，第一版約 27 檔）。每筆：`code` / `name` /
+美股追蹤清單（`us_leaders.json` × `ohlcv_us.csv`，目前 35 檔）。每筆：`code` / `name` /
 `category`（觀察用分類，如 `"ETF / Benchmark"` / `"Mega-cap Tech"` / `"Semiconductors / AI"` /
-`"Software / Cloud"` / `"Defensive / Consumer"`；**非產業標準分類、非推薦**）/
+`"Software / Cloud"` / `"Defensive / Consumer"` / `"Defense / Aerospace"`（軍工航太；太空類以 RKLB 代表，SpaceX 未上市）/
+`"AI Infrastructure"`；**非產業標準分類、非推薦**）/
 `region`（固定 `"US"`）/ `has_data` / `row_count` / `last_data_as_of` / `last_close` /
 `data_status`（`"ok"` | `"no_data"`）。尚未回補時 `has_data=false`、`last_close=null`。
 
@@ -1237,7 +1238,7 @@ Dry-run 預覽還原，不寫入任何檔案。
   - `missing_tickers`：**完全無資料**的 ticker（`has_data=false`）代碼清單，已排序。
   - `insufficient_tickers`：**有資料但筆數不足**（`row_count < 60`）的代碼清單，已排序。門檻沿用 watch signal 的 `MIN_SIGNAL_ROWS`（需 ≥ 60 筆才算得出 MA60 / 觀察訊號），不另寫死。
   - `min_row_count`：目前**所有有資料 ticker** 的最小 `row_count`（無任何資料時為 `null`）。
-  - 27 檔全數回補後預期：`missing_tickers=[]`、`insufficient_tickers=[]`、`min_row_count` ≈ 256。
+  - 全數回補後預期：`missing_tickers=[]`、`insufficient_tickers=[]`；`min_row_count` 反映最晚上市的 ticker（如 CRWV 2025-03 IPO）。
   - `missing_tickers` 與 `insufficient_tickers` **互斥**：前者沒資料、後者有資料但太短。每檔逐筆 `row_count` 仍可從 `GET /api/markets/us/universe` 取得。
 - **資料新鮮度**（weekend-aware、**不含 NYSE 假日**、容忍 1 個交易日以避免收盤前誤判）：
   - `expected_trading_day`：以 America/New_York 為準的最近應有交易日。

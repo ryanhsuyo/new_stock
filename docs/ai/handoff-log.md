@@ -12,6 +12,21 @@
 
 ---
 
+## 2026-07-12 — US universe 擴充：軍工航太 + AI 基礎設施（27 → 35 檔）
+
+- **Date:** 2026-07-12
+- **Task:** 使用者要求 universe 納入軍工、AI、SpaceX 等。**SpaceX 未上市無法納入**（已明確告知），以 RKLB 為太空類公開上市代表。
+- **Completed:**
+  - `us_leaders.json` +8：`Defense / Aerospace`（LMT/RTX/NOC/GD/RKLB）、`AI Infrastructure`（SMCI/VRT/CRWV）；note 註明 SpaceX 未上市。
+  - 回補 5 年：新檔各 1,278 rows；CRWV（2025-03 IPO）322 rows → `min_row_count=322` 屬正常。
+  - **零程式改動**：universe/status/analysis/signals、兩套觀察策略、前端分類 chip 全部動態承接。
+  - api.md 更新（35 檔、兩個新分類、min_row_count 語意）。
+- **Validation:** `tickers_with_data=35`、`missing/insufficient=[]`；trend-follow 候選 RTX#1/AMD/AAPL/NOW，新檔在 excluded 各有 reasons；W 底 GD 突破觀察中、RTX 已達標、LMT 失效；pytest 見完成回報。前端未改（分類 chip 動態產生），不需 build。
+- **Git Status:** 乾淨（commit 後）。**未 push。**
+- **Notes / Warnings:** 2026 年把「當紅族群」（軍工/AI）加進清單，正是 wang_breakout 報告記錄的 **universe 事後選擇風險**的現在進行式——策略在新檔上的歷史回放數字會被此偏誤美化，別引用。CRWV 短史（<60 筆門檻已過但 <2 年），長窗指標與回放樣本少屬正常。SpaceX：未上市；別用 DXYZ 之類高溢價封閉式基金當替代納入。
+
+---
+
 ## 2026-07-12 — 美股第二套觀察策略上線：us_wbottom_target（W 底突破 + 量幅目標）
 
 - **Date:** 2026-07-12
