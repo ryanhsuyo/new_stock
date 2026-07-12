@@ -12,6 +12,22 @@
 
 ---
 
+## 2026-07-12 — 收尾輪：策略評估證據存檔 + 台股資料清理 + 文件除舊
+
+- **Date:** 2026-07-12
+- **Task:** 使用者問「還有什麼沒完善」→ 指示處理紅色三項：1) 評估證據只活在對話/scratchpad；2) 台股 ohlcv.csv 髒資料；3) current-status 陳舊段落。
+- **Completed:**
+  - **策略評估總帳** `docs/ai/strategy-evaluation-ledger.md`：7 個家族（trend_follow 兩退出 / pullback / 指數擇時 / wang_breakout / wbottom + 三出場對比 / 台股 old_wang）一張表：關鍵數字、判定、證據位置；跨家族五教訓（零 α 區、生存者偏誤是頭號殺手、濾網三次證明、多重測試折扣、對照組=指數）；資料品質備忘；方法學標準。**未來任何「要不要再測 X」先查此表。**
+  - **台股 old_wang 回放正式化** `backend/scripts/replay_tw_old_wang.py`：候選判定=production 管線（`_run_signal_batch` as-of 截斷，零複製；`pool_factory=_SyncPool` 換速度）；兩套評估退出（bucket_exit / wang_protect −8%+MA10×2）；排除企業行動污染 codes（0050/0052/2603/6269）；含成本後數字（0.585%/趟）。清理後資料重跑：bucket_exit 1,792 筆 +1.55%（成本後 +0.97%）；wang_protect 781 筆 +5.64%（成本後 +5.06%）——**但同期 0050 修正後 +143.9%，投組等效 ≈ 指數（β 非 α）**。無獨立測試（重用已測 production 管線），validation.md 已註明。
+  - **台股 ohlcv.csv 清理**：移除 2009/2010/2017 髒列 **284 筆**（會讓均線把相隔多年 bar 視為相鄰；來源不明殘留）；備份 `backend/data/ohlcv.csv.bak-20260712`（皆本機檔不進 git）。日常 backfill（近 12 個月）不會重引入。
+  - **current-status 除舊**：In Progress 移除停在 Phase 1+2 的陳舊項；Completed 的「待 commit」改為實際 hash；Current Phase / Last updated 更新；Risks 補台股企業行動備忘。
+- **Changed Files:** 新增 `backend/scripts/replay_tw_old_wang.py`、`docs/ai/strategy-evaluation-ledger.md`；修改 `docs/ai/current-status.md`、`docs/ai/validation.md`、`docs/ai/handoff-log.md`。本機資料檔（ohlcv.csv 清理）不進 git。
+- **Validation:** 全套 pytest 見完成回報（台股資料清理後必須全綠）；TW 回放腳本在清理後資料重現成功。docs 部分為 docs-only。
+- **Git Status:** 乾淨（commit 後）。**未 push。**
+- **Notes / Warnings:** ledger 是 append-only 結論檔——新評估往下加，別改寫歷史判定。台股任何報酬計算前先跑 |單日漲跌|>10.5% 掃描。`.bak-20260712` 確認無誤後可自行刪除。
+
+---
+
 ## 2026-07-12 — US universe 擴充：軍工航太 + AI 基礎設施（27 → 35 檔）
 
 - **Date:** 2026-07-12

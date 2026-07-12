@@ -1,13 +1,15 @@
 # Current Status
 
 > 專案**現在**的狀態快照。改動狀態時就更新這裡。保持精簡、可接手。
-> Last updated: 2026-07-10
+> Last updated: 2026-07-12
 
 ## Current Phase
 
-**US universe 擴充：軍工航太 + AI 基礎設施（27 → 35 檔）**（本階段程式待 commit）。新增 `Defense / Aerospace`（LMT / RTX / NOC / GD / RKLB——**SpaceX 未上市**，以 RKLB 為太空類公開上市代表，IPO 後再加）與 `AI Infrastructure`（SMCI / VRT / CRWV）。已回補 5 年（新檔各 1,278 rows；CRWV 2025-03 IPO 為 322 rows，`min_row_count=322` 屬正常非缺資料）。既有 API / 兩套觀察策略 / 分類過濾全部動態承接，零程式改動（僅資料 + 文件）。實測：`tickers_with_data=35`、`missing/insufficient=[]`；RTX 進 trend-follow 候選 #1、GD 在 W 底突破觀察中。**非推薦、非買賣建議、不下單。**
+**收尾輪：證據存檔 + 台股資料清理 + 文件除舊**（本階段待 commit）。1) 策略評估總帳 `docs/ai/strategy-evaluation-ledger.md`（7 個家族一張表 + 跨家族教訓 + 方法學標準）；台股 old_wang 回放正式化 `scripts/replay_tw_old_wang.py`（候選判定 = production 管線 as-of 截斷，兩套評估退出，排除企業行動污染 codes，可重現）。2) 台股 `ohlcv.csv` 清除 2009/2010/2017 髒列 284 筆（會讓均線把相隔多年的 bar 視為相鄰；已備份 `.bak-20260712`，本機檔不進 git）。3) 本檔陳舊段落除舊。**非推薦、非買賣建議、不下單。**
 
-前一階段 **美股第二套觀察策略 us_wbottom_target（W 底突破 + 量幅目標）上線**（本階段程式待 commit）。使用者以「所有測試中勝率最高（5 年 62.4%）」選定採用；`us_wbottom_service.py`（偵測 / 觀察輸出 / 回放**單一規則來源**，共用 `find_w_breakout`）、`GET /api/markets/us/strategy/w-bottom`（頸線 / 型態低=失效價 / 量幅目標 = **觀察用關鍵價位，非下單指令**；狀態機 forming → breakout_today/in_progress → target_reached/invalidated；無型態只計數，空清單是常態）、前端「策略觀察：W 底型態」區塊（位於 trend-follow 與觀察訊號之間）。**已知代價寫死在 UI/API**：高勝率≠高獲利（贏家封頂 +29%/最差 −27%）、2022 型空頭年平均 −5.87%、生存者折扣後 +0.48%/筆。參數凍結（2026-07-12），證據：`docs/ai/us-wbottom-replay-5y.md`。**非推薦、非買賣建議、不下單。**
+前一階段 **US universe 擴充：軍工航太 + AI 基礎設施（27 → 35 檔）**（`e5c582a`）。新增 `Defense / Aerospace`（LMT / RTX / NOC / GD / RKLB——**SpaceX 未上市**，以 RKLB 為太空類公開上市代表，IPO 後再加）與 `AI Infrastructure`（SMCI / VRT / CRWV）。已回補 5 年（新檔各 1,278 rows；CRWV 2025-03 IPO 為 322 rows，`min_row_count=322` 屬正常非缺資料）。既有 API / 兩套觀察策略 / 分類過濾全部動態承接，零程式改動（僅資料 + 文件）。實測：`tickers_with_data=35`、`missing/insufficient=[]`；RTX 進 trend-follow 候選 #1、GD 在 W 底突破觀察中。**非推薦、非買賣建議、不下單。**
+
+前一階段 **美股第二套觀察策略 us_wbottom_target（W 底突破 + 量幅目標）上線**（`20eed0c`）。使用者以「所有測試中勝率最高（5 年 62.4%）」選定採用；`us_wbottom_service.py`（偵測 / 觀察輸出 / 回放**單一規則來源**，共用 `find_w_breakout`）、`GET /api/markets/us/strategy/w-bottom`（頸線 / 型態低=失效價 / 量幅目標 = **觀察用關鍵價位，非下單指令**；狀態機 forming → breakout_today/in_progress → target_reached/invalidated；無型態只計數，空清單是常態）、前端「策略觀察：W 底型態」區塊（位於 trend-follow 與觀察訊號之間）。**已知代價寫死在 UI/API**：高勝率≠高獲利（贏家封頂 +29%/最差 −27%）、2022 型空頭年平均 −5.87%、生存者折扣後 +0.48%/筆。參數凍結（2026-07-12），證據：`docs/ai/us-wbottom-replay-5y.md`。**非推薦、非買賣建議、不下單。**
 
 前一階段 **us_wang_breakout 5 年回放驗證（evaluation-only）**（`34c4ade`）。突破+量能進場、MA10 波段、−8% 硬止損、SPY/QQQ 軟濾網；參數凍結後以 5 年資料（2021-06～2026-07，含 2022 空頭）樣本外重測。**機制層通過**（343 筆 +1.77%/筆、2022 空頭年濾網壓到 20 筆小虧、尾部不再單點依賴）；**edge 層被敏感度測試否定**——拿掉 NVDA/TSLA/AMD/MU/ARM 後 6 年有 5 年虧損（+607→+106 點，只剩 2024 為正），利潤主要是 2026 版 universe 的生存者偏差。**評級：不建議照此下單；可考慮做成第二套觀察策略。** 完整證據：`docs/ai/us-wang-breakout-replay-5y.md`。`ohlcv_us.csv` 已擴到 5 年（27 檔 33,961 rows，本機 gitignored）。**production 規則零改動、不下單、無參數最佳化。**
 
@@ -41,7 +43,7 @@
   - US stub —— `UsPriceSourceStub.is_available()=False`、`fetch_ohlcv()` 丟 `PriceSourceUnavailable`（等來源）。
   - 前端 market toggle 預留 —— header 右上「台股 / 美股·即將推出」，US disabled、不接任何資料流。
   - 未把 old_wang / steady_momentum 套到美股。
-- US Market Phase 1 資料流（本階段，程式待 commit）：
+- US Market Phase 1 資料流（已 commit `7c9fe4d`/`cd933ff`）：
   - **主源 `YahooFinancePriceSource`（免 key、非官方）**：抓 `/v8/finance/chart/{ticker}` JSON → 轉 OHLCV；HTTP 走 stdlib `urllib`（**未加依賴**），SSL context 與 TWSE backfill 一致（certifi）。**Stooq 已停用**（需瀏覽器 JS 驗證，`is_available()=False`）。
   - **`FinnhubPriceSource` = optional**（讀 `FINNHUB_API_KEY`，不進 git，缺 key 明確錯誤），**不在 US registry**。
   - US universe：`backend/data/us_leaders.json`（AAPL/MSFT/NVDA/TSLA/SPY/QQQ，region=US）。
@@ -49,20 +51,21 @@
   - US 唯讀 API：`GET /api/markets/us/universe`、`/api/markets/us/status`（`app/routers/markets.py`）。
   - 前端：market toggle 啟用；`UsMarketPage` 只列清單 + 基本行情，無資料時誠實顯示「尚未更新」；台股主流程完全不受影響。
 
-- US Market Phase 2 基本技術狀態（本階段，程式待 commit）：
+- US Market Phase 2 基本技術狀態（已 commit `bd5f4f0`/`52a0dfc`）：
   - `us_analysis_service`（自帶 MA/RSI/漲跌幅/距均線/新鮮度指標，不耦合 signals_service）+ `classify_status`（四種描述性狀態）。
   - `GET /api/markets/us/analysis`；前端美股頁顯示指標 + 狀態 badge，附「非買賣建議」聲明。
   - **未套** old_wang / steady_momentum、無買賣建議、無下單。
 
 ## In Progress
 
-- US Phase 1 + 2 程式待 commit（本 session）。
-- 背景連線偵測剛上線，尚未在長時間 session 觀察誤報率。
+- 無進行中的未完成程式（各輪皆已 commit；見 Current Phase 與 handoff-log）。
+- 觀察中：us_wbottom 型態狀態機在日常使用的直覺性；背景連線偵測長 session 誤報率。
 
 ## Blocked / Risks
 
 - 基本面避雷覆蓋率不足（真實外部資料尚未匯入）；`overall_status` 可能為 warn。不可用假數字補齊。
 - 後端依賴僅在本機 `python3.11` 安裝；用其他 interpreter 跑 pytest 會失敗（缺 fastapi 等）。
+- **台股 TWSE 原始價不還原企業行動**：0050/0052 分割、2603/6269 大額除息會產生 >10% 假跳動（回放已排除）；一般除息缺口使報酬低估。任何台股報酬計算前先跑 |單日漲跌|>10.5% 掃描。詳見 `docs/ai/strategy-evaluation-ledger.md` 資料品質備忘。
 
 ## Do Not Redo
 
