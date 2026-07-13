@@ -12,6 +12,23 @@
 
 ---
 
+## 2026-07-13 — launchd 排程重建：錯過自動補跑（台股）+ 美股排程新增
+
+- **Date:** 2026-07-13
+- **Task:** 使用者核准並指定需求：台股維持 15:30、美股另找時間、**電腦沒開錯過排程就延後補跑、做到一次為止**。
+- **Completed:**
+  - `scripts/scheduled_update.py`：wrapper（`--market tw|us`、`--force`、`--dry-run`）。規則：`now >= 當日目標時間` 且 `目標時間後尚未成功` → 執行；子程序 exit 0 才寫 marker（`out/.sched_last_success_*`）；失敗下個整點自動重試。台股門檻 15:30、美股 08:30（美股收盤=台灣清晨 4-5 點）。輸出 append 到 `out/scheduled_update_{tw,us}.log`。
+  - `setup_schedule.sh` 改雙 agent：`com.stockapp.daily-update`（tw）+ `com.stockapp.us-update`（us，新增）；plist 改 `RunAtLoad=true` + `StartInterval=3600`（取代單點 StartCalendarInterval）；`ASSUME_YES=1` 支援非互動；**Python 預設優先 `python3.11`**（第一次安裝抓到 `/usr/bin/python3` 導致子程序缺依賴，已修）。`remove_schedule.sh` 同步雙 label。
+  - `test_scheduled_update.py` 6 測試（純函式 `should_run` 決策矩陣）。
+  - **實測（launchd 真跑非模擬）**：載入即觸發，兩市場端到端 exit 0（TW 資料日 2026-07-13 stale=False；US 36/36）、markers 寫入、`launchctl start` 重複觸發回「今天已成功，跳過」。
+- **Changed Files:** 新增 `backend/scripts/scheduled_update.py`、`backend/tests/test_scheduled_update.py`；修改 `backend/scripts/setup_schedule.sh`、`backend/scripts/remove_schedule.sh`、docs/ai（current-status / validation / handoff-log）。plist 在 `~/Library/LaunchAgents/`（不進 git，由 setup 腳本生成）。
+- **Validation:** 見完成回報（pytest 全套 + launchd 實測）。
+- **Git Status:** 乾淨（commit 後）。**未 push。**
+- **Next Steps:** 觀察幾天 wrapper 決策 log（`out/update.launchd.log` / `us_update.launchd.log`）；臨時休市的假 stale 警告仍是既知小缺陷（wrapper 不受影響——update exit 0 就算成功）。
+- **Notes / Warnings:** **TCC gotcha 仍在**：plist 的 StandardOutPath 必須讓 launchd 自建（setup 腳本會先 rm），別手動 touch。重載 agent 前先 unload 並等舊實例結束，否則 `Load failed: 5`。wrapper 門檻時間在 `scheduled_update.py` 的 `MARKETS` 常數，改門檻不需動 plist。別把 wrapper 換回單點 StartCalendarInterval（會回到跨重開機丟失的老問題）。
+
+---
+
 ## 2026-07-13 — SPCX 納入（更正「SpaceX 未上市」錯誤）+ launchd 失效診斷 + 資料補跑
 
 - **Date:** 2026-07-13

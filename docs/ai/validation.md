@@ -53,6 +53,8 @@
 | 健康檢查 | `cd backend && python3 scripts/doctor.py` |
 | 每日健康檢查 | `cd backend && python3 scripts/daily_check.py --write-report` |
 | 美股回補（免 key） | `cd backend && python3.11 scripts/backfill_ohlcv_us.py [--months N]` |
+| 排程安裝（台+美，launchd） | `bash backend/scripts/setup_schedule.sh`（`ASSUME_YES=1` 免互動；卸載用 `remove_schedule.sh`） |
+| 排程 wrapper 決策檢查 | `cd backend && python3.11 scripts/scheduled_update.py --market tw\|us --dry-run` |
 
 ### 美股（US Market）驗收 —— 分兩層
 
@@ -63,6 +65,7 @@
 - US 觀察策略 `/markets/us/strategy/trend-follow`：**非推薦、非買賣、非下單**；`market_gate.active=false`（bearish/unknown）時 `candidates=[]` 是規則不是故障；每筆 excluded 都要有 reasons。
 - us_trend_follow 回放（evaluation-only）：`test_us_strategy_replay.py`（walk-forward 無未來洩漏、D+1 open 成交、candidate_exit / trend_protect_exit、連續 2 日跌破 MA20 計數、MFE/MAE、unresolved、確定性）；真實回放：`cd backend && python3.11 scripts/replay_us_strategy.py`（讀既有 ohlcv_us.csv，不打網路；輸出 `out/us_strategy_replay_*.{json,csv}`，gitignored）。報告：`docs/ai/us-trend-follow-replay-2026-06.md`。
 - us_wbottom_target（W 底觀察策略）：`test_us_wbottom.py`（型態偵測邊界：低點確認 3 日 / 間距 10–40 / 價差 3% / 突破新鮮度與 ≤20 日、無未來洩漏、量幅目標數學、觀察狀態機五態、gate 關閉註記、回放 D+1 open 與目標 / 停損出場、確定性、endpoint schema）；真實回放：`cd backend && python3.11 scripts/replay_us_wbottom.py`。報告：`docs/ai/us-wbottom-replay-5y.md`。
+- 排程 wrapper：`test_scheduled_update.py`（門檻前不跑、無 marker 跑、當日已成功跳過、隔日開機補跑、門檻前的成功不算數、美股 08:30 門檻）。launchd 實測：載入後兩 agent 端到端 exit 0、markers 寫入、`launchctl start` 重複觸發正確跳過。
 - 台股 old_wang 桶回放（evaluation-only）：`cd backend && python3.11 scripts/replay_tw_old_wang.py`（候選判定 = production 訊號管線 as-of 截斷、零複製規則；同步 pool 換速度；輸出 `out/tw_old_wang_replay_*.json`，gitignored）。無獨立測試（重用已測的 production 管線；模擬層與 US 回放同構）。結論見 `docs/ai/strategy-evaluation-ledger.md`。
 - us_wang_breakout 回放（evaluation-only，參數凍結）：`test_us_breakout_replay.py`（進場三條件與量能邊界、無未來洩漏、大盤濾網擋訊號、D+1 open、−8% 止損、MA10 連 2 日出場、unresolved、確定性、參數凍結斷言）；真實回放：`cd backend && python3.11 scripts/replay_us_breakout.py`。報告（含生存者偏差敏感度測試）：`docs/ai/us-wang-breakout-replay-5y.md`。
 - `/api/markets/us/status` 回補可觀測性：27 檔全數回補後 `missing_tickers=[]`、`insufficient_tickers=[]`、`min_row_count`≈256；缺資料 / 筆數不足的 fixture 下能正確分出「無資料」與「有資料但 < 60 筆」（互斥）。門檻沿用 `MIN_SIGNAL_ROWS`，非另寫死。

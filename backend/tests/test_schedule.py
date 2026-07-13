@@ -381,9 +381,15 @@ class TestCLI:
         assert "--months" in result.stdout
 
     def test_schedule_templates_use_daily_update_entrypoint(self):
+        # 2026-07-13 起 launchd 走 scheduled_update.py wrapper（錯過補跑）；
+        # wrapper 內部仍必須用 daily_update / backfill_ohlcv_us 入口，不得退回 update_all_data。
         setup_script = (_SCRIPTS / "setup_schedule.sh").read_text(encoding="utf-8")
+        wrapper = (_SCRIPTS / "scheduled_update.py").read_text(encoding="utf-8")
         cron_example = (_SCRIPTS / "cron_example.txt").read_text(encoding="utf-8")
 
-        assert 'UPDATE_SCRIPT="${SCRIPT_DIR}/daily_update.py"' in setup_script
+        assert 'WRAPPER="${SCRIPT_DIR}/scheduled_update.py"' in setup_script
+        assert "scripts/daily_update.py" in wrapper
+        assert "scripts/backfill_ohlcv_us.py" in wrapper
+        assert "update_all_data.py" not in wrapper
         assert "/scripts/daily_update.py --months 1" in cron_example
         assert "/scripts/update_all_data.py --months 1" not in cron_example
