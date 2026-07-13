@@ -5,9 +5,11 @@
 
 ## Current Phase
 
-**收尾輪：證據存檔 + 台股資料清理 + 文件除舊**（本階段待 commit）。1) 策略評估總帳 `docs/ai/strategy-evaluation-ledger.md`（7 個家族一張表 + 跨家族教訓 + 方法學標準）；台股 old_wang 回放正式化 `scripts/replay_tw_old_wang.py`（候選判定 = production 管線 as-of 截斷，兩套評估退出，排除企業行動污染 codes，可重現）。2) 台股 `ohlcv.csv` 清除 2009/2010/2017 髒列 284 筆（會讓均線把相隔多年的 bar 視為相鄰；已備份 `.bak-20260712`，本機檔不進 git）。3) 本檔陳舊段落除舊。**非推薦、非買賣建議、不下單。**
+**修正輪：SPCX 納入 + launchd 排程失效診斷**（2026-07-13）。1) **更正事實錯誤**：SpaceX 已於 2026-06-12 IPO（NASDAQ: SPCX，史上最大 IPO）——先前文件寫「未上市」是 AI 知識截止造成的過時資訊，已 web 查證更正。SPCX 加入 `Defense / Aerospace`（universe 35 → 36），已回補（19 rows 起自 IPO 日；`insufficient_tickers=["SPCX"]` 是誠實顯示，約 2026-09 後才有 MA60，屆時自動進入分析）。2) **台股 07-10 確認臨時休市**（TWSE 全市場無該日資料；週五的 stale 警告是假警報）；07-13 資料已補、stale 解除。3) **launchd 排程失效根因**：`com.stockapp.daily-update` 只有 15:30 單一觸發點且 `RunAtLoad=false`，機器近日常於該時段關機/重開（launchd 行事曆觸發**跨重開機不補跑**），07-06 後排程零執行、全靠手動——修法（多時段觸發）待使用者同意後改 plist。**非推薦、非買賣建議、不下單。**
 
-前一階段 **US universe 擴充：軍工航太 + AI 基礎設施（27 → 35 檔）**（`e5c582a`）。新增 `Defense / Aerospace`（LMT / RTX / NOC / GD / RKLB——**SpaceX 未上市**，以 RKLB 為太空類公開上市代表，IPO 後再加）與 `AI Infrastructure`（SMCI / VRT / CRWV）。已回補 5 年（新檔各 1,278 rows；CRWV 2025-03 IPO 為 322 rows，`min_row_count=322` 屬正常非缺資料）。既有 API / 兩套觀察策略 / 分類過濾全部動態承接，零程式改動（僅資料 + 文件）。實測：`tickers_with_data=35`、`missing/insufficient=[]`；RTX 進 trend-follow 候選 #1、GD 在 W 底突破觀察中。**非推薦、非買賣建議、不下單。**
+前一階段 **收尾輪：證據存檔 + 台股資料清理 + 文件除舊**（本階段待 commit）。1) 策略評估總帳 `docs/ai/strategy-evaluation-ledger.md`（7 個家族一張表 + 跨家族教訓 + 方法學標準）；台股 old_wang 回放正式化 `scripts/replay_tw_old_wang.py`（候選判定 = production 管線 as-of 截斷，兩套評估退出，排除企業行動污染 codes，可重現）。2) 台股 `ohlcv.csv` 清除 2009/2010/2017 髒列 284 筆（會讓均線把相隔多年的 bar 視為相鄰；已備份 `.bak-20260712`，本機檔不進 git）。3) 本檔陳舊段落除舊。**非推薦、非買賣建議、不下單。**
+
+前一階段 **US universe 擴充：軍工航太 + AI 基礎設施（27 → 35 檔）**（`e5c582a`）。新增 `Defense / Aerospace`（LMT / RTX / NOC / GD / RKLB——當時寫「SpaceX 未上市」**是錯的**（實已於 2026-06-12 IPO），2026-07-13 已更正並納入 SPCX）與 `AI Infrastructure`（SMCI / VRT / CRWV）。已回補 5 年（新檔各 1,278 rows；CRWV 2025-03 IPO 為 322 rows，`min_row_count=322` 屬正常非缺資料）。既有 API / 兩套觀察策略 / 分類過濾全部動態承接，零程式改動（僅資料 + 文件）。實測：`tickers_with_data=35`、`missing/insufficient=[]`；RTX 進 trend-follow 候選 #1、GD 在 W 底突破觀察中。**非推薦、非買賣建議、不下單。**
 
 前一階段 **美股第二套觀察策略 us_wbottom_target（W 底突破 + 量幅目標）上線**（`20eed0c`）。使用者以「所有測試中勝率最高（5 年 62.4%）」選定採用；`us_wbottom_service.py`（偵測 / 觀察輸出 / 回放**單一規則來源**，共用 `find_w_breakout`）、`GET /api/markets/us/strategy/w-bottom`（頸線 / 型態低=失效價 / 量幅目標 = **觀察用關鍵價位，非下單指令**；狀態機 forming → breakout_today/in_progress → target_reached/invalidated；無型態只計數，空清單是常態）、前端「策略觀察：W 底型態」區塊（位於 trend-follow 與觀察訊號之間）。**已知代價寫死在 UI/API**：高勝率≠高獲利（贏家封頂 +29%/最差 −27%）、2022 型空頭年平均 −5.87%、生存者折扣後 +0.48%/筆。參數凍結（2026-07-12），證據：`docs/ai/us-wbottom-replay-5y.md`。**非推薦、非買賣建議、不下單。**
 

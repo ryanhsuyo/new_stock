@@ -1,6 +1,6 @@
 {
   "market": "US",
-  "note": "US Market 小型 universe（35 檔）；代碼為美股 ticker，region=US。與台股 leaders.json 完全分離。category 為觀察用分類（非產業標準分類、非推薦、非買賣建議）。太空類：SpaceX 未上市無法納入，以 RKLB（Rocket Lab）為最接近的公開上市代表；SpaceX 若 IPO 再加。",
+  "note": "US Market 小型 universe（36 檔）；代碼為美股 ticker，region=US。與台股 leaders.json 完全分離。category 為觀察用分類（非產業標準分類、非推薦、非買賣建議）。SPCX（SpaceX）2026-06-12 IPO，短史：上市初期指標不足屬正常，約 2026-09 後才有 MA60。",
   "stocks": [
     { "code": "SPY",  "name": "SPDR S&P 500 ETF",        "category": "ETF / Benchmark" },
     { "code": "QQQ",  "name": "Invesco QQQ Trust",        "category": "ETF / Benchmark" },
@@ -39,6 +39,7 @@
     { "code": "NOC",  "name": "Northrop Grumman Corp.",   "category": "Defense / Aerospace" },
     { "code": "GD",   "name": "General Dynamics Corp.",   "category": "Defense / Aerospace" },
     { "code": "RKLB", "name": "Rocket Lab Corp.",         "category": "Defense / Aerospace" },
+    { "code": "SPCX", "name": "SpaceX (Space Exploration Technologies)", "category": "Defense / Aerospace" },
 
     { "code": "SMCI", "name": "Super Micro Computer Inc.","category": "AI Infrastructure" },
     { "code": "VRT",  "name": "Vertiv Holdings Co.",      "category": "AI Infrastructure" },

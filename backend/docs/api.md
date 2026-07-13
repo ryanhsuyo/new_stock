@@ -1203,9 +1203,9 @@ Dry-run 預覽還原，不寫入任何檔案。
 
 ### `GET /api/markets/us/universe`
 
-美股追蹤清單（`us_leaders.json` × `ohlcv_us.csv`，目前 35 檔）。每筆：`code` / `name` /
+美股追蹤清單（`us_leaders.json` × `ohlcv_us.csv`，目前 36 檔）。每筆：`code` / `name` /
 `category`（觀察用分類，如 `"ETF / Benchmark"` / `"Mega-cap Tech"` / `"Semiconductors / AI"` /
-`"Software / Cloud"` / `"Defensive / Consumer"` / `"Defense / Aerospace"`（軍工航太；太空類以 RKLB 代表，SpaceX 未上市）/
+`"Software / Cloud"` / `"Defensive / Consumer"` / `"Defense / Aerospace"`（軍工航太；含 RKLB 與 SPCX——SpaceX 2026-06-12 IPO，短史期指標不足屬正常）/
 `"AI Infrastructure"`；**非產業標準分類、非推薦**）/
 `region`（固定 `"US"`）/ `has_data` / `row_count` / `last_data_as_of` / `last_close` /
 `data_status`（`"ok"` | `"no_data"`）。尚未回補時 `has_data=false`、`last_close=null`。

@@ -12,6 +12,23 @@
 
 ---
 
+## 2026-07-13 — SPCX 納入（更正「SpaceX 未上市」錯誤）+ launchd 失效診斷 + 資料補跑
+
+- **Date:** 2026-07-13
+- **Task:** 使用者指出 SpaceX 應已上市。Web 查證屬實：**2026-06-12 IPO，NASDAQ: SPCX**——前一輪文件寫「未上市」是 AI 知識截止（2025-02）造成的錯誤，本輪更正。同時例行掃描發現台股資料停更。
+- **Completed:**
+  - `us_leaders.json` +SPCX（`Defense / Aerospace`，35 → 36 檔）；note / api.md 的錯誤敘述已更正（current-status 舊段落以註記更正，handoff-log 依 append-only 不改寫舊條目、以本條目更正記錄）。
+  - 美股回補：36/36 OK；SPCX 19 rows（2026-06-12 起），收盤 145.30 與公開報價一致。`insufficient_tickers=["SPCX"]`、`min_row_count=19` 是**誠實顯示非故障**；strategies 將 SPCX 列 excluded（reasons=資料不足 ≥60 筆）；約 2026-09 後樣本夠自動進入分析。
+  - 台股：07-13（週一）資料補齊、stale 解除；**07-10 確認為臨時休市**（TWSE 全市場無該日資料，週五 stale 警告為假警報）。
+  - **launchd 失效根因**：plist 僅 `StartCalendarInterval` 15:30 單點 + `RunAtLoad=false`；機器近日在 15:30 常關機/重開（reboot 紀錄 07-13 00:49 關機、08:59 / 19:50 重開），launchd 行事曆觸發**跨重開機不補跑** → 07-06 後零自動執行（07-09 / 07-12 / 07-13 皆手動）。`launchctl list` exit 0 = 程式本身沒壞。
+- **Changed Files:** `backend/data/us_leaders.json`、`backend/docs/api.md`、`docs/ai/current-status.md`、`docs/ai/handoff-log.md`。資料檔（ohlcv*.csv）本機不進 git。
+- **Validation:** pytest 見完成回報；SPCX 端到端驗證（status / trend-follow excluded 有理由 / w-bottom 正常）。
+- **Git Status:** 乾淨（commit 後）。**未 push。**
+- **Next Steps:** 1) **launchd 修復待使用者同意**：plist 改多時段觸發（如 15:30 + 21:30；daily_update 冪等、重複跑無害），或使用者自行確保 15:30 開機。2) 假 stale 警告（臨時休市不在行事曆）仍是既知小缺陷。
+- **Notes / Warnings:** SPCX 短史：**任何含 SPCX 的歷史回放都無意義**（<1 個月樣本）；別因清單有它就把它塞進回放結論。AI 知識截止教訓：**上市狀態這類時效性事實要先查證再寫進文件**。
+
+---
+
 ## 2026-07-12 — 收尾輪：策略評估證據存檔 + 台股資料清理 + 文件除舊
 
 - **Date:** 2026-07-12
