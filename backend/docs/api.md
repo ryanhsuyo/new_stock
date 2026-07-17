@@ -65,7 +65,8 @@ FastAPI 後端，所有端點皆以 `/api` 為前綴。
 | GET | `/api/system/daily-check` | 每日 PM 摘要（由 `scripts/daily_check.py --write-report` 產生） |
 | GET | `/api/system/today-scan` | Today Scan 衍生報告；不重算策略、不寫檔 |
 | GET | `/api/system/strategy-validation` | 最近一份台股 walk-forward 投組驗收報告；含三策略摘要、逐筆成交與 TradingView 連結 |
-| POST | `/api/system/strategy-validation?start=YYYY-MM-DD&end=YYYY-MM-DD` | 以 100 萬元空手依指定日期區間重新執行三策略 walk-forward 紙上回放並快取結果 |
+| POST | `/api/system/strategy-validation?start=YYYY-MM-DD&end=YYYY-MM-DD` | **觸發背景**三策略 walk-forward 紙上回放（全窗口需數分鐘，不同步佔住請求）；回 running 狀態、執行中回 409；完成後由 GET 讀報告 |
+| GET | `/api/system/strategy-validation/status` | 背景回放狀態：idle / running / success / failed（含錯誤訊息與區間） |
 | GET | `/api/system/pm-worklist` | PM 工作佇列：資料修復、基本面、候選復盤與 Daily Check 優先順序 |
 | GET | `/api/system/settings/trading` | 交易費率設定（供前端估算交易成本） |
 | GET | `/api/system/signal-alert-reviews` | 目前 signal_alerts.json 是否已被人工檢視 |

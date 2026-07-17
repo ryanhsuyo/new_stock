@@ -5,6 +5,8 @@
 
 ## Current Phase
 
+**策略驗證實驗室收斂（2026-07-17）**：補免責聲明與多重測試警語、TW 全窗口回放改背景執行（POST 觸發 + status 輪詢）、guardrail 交接（evaluation-only 邊界已被「可接 API 但須重用凍結規則 + 背景執行 + 警語」取代，詳 handoff-log 2026-07-17）。同輪：專案搬家至 `~/Developer/new_stock` 後 launchd 全斷已重灌修復（雙 agent 實測補跑成功）；盤前風險中心 WIP 以原樣落地（`8c65b20`）。
+
 **修正輪：SPCX 納入 + launchd 排程失效診斷**（2026-07-13）。1) **更正事實錯誤**：SpaceX 已於 2026-06-12 IPO（NASDAQ: SPCX，史上最大 IPO）——先前文件寫「未上市」是 AI 知識截止造成的過時資訊，已 web 查證更正。SPCX 加入 `Defense / Aerospace`（universe 35 → 36），已回補（19 rows 起自 IPO 日；`insufficient_tickers=["SPCX"]` 是誠實顯示，約 2026-09 後才有 MA60，屆時自動進入分析）。2) **台股 07-10 確認臨時休市**（TWSE 全市場無該日資料；週五的 stale 警告是假警報）；07-13 資料已補、stale 解除。3) **launchd 排程已重建（使用者核准）**：根因是單一 15:30 觸發點 + `RunAtLoad=false`，機器在該時段關機就永久錯過（行事曆觸發跨重開機不補跑，07-06 後零自動執行）。新機制：`scripts/scheduled_update.py` wrapper + 兩個 agent（台股 `com.stockapp.daily-update` 目標 15:30；**美股新增** `com.stockapp.us-update` 目標 08:30）；plist 改 `RunAtLoad=true` + `StartInterval=3600`（開機時 + 每小時檢查），wrapper 規則「過了當日目標時間且尚未成功 → 跑；成功一次即止；失敗下個整點重試」——**錯過自動延後補跑**。已實測：launchd 端到端兩市場 exit 0、markers 寫入、重複觸發正確跳過。`setup_schedule.sh` / `remove_schedule.sh` 已改雙 agent 版（Python 預設優先 python3.11，避免系統 python 缺依賴）。**非推薦、非買賣建議、不下單。**
 
 前一階段 **收尾輪：證據存檔 + 台股資料清理 + 文件除舊**（本階段待 commit）。1) 策略評估總帳 `docs/ai/strategy-evaluation-ledger.md`（7 個家族一張表 + 跨家族教訓 + 方法學標準）；台股 old_wang 回放正式化 `scripts/replay_tw_old_wang.py`（候選判定 = production 管線 as-of 截斷，兩套評估退出，排除企業行動污染 codes，可重現）。2) 台股 `ohlcv.csv` 清除 2009/2010/2017 髒列 284 筆（會讓均線把相隔多年的 bar 視為相鄰；已備份 `.bak-20260712`，本機檔不進 git）。3) 本檔陳舊段落除舊。**非推薦、非買賣建議、不下單。**

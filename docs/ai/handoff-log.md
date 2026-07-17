@@ -12,6 +12,25 @@
 
 ---
 
+
+## 2026-07-17 — 策略驗證實驗室收斂：免責聲明 + 背景執行 + guardrail 交接
+
+- **Date:** 2026-07-17
+- **Task:** 策略掃描找出驗證實驗室（`4559398`，relay 產出）的四個問題，使用者核准全修。**同輪前置**：專案已從 `~/Desktop/code/new_stock` 搬到 `~/Developer/new_stock`（07-17 上午），launchd 排程因 plist 寫死舊路徑而全斷——已從新路徑重灌雙 agent 並實測補跑成功（TW 資料到 07-17 stale=False、US 36 檔；美股週五盤中補的那根 K 為快照，隔日 08:30 排程自動覆蓋為完整 K）。舊路徑殘骸可刪。另把樹上懸掛的盤前風險中心 WIP 以原樣落地（`8c65b20`，驗證後才 commit）。
+- **Guardrail 交接（重要）：** 2026-07-11 條目寫「replay 是 evaluation-only——別接進 API / 前端 / 排程」。**此邊界已於 2026-07-17 被使用者決策取代**（策略驗證實驗室上線）。新的現行邊界是：
+  1. 回放**可以**接進 API / 前端，但**只能重用** production / 凍結的規則實作（`classify_trend_follow` / `find_w_breakout` / `_run_signal_batch`），不得複製或變形規則；
+  2. 全窗口台股回放**必須背景執行**（POST 觸發 + status 輪詢），不得同步佔住請求；
+  3. 驗證 UI **必須**掛「非推薦、非買賣建議、非下單」與**多重測試偏誤**警語；
+  4. 任意區間的結果是探索工具，**不得**寫進文件當策略有效性證據——正式結論仍以凍結參數的長期報告（strategy-evaluation-ledger）為準。
+- **Completed:**
+  - `StrategyValidationPage` 兩面板（台股/美股）補免責聲明 + 多重測試警語（原本全頁零聲明，是全站唯一漏掉的策略 UI）。
+  - TW `POST /system/strategy-validation` 改**背景觸發**（`trigger_background_validation`，執行緒 + lock + `out/strategy_validation_status.json`，仿 us_update_service 模式）；新增 `GET /system/strategy-validation/status`；前端改輪詢（4 秒），離開頁面不中斷。US 版實測 5 年全窗口 20 秒，維持同步。
+  - 測試改寫 + 新增（trigger 傳遞、422、409 busy、status、日期先驗證再開執行緒、lock 佔用）；api.md 同步。
+- **Changed Files:** `backend/app/services/strategy_validation_service.py`、`backend/app/routers/system.py`、`backend/tests/test_strategy_validation_api.py`、`backend/docs/api.md`、`frontend/src/pages/StrategyValidationPage.tsx`、`frontend/src/api/client.ts`、`frontend/src/types/index.ts`、`frontend/src/App.css`、docs/ai。
+- **Validation:** 見完成回報。
+- **Git Status:** 乾淨（commit 後）。**未 push。**
+- **Notes / Warnings:** production 策略規則本體零改動（diff 驗證過）。背景執行同一時間只允許一個回放（lock）；status 檔在 out/（gitignored）。別把「請勿關閉頁面」的同步模式加回來。
+
 ## 2026-07-17 — 盤前風險中心 MVP（隔夜市場 + 事件提示）
 
 - **Date:** 2026-07-17

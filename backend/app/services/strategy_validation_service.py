@@ -4,10 +4,13 @@ from __future__ import annotations
 
 import json
 import csv
+import threading
 from collections import defaultdict
 from datetime import datetime
 from pathlib import Path
 from urllib.parse import quote
+
+from app.storage.atomic_write import atomic_write_text
 
 from app.services import signals_service as ss
 from app.services.trade_service import calculate_trade_amounts
@@ -257,3 +260,59 @@ def run_strategy_validation(start: str, end: str, out_dir: Path = OUT_DIR, data_
     path = out_dir / f"tw_portfolio_replay_{in_range[0]}_{in_range[-1]}.json"
     path.write_text(json.dumps(payload, ensure_ascii=False, indent=2), encoding="utf-8")
     return load_strategy_validation_report(out_dir, data_dir, path) or payload
+
+
+# ── 背景執行層 ──────────────────────────────────────────────────────────────
+# 全窗口回放要逐日重跑訊號管線（~1-2 秒/交易日，一年 ≈ 數分鐘）。同步 HTTP
+# 請求會長時間佔住 threadpool、且瀏覽器/代理容易逾時——因此 POST 只觸發背景
+# 執行緒（同 us_update_service 模式），結果由既有 GET 讀持久化報告。
+
+_VALIDATION_LOCK = threading.Lock()
+VALIDATION_STATUS_PATH = OUT_DIR / "strategy_validation_status.json"
+_EMPTY_VALIDATION_STATUS = {"status": "idle", "started_at": None, "finished_at": None,
+                            "error": None, "start": None, "end": None}
+
+
+def load_validation_status() -> dict:
+    try:
+        value = json.loads(VALIDATION_STATUS_PATH.read_text(encoding="utf-8"))
+        return {**_EMPTY_VALIDATION_STATUS, **value} if isinstance(value, dict) else dict(_EMPTY_VALIDATION_STATUS)
+    except (FileNotFoundError, json.JSONDecodeError, OSError):
+        return dict(_EMPTY_VALIDATION_STATUS)
+
+
+def _save_validation_status(status: dict) -> None:
+    VALIDATION_STATUS_PATH.parent.mkdir(parents=True, exist_ok=True)
+    atomic_write_text(VALIDATION_STATUS_PATH,
+                      json.dumps({**_EMPTY_VALIDATION_STATUS, **status}, ensure_ascii=False, indent=2))
+
+
+def _validation_worker(start: str, end: str, started_at: str) -> None:
+    try:
+        run_strategy_validation(start, end)
+        _save_validation_status({"status": "success", "started_at": started_at,
+                                 "finished_at": datetime.now().astimezone().isoformat(timespec="seconds"),
+                                 "start": start, "end": end})
+    except Exception as exc:  # 背景邊界：任何失敗都要落到狀態檔，不能無聲消失
+        _save_validation_status({"status": "failed", "started_at": started_at,
+                                 "finished_at": datetime.now().astimezone().isoformat(timespec="seconds"),
+                                 "error": str(exc), "start": start, "end": end})
+    finally:
+        _VALIDATION_LOCK.release()
+
+
+def trigger_background_validation(start: str, end: str) -> dict:
+    """快速驗證參數後啟動背景回放；已在執行中丟 RuntimeError（router 轉 409）。"""
+    try:
+        start_dt, end_dt = datetime.strptime(start, "%Y-%m-%d"), datetime.strptime(end, "%Y-%m-%d")
+    except ValueError as exc:
+        raise ValueError("日期格式必須是 YYYY-MM-DD") from exc
+    if start_dt > end_dt:
+        raise ValueError("開始日期不可晚於結束日期")
+    if not _VALIDATION_LOCK.acquire(blocking=False):
+        raise RuntimeError("策略驗收回放已在執行中")
+    started_at = datetime.now().astimezone().isoformat(timespec="seconds")
+    status = {"status": "running", "started_at": started_at, "start": start, "end": end}
+    _save_validation_status(status)
+    threading.Thread(target=_validation_worker, args=(start, end, started_at), daemon=True).start()
+    return dict(_EMPTY_VALIDATION_STATUS, **status)

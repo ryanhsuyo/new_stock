@@ -77,6 +77,11 @@ function UsStrategyValidationPanel() {
       <button type="button" className="btn btn-primary" disabled={running || !startDate || !endDate || startDate > endDate} onClick={run}>{running ? '回放計算中…' : '執行區間測試'}</button>
       <small>使用美股自己的兩套策略，不套用台股策略。</small>
     </section>
+    <p className="validation-disclaimer" role="note">
+      紙上回放僅供驗證，<strong>非推薦、非買賣建議、非下單指令</strong>。
+      任意調整區間容易挑出好看的結果（多重測試偏誤）；已知代價（空頭年為負、生存者偏差）見
+      5 年凍結參數評估報告，單一區間數字不推翻也不證實它。
+    </p>
     {error && <div className="page-error" role="alert">{error}</div>}
     {report && <>
       <div className="validation-mode-tabs" role="tablist" aria-label="美股策略">
@@ -161,7 +166,15 @@ function TaiwanStrategyValidationPanel({ onNavigateAnalysis }: { onNavigateAnaly
     setRunning(true)
     setError('')
     try {
-      const value = await api.runStrategyValidation(startDate, endDate)
+      await api.runStrategyValidation(startDate, endDate)
+      // 背景執行：輪詢狀態直到 success / failed（全窗口回放可能需要數分鐘）
+      for (;;) {
+        await new Promise(resolve => setTimeout(resolve, 4000))
+        const status = await api.getStrategyValidationStatus()
+        if (status.status === 'failed') throw new Error(status.error ?? '區間測試失敗')
+        if (status.status === 'success') break
+      }
+      const value = await api.getStrategyValidation()
       setReport(value)
       setExpanded(null)
       const actual = value.results[mode] ?? value.results.combined
@@ -222,9 +235,14 @@ function TaiwanStrategyValidationPanel({ onNavigateAnalysis }: { onNavigateAnaly
         <label>開始日期<input type="date" value={startDate} max={endDate || undefined} onChange={event => setStartDate(event.target.value)} /></label>
         <span>至</span>
         <label>結束日期<input type="date" value={endDate} min={startDate || undefined} onChange={event => setEndDate(event.target.value)} /></label>
-        <button type="button" className="btn btn-primary" disabled={running || !startDate || !endDate || startDate > endDate} onClick={runRange}>{running ? '回放計算中…' : '執行區間測試'}</button>
-        <small>會以 100 萬元空手重新回放完整區間；計算期間請勿關閉頁面。</small>
+        <button type="button" className="btn btn-primary" disabled={running || !startDate || !endDate || startDate > endDate} onClick={runRange}>{running ? '背景回放中…' : '執行區間測試'}</button>
+        <small>以 100 萬元空手重新回放完整區間；在背景執行，離開頁面不會中斷，回來重新整理即可看到結果。</small>
       </section>
+      <p className="validation-disclaimer" role="note">
+        紙上回放僅供驗證，<strong>非推薦、非買賣建議、非下單指令</strong>。
+        任意調整區間容易挑出好看的結果（多重測試偏誤）；單一區間的漂亮數字不是策略有效的證據，
+        正式結論以凍結參數的長期評估報告為準（docs/ai/strategy-evaluation-ledger.md）。
+      </p>
       {error && <div className="page-error" role="alert">{error}</div>}
 
       <section className="validation-summary-band" aria-label="投組結果">

@@ -45,7 +45,11 @@ from app.services.signal_alert_review_service import (
     acknowledge_current_signal_alerts,
     get_signal_alert_review_status,
 )
-from app.services.strategy_validation_service import load_strategy_validation_report, run_strategy_validation
+from app.services.strategy_validation_service import (
+    load_strategy_validation_report,
+    load_validation_status,
+    trigger_background_validation,
+)
 from app.services.today_scan_service import load_today_scan_report
 from app.services.update_service import get_data_status, trigger_background_update
 from app.services.update_workflow_service import get_update_workflow_status
@@ -68,11 +72,23 @@ def strategy_validation() -> dict:
 
 @router.post("/system/strategy-validation")
 def generate_strategy_validation(start: str, end: str) -> dict:
-    """Run a paper walk-forward replay for an explicit date range."""
+    """觸發背景 walk-forward 回放（全窗口需數分鐘，不在請求內同步跑）。
+
+    回 running 狀態；已在執行中回 409。完成後由 GET /system/strategy-validation
+    讀取持久化報告、GET /system/strategy-validation/status 查進度。
+    """
     try:
-        return run_strategy_validation(start, end)
+        return trigger_background_validation(start, end)
     except ValueError as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
+    except RuntimeError as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
+
+
+@router.get("/system/strategy-validation/status")
+def strategy_validation_status() -> dict:
+    """背景回放狀態：idle / running / success / failed（含錯誤訊息）。"""
+    return load_validation_status()
 
 
 @router.get("/system/data-status", response_model=DataStatus)

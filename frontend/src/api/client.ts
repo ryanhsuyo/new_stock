@@ -1,4 +1,4 @@
-import type { BuyRequest, DailyBrief, DailyCheckReport, DataStatus, DecisionJournalBulkCreateResult, DecisionJournalCreate, DecisionJournalEntry, DecisionJournalSummary, FundamentalsPriorityMergeResult, FundamentalsStatus, HoldingAnalysis, IntradayMonitor, ManualWatchlistReview, MarketNoteInput, MarketNoteSaveResult, OfficialFundamentalsCoverageAudit, OfficialFundamentalsReportsResult, OfficialFundamentalsStatus, PmWorklist, PortfolioSummary, Position, PreMarketRiskReport, RecommendationStrategy, SellRequest, SignalAlertReviewStatus, SignalsSummary, SignalsStatus, Stats, StockAnalysis, StockRecommendation, StockTrackingResult, StockUniverseItem, StrategyValidationReport, TodayScanReport, TradeRecord, TradingSettings, UniverseReportItem, UniverseReportReviewWorkflow, UpdateWorkflowStatus, UsAnalysisItem, UsDataFreshness, UsMarketStatus, UsStockAnalysis, UsStrategyValidationReport, UsTrendFollow, UsUniverseItem, UsUpdateStatus, UsWatchSignals, UsWbottom, WatchlistGroup, WorkflowStatus } from '../types'
+import type { BuyRequest, DailyBrief, DailyCheckReport, DataStatus, DecisionJournalBulkCreateResult, DecisionJournalCreate, DecisionJournalEntry, DecisionJournalSummary, FundamentalsPriorityMergeResult, FundamentalsStatus, HoldingAnalysis, IntradayMonitor, ManualWatchlistReview, MarketNoteInput, MarketNoteSaveResult, OfficialFundamentalsCoverageAudit, OfficialFundamentalsReportsResult, OfficialFundamentalsStatus, PmWorklist, PortfolioSummary, Position, PreMarketRiskReport, RecommendationStrategy, SellRequest, SignalAlertReviewStatus, SignalsSummary, SignalsStatus, Stats, StockAnalysis, StockRecommendation, StockTrackingResult, StockUniverseItem, StrategyValidationReport, StrategyValidationRunStatus, TodayScanReport, TradeRecord, TradingSettings, UniverseReportItem, UniverseReportReviewWorkflow, UpdateWorkflowStatus, UsAnalysisItem, UsDataFreshness, UsMarketStatus, UsStockAnalysis, UsStrategyValidationReport, UsTrendFollow, UsUniverseItem, UsUpdateStatus, UsWatchSignals, UsWbottom, WatchlistGroup, WorkflowStatus } from '../types'
 
 const BASE = '/api'
 
@@ -170,7 +170,10 @@ export const api = {
     request<StrategyValidationReport>('/system/strategy-validation'),
 
   runStrategyValidation: (start: string, end: string) =>
-    request<StrategyValidationReport>(`/system/strategy-validation?start=${encodeURIComponent(start)}&end=${encodeURIComponent(end)}`, { method: 'POST' }),
+    request<StrategyValidationRunStatus>(`/system/strategy-validation?start=${encodeURIComponent(start)}&end=${encodeURIComponent(end)}`, { method: 'POST' }),
+
+  getStrategyValidationStatus: () =>
+    request<StrategyValidationRunStatus>('/system/strategy-validation/status'),
 
   runUsStrategyValidation: (start: string, end: string) =>
     request<UsStrategyValidationReport>(`/markets/us/strategy-validation?start=${encodeURIComponent(start)}&end=${encodeURIComponent(end)}`, { method: 'POST' }),

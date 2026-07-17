@@ -694,6 +694,15 @@ export interface StrategyValidationResult {
   equity_curve: { date: string; equity: number }[]
 }
 
+export interface StrategyValidationRunStatus {
+  status: 'idle' | 'running' | 'success' | 'failed'
+  started_at: string | null
+  finished_at: string | null
+  error: string | null
+  start: string | null
+  end: string | null
+}
+
 export interface StrategyValidationReport {
   report_id: string
   generated_at: string
