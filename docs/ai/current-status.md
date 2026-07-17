@@ -35,6 +35,8 @@
 
 > 已完成且已驗證的事。
 
+- 盤前風險中心 MVP（2026-07-17）：新增 `GET /api/system/pre-market-risk`，以本機 SPY／QQQ／TSM 隔夜漲跌與最近人工市場筆記形成 `normal/watch/defensive/extreme/unknown` 可解釋分級；資料 stale 或不足兩個基準時固定 `unknown` 並暫停一般新倉提示，超過 3 天的舊事件筆記顯示但不計分。Dashboard 顯示觸發原因、建議最高曝險、官方 MOPS／台積電 IR／Fed／BLS 入口與「非崩盤預測」限制。未改兩策略、交易、持倉或 OHLCV。完整回歸 **958 passed**，frontend build 與桌面／375px 瀏覽器驗收通過。
+
 - 台股「策略驗收」UI（2026-07-16）：`#/validation` 顯示 100 萬空手起始 walk-forward 投組回放，支援自選開始／結束日期後重新計算合併、老王、穩健動能三組獨立帳戶；個股損益貢獻、持有 / 平倉 / 盈虧篩選、逐筆訊號日→成交日時間線、費稅與原因，以及本機線圖 / TradingView 交叉核對。`GET /api/system/strategy-validation` 讀最近快照；`POST` 依區間完整重跑並快取，不是前端截斷既有交易。新增相關測試與真實 3 日 smoke test通過；frontend build 成功。2026-07-17 已移除四個測試對舊 repo 絕對路徑的依賴，全套回歸 **953 passed**。
 
 - 後端核心（更早 commit）：資料回補、兩策略推薦桶、universe_report、daily_check / today_scan、決策日誌、signal alerts、launchd 每日更新。

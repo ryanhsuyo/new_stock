@@ -58,6 +58,7 @@ FastAPI 後端，所有端點皆以 `/api` 為前綴。
 | 方法 | 路徑 | 說明 |
 |------|------|------|
 | GET | `/api/system/data-status` | 資料更新狀態 + stale 計算 |
+| GET | `/api/system/pre-market-risk` | 盤前風險分級：隔夜 SPY／QQQ／TSM、事件筆記、曝險提示與官方來源 |
 | POST | `/api/system/update-now` | 手動觸發資料更新（backfill + signals；已在執行中回 409） |
 | GET | `/api/system/update-workflow` | 每日更新流程狀態：目前卡在哪一步、下一個可執行動作 |
 | GET | `/api/system/workflow-status` | PM 視角每日工作流狀態：能不能操作、下一步優先做什麼 |
@@ -1426,3 +1427,15 @@ Query：`start=YYYY-MM-DD&end=YYYY-MM-DD`。依指定日期區間同時執行 `u
 ```json
 { "detail": { "message": "持股不足", "available": 500, "requested": 1000 } }
 ```
+
+### `GET /api/system/pre-market-risk`
+
+唯讀盤前風險提示。使用本機 `ohlcv_us.csv` 的 SPY／QQQ／TSM 最新單日漲跌與最近一筆人工市場筆記，回傳 `normal`、`watch`、`defensive`、`extreme` 或 `unknown`。
+
+- `signals`：每個隔夜基準的資料日、漲跌、points 與可讀原因。
+- `can_open_new_positions` / `max_exposure_pct`：風控提示，不會修改推薦桶、交易或持倉。
+- `official_sources`：MOPS、台積電 IR、Fed、BLS 官方入口。
+- 行情 stale 或不足兩個基準時固定回 `unknown`，不得用舊資料宣稱正常。
+- 第一版不自動抓新聞全文；`latest_event` 只來自已保存的人工市場筆記。
+
+---

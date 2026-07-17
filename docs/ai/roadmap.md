@@ -2,7 +2,7 @@
 
 > 專案的方向與規劃。用 Now / Next / Later 分層，細節放在各 Phase。
 > 規劃改變時就更新這裡。
-> Last updated: 2026-07-10
+> Last updated: 2026-07-17
 
 ## Vision
 
@@ -287,3 +287,4 @@ watch signals 是單檔描述，缺跨檔收斂——27 檔裡「值得優先看
 **Acceptance Criteria**
 - [ ] 全 repo 不含自動下單 / 券商交易觸發路徑。
 - [ ] 文件與 UI 一律標示「僅供研究，非買賣指令」。
+- **盤前風險中心 MVP**：以 SPY／QQQ／TSM 隔夜行情 + 人工市場事件筆記形成獨立風險閘門，Dashboard 顯示是否暫停新倉與建議曝險；資料過期回 `unknown`。不新增第三策略、不自動交易、不把新聞當成確定預測。詳細規格見 `openspec/changes/pre-market-risk-center/`。

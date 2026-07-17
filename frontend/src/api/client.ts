@@ -1,4 +1,4 @@
-import type { BuyRequest, DailyBrief, DailyCheckReport, DataStatus, DecisionJournalBulkCreateResult, DecisionJournalCreate, DecisionJournalEntry, DecisionJournalSummary, FundamentalsPriorityMergeResult, FundamentalsStatus, HoldingAnalysis, IntradayMonitor, ManualWatchlistReview, MarketNoteInput, MarketNoteSaveResult, OfficialFundamentalsCoverageAudit, OfficialFundamentalsReportsResult, OfficialFundamentalsStatus, PmWorklist, PortfolioSummary, Position, RecommendationStrategy, SellRequest, SignalAlertReviewStatus, SignalsSummary, SignalsStatus, Stats, StockAnalysis, StockRecommendation, StockTrackingResult, StockUniverseItem, StrategyValidationReport, TodayScanReport, TradeRecord, TradingSettings, UniverseReportItem, UniverseReportReviewWorkflow, UpdateWorkflowStatus, UsAnalysisItem, UsDataFreshness, UsMarketStatus, UsStockAnalysis, UsStrategyValidationReport, UsTrendFollow, UsUniverseItem, UsUpdateStatus, UsWatchSignals, UsWbottom, WatchlistGroup, WorkflowStatus } from '../types'
+import type { BuyRequest, DailyBrief, DailyCheckReport, DataStatus, DecisionJournalBulkCreateResult, DecisionJournalCreate, DecisionJournalEntry, DecisionJournalSummary, FundamentalsPriorityMergeResult, FundamentalsStatus, HoldingAnalysis, IntradayMonitor, ManualWatchlistReview, MarketNoteInput, MarketNoteSaveResult, OfficialFundamentalsCoverageAudit, OfficialFundamentalsReportsResult, OfficialFundamentalsStatus, PmWorklist, PortfolioSummary, Position, PreMarketRiskReport, RecommendationStrategy, SellRequest, SignalAlertReviewStatus, SignalsSummary, SignalsStatus, Stats, StockAnalysis, StockRecommendation, StockTrackingResult, StockUniverseItem, StrategyValidationReport, TodayScanReport, TradeRecord, TradingSettings, UniverseReportItem, UniverseReportReviewWorkflow, UpdateWorkflowStatus, UsAnalysisItem, UsDataFreshness, UsMarketStatus, UsStockAnalysis, UsStrategyValidationReport, UsTrendFollow, UsUniverseItem, UsUpdateStatus, UsWatchSignals, UsWbottom, WatchlistGroup, WorkflowStatus } from '../types'
 
 const BASE = '/api'
 
@@ -81,6 +81,9 @@ export const api = {
 
   getDataStatus: () =>
     request<DataStatus>('/system/data-status'),
+
+  getPreMarketRiskOrNull: () =>
+    request<PreMarketRiskReport>('/system/pre-market-risk').catch(() => null as PreMarketRiskReport | null),
 
   getFundamentalsStatus: () =>
     request<FundamentalsStatus>('/system/fundamentals-status'),

@@ -2,7 +2,7 @@
 
 > 這個專案怎麼驗收。AI 完成任務後，依本檔驗收並在回報中記錄結果。
 > 指令以本 repo 實際內容為準（見下方 Known Test Commands），不要沿用其他專案的猜測指令。
-> Last updated: 2026-07-09
+> Last updated: 2026-07-17
 
 ## Required Checks
 
@@ -19,6 +19,7 @@
 - [ ] 健康檢查：`cd backend && python3 scripts/doctor.py`。
 - [ ] 每日健康檢查快照：`cd backend && python3 scripts/daily_check.py --write-report`。
 - [ ] 前端手動實測互動流程（見 Manual Verification）。
+- [ ] 盤前風險中心：確認 stale 行情顯示「待確認」而非「正常」、官方來源可展開，且手機寬度無整頁橫向溢出。
 
 ## Docs-only Rules
 

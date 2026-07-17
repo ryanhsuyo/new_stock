@@ -16,6 +16,7 @@ from app.models.system import (
     PersonalRestoreRequest,
     PersonalRestoreResult,
     PmWorklist,
+    PreMarketRiskReport,
     QualityMomentumLiteGuardCoverage,
     SignalAlertReviewRequest,
     SignalAlertReviewStatus,
@@ -38,6 +39,7 @@ from app.services.personal_backup_service import (
     restore_personal_backup,
 )
 from app.services.pm_worklist_service import get_pm_worklist
+from app.services.pre_market_risk_service import get_pre_market_risk_report
 from app.services.settings_service import get_trading_settings
 from app.services.signal_alert_review_service import (
     acknowledge_current_signal_alerts,
@@ -92,6 +94,12 @@ def data_status() -> DataStatus:
       - stale_days            : 距離最新資料日的日曆天數（資料不存在時為 null）
     """
     return DataStatus(**get_data_status())
+
+
+@router.get("/system/pre-market-risk", response_model=PreMarketRiskReport)
+def pre_market_risk() -> PreMarketRiskReport:
+    """讀取本機隔夜行情與事件筆記，回傳可解釋的盤前風險提示。"""
+    return PreMarketRiskReport(**get_pre_market_risk_report())
 
 
 @router.get("/system/daily-check")

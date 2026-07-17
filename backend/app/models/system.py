@@ -28,6 +28,23 @@ class DataStatus(BaseModel):
     stale_days: int | None = None
 
 
+class PreMarketRiskReport(BaseModel):
+    generated_at: str
+    level: str
+    level_label: str
+    score: int
+    headline: str
+    data_as_of: str | None = None
+    data_freshness: dict = Field(default_factory=dict)
+    can_open_new_positions: bool
+    max_exposure_pct: int | None = None
+    signals: list[dict] = Field(default_factory=list)
+    latest_event: dict | None = None
+    guidance: dict = Field(default_factory=dict)
+    official_sources: list[dict] = Field(default_factory=list)
+    limitations: list[str] = Field(default_factory=list)
+
+
 class FundamentalsStatus(BaseModel):
     total_codes: int
     complete_count: int

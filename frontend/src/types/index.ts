@@ -983,6 +983,47 @@ export interface DataStatus {
   stale_days: number | null
 }
 
+export interface PreMarketRiskSignal {
+  key: string
+  code: string
+  label: string
+  data_as_of: string | null
+  change_pct: number | null
+  status: 'ok' | 'warning' | 'severe' | 'missing' | string
+  points: number
+  reason: string
+}
+
+export interface PreMarketRiskReport {
+  generated_at: string
+  level: 'normal' | 'watch' | 'defensive' | 'extreme' | 'unknown' | string
+  level_label: string
+  score: number
+  headline: string
+  data_as_of: string | null
+  data_freshness: Record<string, unknown>
+  can_open_new_positions: boolean
+  max_exposure_pct: number | null
+  signals: PreMarketRiskSignal[]
+  latest_event: {
+    date?: string | null
+    title?: string
+    headline?: string
+    risk_level?: string
+    source?: string
+    status?: string
+    is_stale?: boolean
+    points?: number
+  } | null
+  guidance: {
+    new_positions?: string
+    opening_rule?: string
+    max_exposure_pct?: number | null
+  }
+  official_sources: Array<{ label: string; url: string; scope: string }>
+  limitations: string[]
+}
+
 export interface FundamentalsStatus {
   total_codes: number
   complete_count: number

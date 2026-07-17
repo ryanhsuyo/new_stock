@@ -12,6 +12,19 @@
 
 ---
 
+## 2026-07-17 — 盤前風險中心 MVP（隔夜市場 + 事件提示）
+
+- **Date:** 2026-07-17
+- **Task:** 台股盤中重挫逾 2,000 點後，使用者希望系統能利用開盤前新聞／事件與隔夜訊號降低風險，並授權依適合方式調整。
+- **Completed:** 依 OpenSpec 新增盤前風險中心；後端以 SPY／QQQ／TSM 連續兩日收盤漲跌與最近人工市場筆記計分，輸出 normal/watch/defensive/extreme/unknown、理由、是否暫停新倉與最高曝險提示。US 行情 stale 或不足時誠實回 unknown。Dashboard 加入「非崩盤預測」風險卡、隔夜指標、事件摘要與 MOPS／台積電 IR／Fed／BLS 官方入口。前端 API 失敗會降級為尚無資料，不阻塞既有 Dashboard。
+- **Changed Files:** 新增 `backend/app/services/pre_market_risk_service.py`、`backend/tests/test_pre_market_risk.py`、`openspec/changes/pre-market-risk-center/{proposal.md,design.md,tasks.md,specs/pre-market-risk.md}`；修改 `backend/app/{models/system.py,routers/system.py}`、`backend/docs/api.md`、`frontend/src/{api/client.ts,types/index.ts,App.css}`、`frontend/src/pages/Dashboard.tsx`、`docs/ai/{current-status,roadmap,validation,handoff-log}.md`。
+- **Validation:** 新測試 5 passed；API/docs 小套件 8 passed；完整 backend **958 passed**；frontend build 成功（僅既有 >500 kB warning）；桌面瀏覽器顯示 stale→待確認、QQQ/TSM 風險原因與 4 個官方來源，console 0 errors；375px 寬度 `scrollWidth=clientWidth=360`、console 0 errors。
+- **Git Status:** 未 commit；工作樹僅包含本次盤前風險中心與文件變更，結束狀態見回報。未 push。
+- **Next Steps:** 做獨立官方事件 collector（先 MOPS 與公開 ICS／IR 行事曆），採快取、來源時間與解析健康狀態；未完成前不得宣稱自動監測即時新聞。再評估將盤前 risk level 接成策略新倉 gate，需先補歷史事件／隔夜資料回放驗證，不能直接上 production。
+- **Notes / Warnings:** 第一版不抓新聞全文，事件證據只用人工市場筆記；目前實際 US 資料日 2026-07-13 已 stale，因此畫面正確顯示待確認並暫停一般新倉，而不是用舊資料判定安全。
+
+---
+
 ## 2026-07-17 — US parity 全套回歸與瀏覽器驗收收尾
 
 - **Date:** 2026-07-17

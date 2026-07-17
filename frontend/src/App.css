@@ -2713,6 +2713,45 @@ body {
   border-left-color: #16a34a;
   background: #f7fef9;
 }
+.pre-market-risk-card {
+  margin: 10px 0;
+  border: 1px solid #cbd5e1;
+  border-left: 4px solid #64748b;
+  border-radius: 10px;
+  background: rgba(255,255,255,0.88);
+  padding: 12px;
+}
+.pre-market-risk-card.normal { border-left-color: #16a34a; background: #f7fef9; }
+.pre-market-risk-card.watch { border-left-color: #f59e0b; background: #fffbeb; }
+.pre-market-risk-card.defensive,
+.pre-market-risk-card.extreme { border-left-color: #dc2626; background: #fff1f2; }
+.pre-market-risk-head { display: flex; justify-content: space-between; gap: 16px; align-items: flex-start; }
+.pre-market-risk-head span { display: block; color: #64748b; font-size: 11px; font-weight: 900; }
+.pre-market-risk-head strong { display: block; margin-top: 2px; font-size: 20px; color: #0f172a; }
+.pre-market-risk-head em { display: block; margin-top: 2px; color: #64748b; font-size: 11px; font-style: normal; }
+.pre-market-risk-guidance { text-align: right; }
+.pre-market-risk-guidance b,
+.pre-market-risk-guidance small { display: block; }
+.pre-market-risk-card > p { margin: 8px 0; color: #334155; font-size: 12px; }
+.pre-market-risk-signals { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; }
+.pre-market-risk-signals > div { border: 1px solid #e2e8f0; border-radius: 8px; background: rgba(255,255,255,.8); padding: 8px; }
+.pre-market-risk-signals span,
+.pre-market-risk-signals small { display: block; color: #64748b; font-size: 10px; }
+.pre-market-risk-signals strong { display: block; margin: 2px 0; font-size: 14px; }
+.pre-market-risk-signals .warning,
+.pre-market-risk-signals .severe { border-color: #fca5a5; }
+.pre-market-risk-event { display: flex; gap: 8px; margin-top: 8px; font-size: 11px; color: #7c2d12; }
+.pre-market-risk-card details { margin-top: 8px; font-size: 11px; color: #475569; }
+.pre-market-risk-card summary { cursor: pointer; font-weight: 800; }
+.pre-market-risk-sources { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 7px; }
+.pre-market-risk-sources a { color: #1d4ed8; }
+@media (max-width: 720px) {
+  .pre-market-risk-head { display: block; }
+  .pre-market-risk-guidance { margin-top: 8px; text-align: left; }
+  .pre-market-risk-signals { grid-template-columns: 1fr; }
+  .pre-market-risk-event { display: block; }
+  .pre-market-risk-event span { display: block; margin-top: 3px; }
+}
 .decision-status-strip {
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));

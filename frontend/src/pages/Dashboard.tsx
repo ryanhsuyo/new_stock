@@ -14,7 +14,7 @@ import ParseErrorAlert from '../components/ParseErrorAlert'
 import PrimaryActionCard from '../components/PrimaryActionCard'
 import TodayFocusCards from '../components/TodayFocusCards'
 import UpdateWorkflowBox from '../components/UpdateWorkflowBox'
-import type { DailyBrief, DailyCheckReport, DataStatus, DecisionJournalCreate, DecisionJournalDecision, DecisionJournalEntry, DecisionJournalSummary, FundamentalsPriorityMergeResult, FundamentalsStatus, ManualWatchlistReview, MarketNoteInput, OfficialFundamentalsCoverageAudit, OfficialFundamentalsStatus, PmWorklist, RecommendationStrategy, SignalsSummary, SignalsStatus, StockRecommendation, StockUniverseItem, TodayScanReport, UniverseReportReviewWorkflow, UpdateWorkflowStatus, WorkflowPortfolioTask, WorkflowStatus } from '../types'
+import type { DailyBrief, DailyCheckReport, DataStatus, DecisionJournalCreate, DecisionJournalDecision, DecisionJournalEntry, DecisionJournalSummary, FundamentalsPriorityMergeResult, FundamentalsStatus, ManualWatchlistReview, MarketNoteInput, OfficialFundamentalsCoverageAudit, OfficialFundamentalsStatus, PmWorklist, PreMarketRiskReport, RecommendationStrategy, SignalsSummary, SignalsStatus, StockRecommendation, StockUniverseItem, TodayScanReport, UniverseReportReviewWorkflow, UpdateWorkflowStatus, WorkflowPortfolioTask, WorkflowStatus } from '../types'
 
 interface WorkflowUniversePendingItem {
   code: string
@@ -1299,6 +1299,7 @@ function PmWorklistBox({
 
 function DecisionConsole({
   dataStatus,
+  preMarketRisk,
   updateWorkflow,
   worklist,
   todayScan,
@@ -1314,6 +1315,7 @@ function DecisionConsole({
   onAcknowledgeSignalAlerts,
 }: {
   dataStatus: DataStatus | null
+  preMarketRisk: PreMarketRiskReport | null
   updateWorkflow: UpdateWorkflowStatus | null
   worklist: PmWorklist | null
   todayScan: TodayScanReport | null
@@ -1457,6 +1459,8 @@ function DecisionConsole({
         </div>
       </div>
 
+      <PreMarketRiskCard report={preMarketRisk} />
+
       <div className="decision-console-grid">
         <PrimaryActionCard
           primaryAction={primaryAction}
@@ -1488,6 +1492,60 @@ function DecisionConsole({
         variant="disclosure"
         {...marketPostureProps}
       />
+    </section>
+  )
+}
+
+function PreMarketRiskCard({ report }: { report: PreMarketRiskReport | null }) {
+  if (!report) {
+    return (
+      <section className="pre-market-risk-card unknown" aria-label="盤前風險中心">
+        <div><span>盤前風險</span><strong>尚無資料</strong></div>
+        <p>風險中心無法載入；不影響既有策略資料，但開盤前請人工確認隔夜市場。</p>
+      </section>
+    )
+  }
+  const statusClass = ['normal', 'watch', 'defensive', 'extreme'].includes(report.level) ? report.level : 'unknown'
+  const activeSignals = report.signals.filter(item => item.status !== 'ok').slice(0, 3)
+  return (
+    <section className={`pre-market-risk-card ${statusClass}`} aria-label="盤前風險中心">
+      <div className="pre-market-risk-head">
+        <div>
+          <span>盤前風險中心 · 非崩盤預測</span>
+          <strong>{report.level_label}</strong>
+          <em>風險分數 {report.score} · 隔夜資料 {report.data_as_of ?? '待更新'}</em>
+        </div>
+        <div className="pre-market-risk-guidance">
+          <b>{report.guidance.new_positions ?? (report.can_open_new_positions ? '依策略判斷' : '暫停新倉')}</b>
+          <small>{report.max_exposure_pct == null ? '曝險上限待確認' : `建議最高曝險 ${report.max_exposure_pct}%`}</small>
+        </div>
+      </div>
+      <p>{report.headline}</p>
+      <div className="pre-market-risk-signals">
+        {(activeSignals.length ? activeSignals : report.signals.slice(0, 3)).map(item => (
+          <div className={item.status} key={item.key} title={item.reason}>
+            <span>{item.label}</span>
+            <strong>{item.change_pct == null ? '缺資料' : `${item.change_pct > 0 ? '+' : ''}${item.change_pct.toFixed(2)}%`}</strong>
+            <small>{item.points ? `風險 +${item.points}` : '未觸發'}</small>
+          </div>
+        ))}
+      </div>
+      {report.latest_event && (
+        <div className="pre-market-risk-event">
+          <b>{report.latest_event.is_stale ? '舊事件筆記（未計分）' : '事件筆記'}：{report.latest_event.title}</b>
+          <span>{report.latest_event.headline || '已列入風險判斷'}</span>
+        </div>
+      )}
+      <details>
+        <summary>官方事件來源與限制</summary>
+        <div className="pre-market-risk-sources">
+          {report.official_sources.map(source => (
+            <a key={source.url} href={source.url} target="_blank" rel="noreferrer" title={source.scope}>{source.label}</a>
+          ))}
+        </div>
+        <p>{report.guidance.opening_rule}</p>
+        <p>{report.limitations.join(' ')}</p>
+      </details>
     </section>
   )
 }
@@ -2197,6 +2255,7 @@ interface DashboardProps {
 export default function Dashboard({ onNavigateAnalysis, onNavigateUniverseReport }: DashboardProps) {
   const [status, setStatus]         = useState<SignalsStatus | null>(null)
   const [dataStatus, setDataStatus] = useState<DataStatus | null>(null)
+  const [preMarketRisk, setPreMarketRisk] = useState<PreMarketRiskReport | null>(null)
   const [fundamentalsStatus, setFundamentalsStatus] = useState<FundamentalsStatus | null>(null)
   const [officialFundamentalsStatus, setOfficialFundamentalsStatus] = useState<OfficialFundamentalsStatus | null>(null)
   const [officialCoverageAudit, setOfficialCoverageAudit] = useState<OfficialFundamentalsCoverageAudit | null>(null)
@@ -2276,10 +2335,11 @@ export default function Dashboard({ onNavigateAnalysis, onNavigateUniverseReport
   }
 
   const fetchAll = async (nextStrategy: RecommendationStrategy = strategy) => {
-    const [s, r, ds, fs, ofs, oca, wf, uw, pm, scan, dc, sm, brief, manual, universeItems] = await Promise.all([
+    const [s, r, ds, preRisk, fs, ofs, oca, wf, uw, pm, scan, dc, sm, brief, manual, universeItems] = await Promise.all([
       api.getSignalsStatus(),
       api.getRecommendations(nextStrategy),
       api.getDataStatus(),
+      api.getPreMarketRiskOrNull(),
       api.getFundamentalsStatus(),
       api.getOfficialFundamentalsStatus(),
       api.getOfficialFundamentalsCoverageAuditOrNull(),
@@ -2296,6 +2356,7 @@ export default function Dashboard({ onNavigateAnalysis, onNavigateUniverseReport
     setStatus(s)
     setRecs(r)
     setDataStatus(ds)
+    setPreMarketRisk(preRisk)
     setFundamentalsStatus(fs)
     setOfficialFundamentalsStatus(ofs)
     setOfficialCoverageAudit(oca)
@@ -2851,6 +2912,7 @@ export default function Dashboard({ onNavigateAnalysis, onNavigateUniverseReport
 
       <DecisionConsole
         dataStatus={dataStatus}
+        preMarketRisk={preMarketRisk}
         updateWorkflow={updateWorkflow}
         worklist={pmWorklist}
         todayScan={todayScan}
