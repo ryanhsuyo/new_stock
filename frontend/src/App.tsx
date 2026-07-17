@@ -2,16 +2,18 @@ import { useEffect, useRef, useState } from 'react'
 import AnalysisRail from './components/AnalysisRail'
 import AnalysisPage from './pages/AnalysisPage'
 import UsMarketPage from './pages/UsMarketPage'
+import UsResearchPage from './pages/UsResearchPage'
 import Dashboard from './pages/Dashboard'
 import PortfolioOverviewPage from './pages/PortfolioOverviewPage'
 import PortfolioPage from './pages/PortfolioPage'
 import StatsPage from './pages/StatsPage'
+import StrategyValidationPage from './pages/StrategyValidationPage'
 import StocksPage from './pages/StocksPage'
 import TradesPage from './pages/TradesPage'
 import UniverseReportPage from './pages/UniverseReportPage'
 import WatchlistsPage from './pages/WatchlistsPage'
 
-type Tab = 'dashboard' | 'stocks' | 'universe-report' | 'analysis' | 'watchlists' | 'overview' | 'portfolio' | 'trades' | 'stats'
+type Tab = 'dashboard' | 'stocks' | 'universe-report' | 'strategy-validation' | 'analysis' | 'watchlists' | 'overview' | 'portfolio' | 'trades' | 'stats'
 type UniverseJournalFilter = 'all' | 'unrecorded' | 'recorded'
 
 // 導覽分組：把平列 tab 收斂成有層級的 4 組（今日 / 研究 / 投組 / 系統）
@@ -33,6 +35,7 @@ const TAB_GROUPS: { group: string; tabs: { id: Tab; label: string }[] }[] = [
   ] },
   { group: '系統', tabs: [
     { id: 'universe-report', label: '候選股篩選報告' },
+    { id: 'strategy-validation', label: '策略驗收' },
   ] },
 ]
 
@@ -43,6 +46,7 @@ const TAB_TO_PATH: Record<Tab, string> = {
   analysis:          '/research',
   overview:          '/portfolio',
   'universe-report': '/system',
+  'strategy-validation': '/validation',
   stocks:            '/picks',
   watchlists:        '/watchlists',
   portfolio:         '/holdings',
@@ -55,6 +59,7 @@ const PATH_TO_TAB: Record<string, Tab> = {
   research:   'analysis',
   portfolio:  'overview',
   system:     'universe-report',
+  validation: 'strategy-validation',
   picks:      'stocks',
   watchlists: 'watchlists',
   holdings:   'portfolio',
@@ -96,6 +101,8 @@ export default function App() {
   const [railRefreshKey, setRailRefreshKey] = useState(0)
   // 市場切換（TW / US）：與 tab 一樣由 hash lazy-init，支援 #/us deep link 重整還原
   const [region, setRegion] = useState<'TW' | 'US'>(() => parseHash(window.location.hash).region)
+  const [usView, setUsView] = useState<'market' | 'research' | 'watchlists' | 'validation'>('market')
+  const [usResearchCode, setUsResearchCode] = useState<string | undefined>()
 
   // 用 ref 讀取最新值，避免 hashchange handler 抓到過時 closure
   const tabRef = useRef(tab)
@@ -199,7 +206,22 @@ export default function App() {
       </header>
 
       {region === 'US' ? (
-        <UsMarketPage />
+        <>
+          <nav className="tab-nav us-tab-nav" aria-label="美股功能導覽">
+            <div className="tab-group"><span className="tab-group-label">研究</span><div className="tab-group-btns">
+              <button type="button" className={usView === 'market' ? 'active' : ''} onClick={() => setUsView('market')}>市場總覽</button>
+              <button type="button" className={usView === 'research' ? 'active' : ''} onClick={() => setUsView('research')}>技術分析</button>
+              <button type="button" className={usView === 'watchlists' ? 'active' : ''} onClick={() => setUsView('watchlists')}>觀察清單</button>
+            </div></div>
+            <div className="tab-group"><span className="tab-group-label">系統</span><div className="tab-group-btns">
+              <button type="button" className={usView === 'validation' ? 'active' : ''} onClick={() => setUsView('validation')}>策略驗收</button>
+            </div></div>
+          </nav>
+          {usView === 'market' && <UsMarketPage onNavigateResearch={code => { setUsResearchCode(code); setUsView('research') }} />}
+          {usView === 'research' && <UsResearchPage initialCode={usResearchCode} />}
+          {usView === 'watchlists' && <main className="app-main"><WatchlistsPage regionFilter="US" onNavigateAnalysis={code => { setUsResearchCode(code); setUsView('research') }} /></main>}
+          {usView === 'validation' && <main className="app-main app-main-wide"><StrategyValidationPage initialRegion="US" onNavigateAnalysis={navigateToAnalysis} /></main>}
+        </>
       ) : (
       <>
       <nav className="tab-nav">
@@ -221,10 +243,11 @@ export default function App() {
         ))}
       </nav>
 
-      <main className={`app-main${tab === 'universe-report' ? ' app-main-wide' : ''}`}>
+      <main className={`app-main${tab === 'universe-report' || tab === 'strategy-validation' ? ' app-main-wide' : ''}`}>
         {tab === 'dashboard'       && <Dashboard onNavigateAnalysis={navigateToAnalysis} onNavigateUniverseReport={navigateToUniverseReport} />}
         {tab === 'stocks'          && <StocksPage onNavigateAnalysis={navigateToAnalysis} />}
         {tab === 'universe-report' && <UniverseReportPage onNavigateAnalysis={navigateToAnalysis} initialJournalFilter={universeJournalFilter} />}
+        {tab === 'strategy-validation' && <StrategyValidationPage onNavigateAnalysis={navigateToAnalysis} />}
         {tab === 'analysis'        && (
           <div className="research-layout">
             <AnalysisRail activeCode={analysisCode} onSelect={navigateToAnalysis} refreshKey={railRefreshKey} />

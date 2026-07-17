@@ -6,9 +6,10 @@ interface Props {
   onNavigateAnalysis?: (code: string) => void
   /** watchlist CRUD 成功後通知 App，讓研究頁 rail 重新抓取 */
   onWatchlistChanged?: () => void
+  regionFilter?: 'TW' | 'US'
 }
 
-export default function WatchlistsPage({ onNavigateAnalysis, onWatchlistChanged }: Props) {
+export default function WatchlistsPage({ onNavigateAnalysis, onWatchlistChanged, regionFilter }: Props) {
   const [groups, setGroups]         = useState<WatchlistGroup[]>([])
   const [loading, setLoading]       = useState(true)
   const [error, setError]           = useState('')
@@ -53,9 +54,9 @@ export default function WatchlistsPage({ onNavigateAnalysis, onWatchlistChanged 
     }
   }
 
-  async function handleRemoveStock(groupName: string, code: string) {
+  async function handleRemoveStock(groupName: string, code: string, region: 'TW' | 'US' = 'TW') {
     try {
-      await api.removeFromWatchlist(groupName, code)
+      await api.removeFromWatchlist(groupName, code, region)
       onWatchlistChanged?.()
       await loadGroups()
     } catch (e) {
@@ -69,7 +70,7 @@ export default function WatchlistsPage({ onNavigateAnalysis, onWatchlistChanged 
   return (
     <div className="watchlists-page">
       <div className="page-actions">
-        <h2 className="page-subtitle">觀察清單</h2>
+        <h2 className="page-subtitle">觀察清單{regionFilter ? ` · ${regionFilter === 'US' ? '美股' : '台股'}` : ''}</h2>
       </div>
 
       {/* ── 建立新群組 ── */}
@@ -98,11 +99,13 @@ export default function WatchlistsPage({ onNavigateAnalysis, onWatchlistChanged 
         <p className="empty-hint">尚無觀察清單群組，請先建立一個群組。</p>
       ) : (
         <div className="watchlist-groups">
-          {groups.map(group => (
+          {groups.map(group => {
+            const stocks = group.stocks.filter(stock => !regionFilter || (stock.region ?? 'TW') === regionFilter)
+            return (
             <div key={group.name} className="watchlist-group-card">
               <div className="watchlist-group-header">
                 <span className="watchlist-group-name">{group.name}</span>
-                <span className="watchlist-group-count">{group.stocks.length} 支</span>
+                <span className="watchlist-group-count">{stocks.length} 支</span>
                 <button
                   className="btn-icon-del"
                   onClick={() => handleDeleteGroup(group.name)}
@@ -112,7 +115,7 @@ export default function WatchlistsPage({ onNavigateAnalysis, onWatchlistChanged 
                 </button>
               </div>
 
-              {group.stocks.length === 0 ? (
+              {stocks.length === 0 ? (
                 <p className="watchlist-empty-group">此群組尚無股票，可在「技術分析」頁加入。</p>
               ) : (
                 <table className="data-table watchlist-table">
@@ -124,8 +127,8 @@ export default function WatchlistsPage({ onNavigateAnalysis, onWatchlistChanged 
                     </tr>
                   </thead>
                   <tbody>
-                    {group.stocks.map(s => (
-                      <tr key={s.code}>
+                    {stocks.map(s => (
+                      <tr key={`${s.region ?? 'TW'}-${s.code}`}>
                         <td>
                           {onNavigateAnalysis ? (
                             <button
@@ -135,11 +138,13 @@ export default function WatchlistsPage({ onNavigateAnalysis, onWatchlistChanged 
                             >
                               <span className="td-name">{s.name}</span>
                               <span className="td-id">{s.code}</span>
+                              <span className={`watchlist-region-badge region-${(s.region ?? 'TW').toLowerCase()}`}>{s.region ?? 'TW'}</span>
                             </button>
                           ) : (
                             <>
                               <span className="td-name">{s.name}</span>
                               <span className="td-id">{s.code}</span>
+                              <span className={`watchlist-region-badge region-${(s.region ?? 'TW').toLowerCase()}`}>{s.region ?? 'TW'}</span>
                             </>
                           )}
                         </td>
@@ -147,7 +152,7 @@ export default function WatchlistsPage({ onNavigateAnalysis, onWatchlistChanged 
                         <td>
                           <button
                             className="btn-icon-del"
-                            onClick={() => handleRemoveStock(group.name, s.code)}
+                            onClick={() => handleRemoveStock(group.name, s.code, s.region ?? 'TW')}
                             title={`從「${group.name}」移除 ${s.name}`}
                           >
                             ✕
@@ -159,7 +164,7 @@ export default function WatchlistsPage({ onNavigateAnalysis, onWatchlistChanged 
                 </table>
               )}
             </div>
-          ))}
+          )})}
         </div>
       )}
     </div>

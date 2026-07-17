@@ -63,6 +63,8 @@ FastAPI 後端，所有端點皆以 `/api` 為前綴。
 | GET | `/api/system/workflow-status` | PM 視角每日工作流狀態：能不能操作、下一步優先做什麼 |
 | GET | `/api/system/daily-check` | 每日 PM 摘要（由 `scripts/daily_check.py --write-report` 產生） |
 | GET | `/api/system/today-scan` | Today Scan 衍生報告；不重算策略、不寫檔 |
+| GET | `/api/system/strategy-validation` | 最近一份台股 walk-forward 投組驗收報告；含三策略摘要、逐筆成交與 TradingView 連結 |
+| POST | `/api/system/strategy-validation?start=YYYY-MM-DD&end=YYYY-MM-DD` | 以 100 萬元空手依指定日期區間重新執行三策略 walk-forward 紙上回放並快取結果 |
 | GET | `/api/system/pm-worklist` | PM 工作佇列：資料修復、基本面、候選復盤與 Daily Check 優先順序 |
 | GET | `/api/system/settings/trading` | 交易費率設定（供前端估算交易成本） |
 | GET | `/api/system/signal-alert-reviews` | 目前 signal_alerts.json 是否已被人工檢視 |
@@ -1249,6 +1251,14 @@ Dry-run 預覽還原，不寫入任何檔案。
 
 美股資料新鮮度**精簡契約**（供前端 US 頁 freshness badge；規則直接複用 `GET /api/markets/us/status`，不另寫死判斷）：
 
+### `GET /api/markets/us/update-status`
+
+讀取獨立 `us_update_status.json`：`idle / running / success / failed`、開始／完成時間、月份與錯誤。此狀態不讀寫台股 `update_status.json`。
+
+### `POST /api/markets/us/update-now`
+
+Query `months` 預設 1、允許 1–60。背景執行 `backfill_ohlcv_us.py`，只更新 `ohlcv_us.csv`；重複觸發回 409、無效月份回 422。前端每 3 秒輪詢 update-status，完成後刷新 US status / analysis / signals / strategies。
+
 ```json
 {
   "region": "US",
@@ -1293,6 +1303,10 @@ Dry-run 預覽還原，不寫入任何檔案。
 > `recovering` 於 2026-07-10 補上：先前 `weak_or_no_data` 混合桶會把「收盤站上 MA20/MA60 但 MA20 < MA60」（如當時的 META / TSLA）誤標為「弱勢 / 資料不足」。該混合桶**已移除**。
 
 狀態純為描述性技術分類；**不套用台股 old_wang / steady_momentum，不產生買賣訊號。**
+
+### `GET /api/markets/us/analysis/{code}`
+
+美股單股研究契約，支援選填 `?as_of=YYYY-MM-DD`。回傳股票身份、USD、資料日、120 根 OHLCV、MA20 / MA60 / RSI14 / 20 日漲跌幅、描述性狀態、`reasons` 與 `risk_notes`，供前端美股技術分析與 K 線頁使用。不在 `us_leaders.json` 的 ticker 回 404；資料不足時欄位為 null 並解釋原因，不得標成弱勢。
 
 ### `GET /api/markets/us/signals`
 
@@ -1390,6 +1404,10 @@ Dry-run 預覽還原，不寫入任何檔案。
 **規則（參數凍結於 2026-07-12 的 5 年回放，不得調參）**：swing low = ±3 日局部最低且需 3 日後確認（無未來洩漏）；兩低點相距 10–40 交易日、價差 ≤ 3%；頸線 = 兩低間最高 high；突破 = 收盤首次站上頸線且距第二低點 ≤ 20 日；大盤軟濾網 = SPY **或** QQQ 收盤 > MA60；量幅目標 = 頸線 + (頸線 − 型態低)。
 
 **`state`**：`breakout_today`（今日突破）/ `breakout_in_progress`（突破後未達標未失效）/ `forming`（型態成形未突破，附觀察條件）/ `target_reached`（已達量幅目標）/ `invalidated`（跌破型態低失效）。無型態者只計入 `no_pattern_count` 不逐檔列出——**空清單是常態不是故障**。
+
+### `POST /api/markets/us/strategy-validation`
+
+Query：`start=YYYY-MM-DD&end=YYYY-MM-DD`。依指定日期區間同時執行 `us_trend_follow`（採 `trend_protect_exit`）與 `us_wbottom_target` 回放，回傳各自 summary、逐筆 signal / D+1 open 進出、持有交易日、報酬與限制。這是**逐筆等權策略評估，不是 100 萬投組淨值**；兩策略結果不可直接相加。日期落在非交易日時會收斂到區間內實際首末交易日；無資料或反向日期回 422。
 
 **回放證據**（`docs/ai/us-wbottom-replay-5y.md`；重現：`python3.11 scripts/replay_us_wbottom.py`）：5 年 282 筆、勝率 62.4%（全部測試最高）、成本後 +1.35%/筆；**已知弱點**：2022 型空頭年平均 −5.87%/筆、贏家被目標封頂（最大 +29% vs 最差 −27%）、生存者折扣後 +0.48%/筆。**高勝率 ≠ 高獲利**。
 

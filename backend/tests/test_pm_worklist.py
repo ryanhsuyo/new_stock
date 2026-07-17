@@ -70,9 +70,7 @@ def test_pm_worklist_prioritizes_data_repair_before_followup_work(monkeypatch):
     assert worklist["items"][0]["metric"] == "1 檔需修復"
     assert worklist["items"][0]["action_payload"]["kind"] == "command"
     assert worklist["items"][0]["action_payload"]["command"] == "python3 scripts/daily_update.py --months 12"
-    assert worklist["items"][0]["action_payload"]["copy_command"].endswith(
-        "cd /Users/ryan/Desktop/code/new_stock/backend\npython3 scripts/daily_update.py --months 12"
-    )
+    assert worklist["items"][0]["action_payload"]["copy_command"].splitlines()[-1] == "python3 scripts/daily_update.py --months 12"
     assert "backend/out/daily_check.json" in worklist["items"][0]["action_payload"]["expected_outputs"]
     assert worklist["items"][1]["focus_codes"] == ["2408"]
     assert worklist["items"][1]["action_payload"]["kind"] == "copy_text"

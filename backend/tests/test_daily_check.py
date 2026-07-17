@@ -803,9 +803,7 @@ def test_daily_check_includes_data_repair_queue_from_universe():
     data_repair_action = next(action for action in summary["top_actions"] if action["key"] == "data_repair")
     assert data_repair_action["action_type"] == "data_repair"
     assert data_repair_action["action_payload"]["command"] == "python3 scripts/daily_update.py --months 12"
-    assert data_repair_action["action_payload"]["copy_command"].endswith(
-        "cd /Users/ryan/Desktop/code/new_stock/backend\npython3 scripts/daily_update.py --months 12"
-    )
+    assert data_repair_action["action_payload"]["copy_command"].splitlines()[-1] == "python3 scripts/daily_update.py --months 12"
     assert data_repair_action["action_payload"]["expected_outputs"] == DAILY_UPDATE_OUTPUTS
 
 

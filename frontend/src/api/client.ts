@@ -1,4 +1,4 @@
-import type { BuyRequest, DailyBrief, DailyCheckReport, DataStatus, DecisionJournalBulkCreateResult, DecisionJournalCreate, DecisionJournalEntry, DecisionJournalSummary, FundamentalsPriorityMergeResult, FundamentalsStatus, HoldingAnalysis, IntradayMonitor, ManualWatchlistReview, MarketNoteInput, MarketNoteSaveResult, OfficialFundamentalsCoverageAudit, OfficialFundamentalsReportsResult, OfficialFundamentalsStatus, PmWorklist, PortfolioSummary, Position, RecommendationStrategy, SellRequest, SignalAlertReviewStatus, SignalsSummary, SignalsStatus, Stats, StockAnalysis, StockRecommendation, StockTrackingResult, StockUniverseItem, TodayScanReport, TradeRecord, TradingSettings, UniverseReportItem, UniverseReportReviewWorkflow, UpdateWorkflowStatus, UsAnalysisItem, UsDataFreshness, UsMarketStatus, UsTrendFollow, UsUniverseItem, UsWatchSignals, UsWbottom, WatchlistGroup, WorkflowStatus } from '../types'
+import type { BuyRequest, DailyBrief, DailyCheckReport, DataStatus, DecisionJournalBulkCreateResult, DecisionJournalCreate, DecisionJournalEntry, DecisionJournalSummary, FundamentalsPriorityMergeResult, FundamentalsStatus, HoldingAnalysis, IntradayMonitor, ManualWatchlistReview, MarketNoteInput, MarketNoteSaveResult, OfficialFundamentalsCoverageAudit, OfficialFundamentalsReportsResult, OfficialFundamentalsStatus, PmWorklist, PortfolioSummary, Position, RecommendationStrategy, SellRequest, SignalAlertReviewStatus, SignalsSummary, SignalsStatus, Stats, StockAnalysis, StockRecommendation, StockTrackingResult, StockUniverseItem, StrategyValidationReport, TodayScanReport, TradeRecord, TradingSettings, UniverseReportItem, UniverseReportReviewWorkflow, UpdateWorkflowStatus, UsAnalysisItem, UsDataFreshness, UsMarketStatus, UsStockAnalysis, UsStrategyValidationReport, UsTrendFollow, UsUniverseItem, UsUpdateStatus, UsWatchSignals, UsWbottom, WatchlistGroup, WorkflowStatus } from '../types'
 
 const BASE = '/api'
 
@@ -163,6 +163,15 @@ export const api = {
   getTradingSettings: () =>
     request<TradingSettings>('/system/settings/trading'),
 
+  getStrategyValidation: () =>
+    request<StrategyValidationReport>('/system/strategy-validation'),
+
+  runStrategyValidation: (start: string, end: string) =>
+    request<StrategyValidationReport>(`/system/strategy-validation?start=${encodeURIComponent(start)}&end=${encodeURIComponent(end)}`, { method: 'POST' }),
+
+  runUsStrategyValidation: (start: string, end: string) =>
+    request<UsStrategyValidationReport>(`/markets/us/strategy-validation?start=${encodeURIComponent(start)}&end=${encodeURIComponent(end)}`, { method: 'POST' }),
+
   triggerUpdateNow: () =>
     request<{ message: string; status: string }>('/system/update-now', { method: 'POST' }),
 
@@ -201,11 +210,20 @@ export const api = {
   getUsMarketStatus: () =>
     request<UsMarketStatus>('/markets/us/status'),
 
+  getUsUpdateStatus: () =>
+    request<UsUpdateStatus>('/markets/us/update-status'),
+
+  triggerUsUpdate: (months = 1) =>
+    request<UsUpdateStatus>(`/markets/us/update-now?months=${months}`, { method: 'POST' }),
+
   getUsDataFreshness: () =>
     request<UsDataFreshness>('/markets/us/data-freshness'),
 
   getUsAnalysis: () =>
     request<UsAnalysisItem[]>('/markets/us/analysis'),
+
+  getUsStockAnalysis: (code: string) =>
+    request<UsStockAnalysis>(`/markets/us/analysis/${encodeURIComponent(code)}`),
 
   getUsSignals: () =>
     request<UsWatchSignals>('/markets/us/signals'),
@@ -226,15 +244,15 @@ export const api = {
   deleteWatchlist: (group: string) =>
     request<{ deleted: string }>(`/watchlists/${encodeURIComponent(group)}`, { method: 'DELETE' }),
 
-  addToWatchlist: (group: string, code: string, name: string) =>
+  addToWatchlist: (group: string, code: string, name: string, region: 'TW' | 'US' = 'TW') =>
     request<WatchlistGroup>(`/watchlists/${encodeURIComponent(group)}/stocks`, {
       method: 'POST',
-      ...json({ code, name }),
+      ...json({ code, name, region }),
     }),
 
-  removeFromWatchlist: (group: string, code: string) =>
+  removeFromWatchlist: (group: string, code: string, region: 'TW' | 'US' = 'TW') =>
     request<WatchlistGroup>(
-      `/watchlists/${encodeURIComponent(group)}/stocks/${encodeURIComponent(code)}`,
+      `/watchlists/${encodeURIComponent(group)}/stocks/${encodeURIComponent(code)}?region=${region}`,
       { method: 'DELETE' },
     ),
 }

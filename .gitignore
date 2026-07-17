@@ -35,3 +35,7 @@ backend/data/*
 !backend/data/fundamentals.example.json
 !backend/data/us_leaders.json
 !backend/data/ai_chip_supply_chain_watchlist.csv
+
+# auto-dev runtime artifacts (never commit)
+.ai-heartbeat/
+.ai-coding-relay/

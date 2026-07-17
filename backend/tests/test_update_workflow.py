@@ -40,9 +40,7 @@ def test_update_workflow_blocks_when_market_data_is_stale(monkeypatch):
     assert report["can_use_trade_outputs"] is False
     assert report["current_step"] == "update_market_data"
     assert report["next_action"]["command"] == "python3 scripts/daily_update.py --months 1"
-    assert report["next_action"]["copy_command"].endswith(
-        "cd /Users/ryan/Desktop/code/new_stock/backend\npython3 scripts/daily_update.py --months 1"
-    )
+    assert report["next_action"]["copy_command"].splitlines()[-1] == "python3 scripts/daily_update.py --months 1"
     assert report["next_action"]["expected_outputs"] == DAILY_UPDATE_OUTPUTS
     assert report["steps"][0]["status"] == "blocked"
 

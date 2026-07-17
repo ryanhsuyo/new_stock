@@ -31,6 +31,7 @@ class CreateGroupRequest(BaseModel):
 class AddStockRequest(BaseModel):
     code: str
     name: str
+    region: str = "TW"
 
 
 # ── Endpoints ──────────────────────────────────────────────────────────────────
@@ -67,15 +68,17 @@ def add_to_watchlist(group: str, req: AddStockRequest) -> dict:
     群組不存在時回傳 404。
     """
     try:
-        return add_stock(group, req.code.strip(), req.name.strip())
+        return add_stock(group, req.code.strip(), req.name.strip(), req.region)
+    except ValueError as e:
+        raise HTTPException(status_code=422, detail=str(e))
     except KeyError as e:
         raise HTTPException(status_code=404, detail=str(e))
 
 
 @router.delete("/watchlists/{group}/stocks/{code}")
-def remove_from_watchlist(group: str, code: str) -> dict:
+def remove_from_watchlist(group: str, code: str, region: str = "TW") -> dict:
     """從群組中移除指定股票。群組不存在時回傳 404。"""
     try:
-        return remove_stock(group, code)
+        return remove_stock(group, code, region)
     except KeyError as e:
         raise HTTPException(status_code=404, detail=str(e))

@@ -123,9 +123,7 @@ class TestDataStatusAPI:
         action = body["manual_update_action"]
         assert action["action_type"] == "copy_command"
         assert action["command"] == "python3 scripts/daily_update.py --months 1"
-        assert action["copy_command"].endswith(
-            "cd /Users/ryan/Desktop/code/new_stock/backend\npython3 scripts/daily_update.py --months 1"
-        )
+        assert action["copy_command"].splitlines()[-1] == "python3 scripts/daily_update.py --months 1"
         assert "backend/out/update_status.json" in action["expected_outputs"]
         assert "backend/out/daily_check.json" in action["expected_outputs"]
 

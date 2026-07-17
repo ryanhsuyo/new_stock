@@ -638,6 +638,107 @@ export interface TradingSettings {
   sell_transaction_tax_rate: number
 }
 
+export interface StrategyValidationTrade {
+  code: string
+  name: string
+  market: string
+  side: 'buy' | 'sell'
+  signal_date: string
+  fill_date: string
+  fill_price: number
+  shares: number
+  fee: number
+  tax: number
+  realized_pnl: number | null
+  reason: string
+  strategy: string
+  tradingview_url: string
+  analysis_hash: string
+}
+
+export interface StrategyValidationOpenPosition {
+  code: string
+  name: string
+  market: string
+  shares: number
+  entry_cost: number
+  entry_date: string
+  entry_price: number
+  strategy: string
+  close: number
+  estimated_liquidation_value: number
+  unrealized_pnl_after_exit_cost: number
+  tradingview_url: string
+  analysis_hash: string
+}
+
+export interface StrategyValidationResult {
+  mode: string
+  mode_label: string
+  initial_cash: number
+  start_date: string
+  end_date: string
+  final_equity_after_estimated_liquidation_cost: number
+  net_pnl: number
+  return_pct: number
+  max_drawdown_pct: number
+  realized_pnl: number
+  total_fees: number
+  total_tax: number
+  trade_event_count: number
+  buy_count: number
+  sell_count: number
+  cash: number
+  open_positions: StrategyValidationOpenPosition[]
+  trades: StrategyValidationTrade[]
+  equity_curve: { date: string; equity: number }[]
+}
+
+export interface StrategyValidationReport {
+  report_id: string
+  generated_at: string
+  config: Record<string, unknown>
+  limitations: string[]
+  results: Record<string, StrategyValidationResult>
+}
+
+export interface UsValidationTrade {
+  code: string
+  name: string
+  category: string
+  strategy: string
+  signal_date: string
+  entry_date: string | null
+  entry_price: number | null
+  exit_date: string | null
+  exit_price: number | null
+  exit_reason: string
+  holding_trading_days: number | null
+  return_pct: number | null
+  unresolved: boolean
+  tradingview_url: string
+}
+
+export interface UsValidationResult {
+  strategy: string
+  strategy_label: string
+  exit_rule: string
+  summary: Record<string, number | string | null | Record<string, number>>
+  trades: UsValidationTrade[]
+  limitations: string[]
+}
+
+export interface UsStrategyValidationReport {
+  region: 'US'
+  currency: 'USD'
+  requested_start: string
+  requested_end: string
+  start_date: string
+  end_date: string
+  method: string
+  results: Record<string, UsValidationResult>
+}
+
 export interface BuyRequest {
   stock_id: string
   name: string
@@ -1168,6 +1269,14 @@ export interface UsMarketStatus {
   backfill_command?: string
 }
 
+export interface UsUpdateStatus {
+  status: 'idle' | 'running' | 'success' | 'failed' | string
+  started_at: string | null
+  finished_at: string | null
+  error: string | null
+  months: number | null
+}
+
 /**
  * 美股資料新鮮度精簡契約（/markets/us/data-freshness）。
  * 供 freshness badge 呈現：資料源 / 最後更新日 / 是否過期。
@@ -1220,6 +1329,16 @@ export interface UsAnalysisItem {
   days_since_last: number | null
   status: UsTechStatus
   status_label: string
+}
+
+export interface UsStockAnalysis extends UsAnalysisItem {
+  currency: 'USD'
+  as_of: string | null
+  data_ok: boolean
+  close: number | null
+  reasons: string[]
+  risk_notes: string[]
+  ohlcv: Array<{ date: string; open: number; high: number; low: number; close: number; volume: number }>
 }
 
 /** Phase 3：美股觀察訊號（描述性，非推薦 / 非買賣建議） */
@@ -1336,6 +1455,7 @@ export interface WatchlistItem {
   code: string
   name: string
   added_at: string
+  region?: 'TW' | 'US'
 }
 
 export interface WatchlistGroup {

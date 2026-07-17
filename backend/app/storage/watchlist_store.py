@@ -80,28 +80,32 @@ def delete_group(name: str) -> None:
     _save(data)
 
 
-def add_stock(group_name: str, code: str, stock_name: str) -> dict:
+def add_stock(group_name: str, code: str, stock_name: str, region: str = "TW") -> dict:
     """加入股票；若股票已在群組中，靜默跳過（冪等）。"""
     data  = _load()
     group = next((g for g in data["groups"] if g["name"] == group_name), None)
     if group is None:
         raise KeyError(f"群組「{group_name}」不存在")
     # 冪等：已有則跳過
-    if not any(s["code"] == code for s in group["stocks"]):
+    region = region.upper()
+    if region not in {"TW", "US"}:
+        raise ValueError("region 必須是 TW 或 US")
+    if not any(s["code"] == code and s.get("region", "TW") == region for s in group["stocks"]):
         group["stocks"].append({
             "code":     code,
             "name":     stock_name,
             "added_at": date.today().isoformat(),
+            "region": region,
         })
         _save(data)
     return group
 
 
-def remove_stock(group_name: str, code: str) -> dict:
+def remove_stock(group_name: str, code: str, region: str = "TW") -> dict:
     data  = _load()
     group = next((g for g in data["groups"] if g["name"] == group_name), None)
     if group is None:
         raise KeyError(f"群組「{group_name}」不存在")
-    group["stocks"] = [s for s in group["stocks"] if s["code"] != code]
+    group["stocks"] = [s for s in group["stocks"] if not (s["code"] == code and s.get("region", "TW") == region.upper())]
     _save(data)
     return group

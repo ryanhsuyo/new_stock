@@ -12,6 +12,167 @@
 
 ---
 
+## 2026-07-17 — US parity 全套回歸與瀏覽器驗收收尾
+
+- **Date:** 2026-07-17
+- **Task:** 接續完善台股／美股畫面與策略日期區間落差，完成本批次收尾驗收。
+- **Completed:** 移除 `test_daily_check.py`、`test_pm_worklist.py`、`test_update_status.py`、`test_update_workflow.py` 對舊 repo 絕對路徑的依賴，改驗證命令列最終參數；以 in-app browser 實測美股市場總覽、AAPL 技術分析、region-aware 觀察清單、策略驗收與兩個日期欄位。確認「立即更新美股」存在但未觸發真實 Yahoo 回補；瀏覽器 console 無 error。
+- **Changed Files:** 上述四個 backend tests、`openspec/changes/us-market-parity/tasks.md`、`docs/ai/{current-status,handoff-log}.md`；其餘 production 變更屬同一未提交 US parity 批次。
+- **Validation:** 完整 backend pytest **953 passed in 37.01s**；frontend build 成功（僅既有 >500 kB chunk warning）；桌面瀏覽器流程通過且 console 0 errors；`git diff --check` 於收尾再次執行。
+- **Git Status:** 未 commit；結束狀態見回報。未 push。
+- **Next Steps:** 補手機寬度 RWD 驗收；US 交易／投組／統計仍須先確認費率、稅費、零股與匯率口徑。
+- **Notes / Warnings:** 美股資料日顯示 2026-07-13、頁面誠實標示已過期；本輪避免網路與資料污染，未執行更新按鈕。
+
+---
+
+## 2026-07-17 — 美股一鍵更新 + 獨立背景狀態
+
+- **Date:** 2026-07-17
+- **Task:** 接續 US parity，補上台股已有、美股缺少的一鍵更新與狀態輪詢。
+- **Completed:** 新增獨立 `us_update_store.py` / `us_update_service.py`：持久化 idle/running/success/failed、背景 lock 防重複、subprocess 執行既有 `backfill_ohlcv_us.py`；新增 GET update-status 與 POST update-now（months 1–60、409/422）。US 頁新增立即更新按鈕、running disabled、3 秒 polling、成功後刷新 US status / freshness / analysis / signals / trend-follow / W-bottom，失敗顯示錯誤。TW update store、ohlcv 與 signals 流程完全不接觸。
+- **Changed Files:** 新增 `backend/app/{storage/us_update_store.py,services/us_update_service.py}`、`backend/tests/test_us_update_service.py`；修改 `backend/app/routers/markets.py`、`backend/docs/api.md`、`frontend/src/{api/client.ts,types/index.ts,App.css}`、`frontend/src/pages/UsMarketPage.tsx`、OpenSpec tasks、`docs/ai/{current-status,validation,handoff-log}.md`。
+- **Validation:** 相關 tests **34 passed**（補文件後）+ US-only command isolation test；frontend build 成功（既有 >500 kB warning）。未打真實 Yahoo、未寫 `ohlcv_us.csv`；避免驗收污染與網路依賴。完整 pytest **949 passed / 4 failed**；4 個失敗皆為既有測試寫死舊 repo 路徑 `/Users/ryan/Desktop/code/new_stock`，與本功能無關。
+- **Git Status:** 未 commit；結束狀態見回報。未 push。
+- **Next Steps:** US USD 交易／投組／統計前，先確認券商費率、稅費、零股與匯率呈現規則；另補瀏覽器實測一鍵更新長流程。
+- **Notes / Warnings:** `us_update_status.json` 與台股 `update_status.json` 分開；US endpoint 不重算台股 signals。Yahoo 非官方、可能限流，失敗會留在 US status 供重試。
+
+---
+
+## 2026-07-16 — US 研究連結全覆蓋 + 美股觀察清單畫面
+
+- **Date:** 2026-07-16
+- **Task:** 使用者要求繼續完善美股與台股操作落差。
+- **Completed:** UsMarketPage 的基本狀態、trend-follow candidates / excluded、W-bottom patterns、觀察訊號所有 ticker 均改為可點擊並直達 US 技術分析。US 導覽新增「觀察清單」，重用既有群組但只顯示 region=US，顯示 US badge；移除時傳 region，避免刪到同 code 的 TW item。WatchlistsPage 保持預設不過濾，台股既有入口行為不變。
+- **Changed Files:** `frontend/src/pages/{UsMarketPage,WatchlistsPage}.tsx`、`frontend/src/{App.tsx,App.css}`、`openspec/changes/us-market-parity/tasks.md`、`docs/ai/{current-status,handoff-log}.md`。
+- **Validation:** backend 相關 tests **34 passed**；frontend build 成功（既有 >500 kB chunk warning）。未跑完整 pytest；上一完整結果為 942 passed / 4 個既有舊路徑失敗。
+- **Git Status:** 未 commit；結束狀態見回報。未 push。
+- **Next Steps:** US 一鍵更新（獨立 status store / lock / background backfill / polling），完成後才進 USD 交易／投組／統計。
+- **Notes / Warnings:** US 自選仍共用群組名稱，但 item identity 已按 region 分離；既有無 region item 視為 TW。
+
+---
+
+## 2026-07-16 — US 單股研究頁 + region-aware 自選清單
+
+- **Date:** 2026-07-16
+- **Task:** 使用者核准直接完成下一階段：美股單股研究頁與 region-aware 自選清單。
+- **Completed:** 新增 `GET /api/markets/us/analysis/{code}`（選填 as_of）：120 根 OHLCV、MA20/60、RSI、20 日漲跌、距均線、描述性狀態、reasons / risk_notes、USD。前端 US 導覽新增「技術分析」，用 lightweight-charts 畫真實 K 線與 MA20/60；市場總覽 ticker 可直達，研究頁可搜尋 ticker 並加入既有自選群組。watchlist identity 改為 `(region, code)`，add/remove API 支援 region；legacy 無 region item 視為 TW，避免破壞個人資料。
+- **Changed Files:** `backend/app/services/us_analysis_service.py`、`backend/app/routers/{markets,watchlists}.py`、`backend/app/storage/watchlist_store.py`、`backend/tests/test_watchlists.py`、`backend/docs/api.md`、`frontend/src/pages/{UsMarketPage,UsResearchPage}.tsx`、`frontend/src/{App.tsx,App.css,api/client.ts,types/index.ts}`、OpenSpec tasks 與 AI status/handoff。工作樹另含前輪未提交批次。
+- **Validation:** 相關 tests **36 passed**；frontend build 成功（既有 >500 kB warning）；真實 AAPL smoke：資料日 2026-07-13、1,280 rows、chart payload 120 bars、status trend_up。未重跑完整 pytest；上一輪完整結果 942 passed / 4 個既有舊路徑失敗。
+- **Git Status:** 未 commit；結束狀態見回報。未 push。
+- **Next Steps:** 將 trend-follow candidates、W-bottom patterns 與觀察訊號 ticker 也接上研究頁；US 自選清單頁增加 region filter / badge；之後做 US 一鍵更新工作流。
+- **Notes / Warnings:** US research 是描述性研究，不套台股策略、不下單；K 線使用 `ohlcv_us.csv`，不讀台股 OHLCV。
+
+---
+
+## 2026-07-16 — 美股共用導覽 + 策略驗收日期區間落地
+
+- **Date:** 2026-07-16
+- **Task:** 使用者指出台股／美股畫面落差仍大，且美股沒有策略驗收日期區間；要求實際補齊而非只寫規格。
+- **Completed:** App 的 US 分支不再直接繞過所有導覽，新增「研究／市場總覽」與「系統／策略驗收」同層入口；共用策略驗收頁新增台股／美股切換，從 US 導覽進入時預設 US。新增 `POST /api/markets/us/strategy-validation?start=&end=`，直接重用既有無未來洩漏 replay 核心，依日期同時跑 `us_trend_follow`（trend_protect_exit）與 `us_wbottom_target`；前端可切策略並看訊號、D+1 open 進出、持有交易日、報酬、未解析與 TradingView。明確標示 US 是逐筆等權評估，不冒充 TW 100 萬投組淨值。
+- **Changed Files:** 新增 `backend/app/services/us_strategy_validation_service.py`、`backend/tests/test_us_strategy_validation_api.py`；修改 `backend/app/routers/markets.py`、`backend/docs/api.md`、`frontend/src/{App.tsx,App.css,api/client.ts,types/index.ts}`、`frontend/src/pages/StrategyValidationPage.tsx`、`openspec/changes/us-market-parity/tasks.md`、`docs/ai/{current-status,handoff-log}.md`。工作樹另含前輪未提交策略驗收／規格批次，未覆寫 `.ai-*`。
+- **Validation:** 相關 tests **40 passed**；frontend build 成功（既有 >500 kB warning）；真實資料 2026-06-01～06-30 smoke：trend-follow 24 signals / 20 completed，W-bottom 10 / 8。完整 pytest **942 passed / 4 failed**；4 個失敗仍是既有測試寫死舊 repo 路徑 `/Users/ryan/Desktop/code/new_stock`，與本功能無關。瀏覽器 RWD 本輪未跑。
+- **Git Status:** 未 commit；結束狀態見回報。未 push。
+- **Next Steps:** Phase 1：US 單股 K 線研究頁、region-aware 自選清單與候選直接跳研究；之後補 US 一鍵更新、交易／投組／統計。
+- **Notes / Warnings:** 美股兩策略結果不可直接相加，也不可與台股淨值比較；仍是 evaluation-only、非推薦／非下單。US replay 未計滑價、手續費、稅費與股息，限制已隨 API 回傳。
+
+---
+
+## 2026-07-16 — 美股除策略外對齊台股：產品規格與分段計畫
+
+- **Date:** 2026-07-16
+- **Task:** 使用者指定美股除策略外，資料與操作體驗盡量比照台股。
+- **Completed:** 建立 `us-market-parity` OpenSpec，盤點並定義四階段：1) US 單股研究 + region-aware 自選；2) 一鍵更新與狀態工作流；3) market-aware 交易 / 投組 / 統計；4) 共用驗收 UI + US 自有策略回放。明確保留 US 策略、USD、交易日／時區、資料源與費稅差異；禁止把 old_wang / steady_momentum 或台股費稅直接套到美股。採共用 market-aware 能力，避免複製兩套產品碼。
+- **Changed Files:** 新增 `openspec/changes/us-market-parity/{proposal.md,design.md,tasks.md,specs/market-parity.md}`；更新 `docs/ai/{roadmap,current-status,handoff-log}.md`。本輪未修改 production code，也未覆寫前一輪未提交策略驗收檔案。
+- **Validation:** docs/spec-only；已檢查既有 US page / API 與台股能力差距。未跑 pytest / frontend build，因本輪無程式碼變更。
+- **Git Status:** 工作樹原已包含前一輪策略驗收未提交批次及 `.ai-*` 目錄；本輪只新增規格與三份狀態文件變更。結束狀態見回報。
+- **Commit:** 無；未 push。
+- **Next Steps:** 依 `tasks.md` 實作 Phase 1：US 單股 analysis endpoint、研究頁 region / USD、候選連結，以及 watchlist region 相容遷移與測試。
+- **Notes / Warnings:** Phase 3 前必須由使用者確認美股費率、稅務與零股規則；沒有匯率時禁止把 TWD / USD 損益直接加總。
+
+---
+
+## 2026-07-16 — 策略驗收支援自選日期區間完整重跑
+
+- **Date:** 2026-07-16
+- **Task:** 接續策略驗收，新增可選開始／結束日期，讓使用者針對不同區間測試兩套策略與合併帳戶。
+- **Completed:** 將一次性 walk-forward 回放正式化進 `strategy_validation_service.py`；`POST /api/system/strategy-validation?start=&end=` 以 100 萬元空手完整重跑指定區間（起日前一交易日收盤訊號、D+1 開盤成交、10 bps 滑價、費稅、持倉感知 exit/reduce），三模式各自獨立計算並快取 JSON。前端加入日期選擇器與明確執行按鈕、計算中狀態、區間錯誤保留上一份結果。不是在前端截斷既有交易，因此期初現金、持倉、MDD 與報酬口徑一致。
+- **Changed Files:** `backend/app/services/strategy_validation_service.py`、`backend/app/routers/system.py`、`backend/tests/test_strategy_validation_api.py`、`backend/docs/api.md`、`frontend/src/pages/StrategyValidationPage.tsx`、`frontend/src/api/client.ts`、`frontend/src/App.css`、`docs/ai/current-status.md`、`docs/ai/handoff-log.md`；同一未提交批次另含前輪策略驗收與交易報告檔案。未觸碰 `.ai-coding-relay/`、`.ai-heartbeat/`。
+- **Validation:** 相關後端/API/docs tests **12 passed**；`npm run build` 成功（既有 >500 kB chunk warning）；真實資料 smoke test 2026-07-13～07-15 成功（combined 6買/1賣、old_wang 2買/0賣、steady_momentum 6買/1賣），輸出置於 `/private/tmp`。全套 pytest：**938 passed / 4 failed**；4 失敗皆為既有測試寫死舊路徑 `/Users/ryan/Desktop/code/new_stock`，實際 repo 已移至 `/Users/ryan/Developer/new_stock`，與本次功能無關。
+- **Git Status:** 本批仍未 commit；結束狀態見任務回報。未 push。
+- **Next Steps:** 實際以瀏覽器跑一個較長區間觀察等待體感；若區間擴到多年，將同步 POST 改為背景 job + polling，避免 HTTP 長連線。另可在下一個獨立 scope 修正 4 個硬編碼舊 repo path 的測試。
+- **Notes / Warnings:** 此為紙上回放，不是券商實績或下單；universe / fundamentals 使用現行 snapshot，仍有生存者與歷史快照偏誤；台股未完整還原企業行動，已排除已知污染代碼。
+
+---
+
+## 2026-07-16 — 策略驗收 UI + TradingView 逐筆核對
+
+- **Date:** 2026-07-16
+- **Task:** 使用者希望有比純文字損益更清楚的驗收方式，能逐檔了解策略如何進出並搭配 TradingView 核對，並要求實際操作測試一次。
+- **Completed:**
+  - 新增唯讀 `strategy_validation_service.py` 與 `GET /api/system/strategy-validation`：讀取最新台股投組回放 JSON，補股票名稱、市場、本機分析 hash 與正確的 TradingView `TWSE:` / `TPEX:` symbol；無報告時誠實回 404，不在 API request 內重算策略。
+  - 新增前端 `#/validation`「策略驗收」頁與系統導覽入口：合併 / 老王 / 穩健動能 segmented tabs、期末淨值 / 淨損益 / MDD / 成本 / 交易數、集中度警告、持有 / 平倉 / 盈虧篩選、代號名稱搜尋與個股損益排序。
+  - 每檔可展開完整事件時間線：訊號日、D+1 成交日、方向、成交價、股數、手續費、交易稅、決策原因與單筆已實現損益；另有「本機線圖」與 TradingView 外部核對。
+  - 瀏覽器實測旺宏：搜尋、展開兩輪買賣、逐筆費稅與原因均正確；本機線圖成功跳 `#/research/2337`；TradingView URL 為 `TWSE:2337`，TPEX 範例台半正確為 `TPEX:5425`。老王 tab 顯示 1,346,597 元 / +34.66% / MDD 14.81%。
+  - 手機 375×844 實測：頁面無整體橫向溢出，寬表格捲動限制在表格內；策略標籤中文化，「31 買 · 27 賣 · 17 持有」不截斷；console 0 errors。
+- **Changed Files:** `backend/app/services/strategy_validation_service.py`、`backend/app/routers/system.py`、`backend/tests/test_strategy_validation_api.py`、`backend/docs/api.md`、`frontend/src/pages/StrategyValidationPage.tsx`、`frontend/src/App.tsx`、`frontend/src/api/client.ts`、`frontend/src/types/index.ts`、`frontend/src/App.css`、`docs/ai/current-status.md`、`docs/ai/handoff-log.md`。
+- **Validation:** endpoint tests 3 passed；完整後端 **939 passed**；`npm run build` 成功（既有 >500 kB chunk warning）；瀏覽器實測策略切換 / 搜尋 / 展開 / 本機跳轉 / TWSE-TPEX TradingView URL / 手機響應式 / console 均通過。
+- **Next Steps:** 將一次性 `/private/tmp/replay_tw_portfolio_may.py` 正式化成可重跑 CLI，再在頁面加「報告新鮮度」與每日淨值曲線；正式化前需先定義同日多訊號資金分配與重複 reduce 規則，避免 UI 漂亮但回放口徑仍不穩定。
+- **Notes / Warnings:** 此頁是 generated paper replay 的驗收器，不是券商實績或下單介面；資料主要限制仍是現行 universe / fundamentals snapshot、生存者偏誤、未計股利與少數股票貢獻集中。
+
+---
+
+## 2026-07-16 — 台股 100 萬空手起始投組回放（05-01～07-15）
+
+- **Date:** 2026-07-16
+- **Task:** 使用者要求排除 5 月前持倉與錯誤手動成交紀錄，以 100 萬元重算 2026-05-01 至今的台股策略投組損益。
+- **Completed:**
+  - 先執行 `scripts/daily_update.py --months 1`，台股 OHLCV / 法人資料更新至最近完整交易日 2026-07-15；2026-07-16 尚未收盤，不納入。
+  - 以一次性 walk-forward 回放重算：04-30 收盤訊號可於 05-04 開盤成交；其後皆為 D 日收盤產生持倉感知決策、D+1 開盤成交，禁止同日收盤訊號回填；初始現金 1,000,000、初始零持股、不融資、允許零股。
+  - 成交套用 10 bps 滑價並限制於當日 low–high，買賣手續費 0.1425%、賣出交易稅 0.3%；期末以 07-15 收盤模擬全部清算後淨值計算。合併策略期末 1,343,044 元，淨利 343,044 元（+34.3044%），最大回撤 10.69%；31 次買進、27 次賣出、期末 17 檔。
+  - 分策略對照：old_wang 1,346,597 元（+34.6597%，MDD 14.81%）；steady_momentum 1,311,169 元（+31.1169%，MDD 11.01%）。結果高度集中於禾伸堂、南亞科、景碩，不能外推為穩定報酬或真實帳戶績效。
+  - 稽核所有合併策略成交，共 58 個交易事件，0 筆超出成交日 low–high；旺宏改為 05-11 模擬買進 161.161、日月光改為 06-15 模擬買進 619.619，不採用原手動紀錄的 174 / 336。
+- **Changed Files:** `docs/ai/handoff-log.md`；generated output（gitignored）：`backend/out/tw_portfolio_replay_2026-05-01_2026-07-15.json`。一次性回放程式位於 `/private/tmp/replay_tw_portfolio_may.py`，未加入正式產品碼。
+- **Validation:** `scripts/daily_update.py --months 1` 成功；一次性腳本 `py_compile` 成功並完整執行；資金恆等式通過（89,952 現金 + 1,253,092 預估淨清算值 = 1,343,044）；58/58 成交價均落在當日 low–high。未修改正式程式碼，因此未重跑全套 pytest；上一輪完整後端測試為 936 passed。
+- **Next Steps:** 將此 walk-forward 投組回放正式化前，需決定整股 / 零股、同日多訊號的資金分配上限、重複 `reduce` 規則，並補齊歷史 fundamentals / chips snapshot，降低目前快照造成的前視與生存者偏誤。
+- **Notes / Warnings:** 這是策略紙上回放，不是券商實績；未計股利，且目前 universe / fundamentals 為現行快照。報酬約 34% 主要由少數強勢股貢獻，集中度高。
+
+---
+
+## 2026-07-16 — 台股 / 美股交易報告拆分 + 旺宏時間基準修正
+
+- **Date:** 2026-07-16
+- **Task:** 使用者要求台股、美股分成兩份詳細報告，欄位含建議 / 實際進場、停損、止盈、出場、損益、報酬與策略；並追查旺宏為何實際均價高於舊報告止盈價。
+- **Completed:**
+  - `generate_strategy_trade_report.py` 改輸出兩份獨立報告：`strategy_trade_report_tw_2026-05-01.md`、`strategy_trade_report_us_2026-05-01.md`。
+  - 修正時間穿越：進場建議與停損 / 止盈改用**交易日前一個資料日的收盤快照**，不再拿交易當日收盤後重算值冒充事前計畫；推論出場原因同樣以前一資料日為基準。
+  - 旺宏釐清：舊報告 `171.5` 是 04-30 收盤後重算目標；04-30 交易前可知的是 04-29 計畫（建議 136.12–145.84、停損 136.12、目標 190.25、動作等回測）。實際 174 未高於真正事前目標，但高於建議區且非進場動作，仍判定不合規。
+  - 新增逐筆進場合規檢核：實際價 ≥ 止盈、≤ 停損、超出建議區、或每日動作非 enter/probe 均標不合規。現有 8 筆進場為 0/8 合規，因此帳面 +91,361 元只能稱交易結果，不能稱策略照單績效。
+  - 交易價資料品質改用「實際價是否落在同日 low–high 外（1% 容差）」檢查，不再只與收盤價比較；9 筆交易需回查。
+  - 美股報告保留使用者指定的實際交易欄位，但目前 `trades.json` 無美股紀錄；觀察策略與回放另列，明確不冒充實績。
+- **Changed Files:** `backend/scripts/generate_strategy_trade_report.py`、`backend/tests/test_strategy_trade_report.py`、`docs/ai/handoff-log.md`；generated outputs：`backend/out/strategy_trade_report_tw_2026-05-01.md`、`backend/out/strategy_trade_report_us_2026-05-01.md`。
+- **Validation:** 報告腳本執行成功；`python3.11 -m py_compile` 成功；新增測試 4 passed；完整後端測試 **936 passed**。
+- **Git Status:** 任務結束回報為準；工作樹進場時已有 `.ai-coding-relay/`、`.ai-heartbeat/` 與未提交 handoff / report script，本輪未覆寫兩個 AI 輔助目錄。
+- **Next Steps:** 優先讓使用者校正報告列出的 9 筆區間外成交；若要追蹤真正策略績效，交易建立時需保存 `strategy_snapshot`（訊號基準日、建議區、停損、止盈、策略 tag），並為美股交易補 market / currency / fee / tax 契約。
+- **Notes / Warnings:** 不可再以同日收盤訊號回填同日進場計畫；出場 note 未填時的原因仍只是系統推論，不等於使用者主觀原因。美股回放不屬實際交易。
+
+---
+
+## 2026-07-16 — 5 月以來策略實際交易與目前台美股觀察報告
+
+- **Date:** 2026-07-16
+- **Task:** 使用者要求檢查目前台股 / 美股策略推論是否正確，並整理自 5 月開始實施策略後的實際進出、預計停損 / 止盈、出場原因、正負損益與策略歸因。
+- **Completed:**
+  - 新增 `backend/scripts/generate_strategy_trade_report.py`：讀取 `trades.json`、以交易建立日或交易日 >= `2026-05-01` 篩選，依 FIFO/WAC 類方式彙整平倉交易；買進日用 `analysis_service.analyse_stock(code, as_of)` 回推當時預計停損 / 止盈 / 策略標籤；賣出日若交易 note 空白，標註「交易紀錄未填；依當日分析推論」。
+  - 產出 `backend/out/strategy_trade_report_2026-05-01.md`（generated output，不手動編輯）：實際交易 7 組平倉、勝率 2/7、已實現損益 **+91,361 元**；目前無未平倉；最新台股 universe_report 顯示老王大盤濾網多數標的為 block，短波段做多需降權；美股僅列觀察策略與回放摘要，不混入實際交易績效。
+  - 報告分清楚：台股實際 trades、最新台股可能買進/降風險、美股 `us_trend_follow` / `us_wbottom_target` 目前觀察狀態、美股回放（非實際交易）。
+- **Changed Files:** 新增 `backend/scripts/generate_strategy_trade_report.py`；修改 `docs/ai/handoff-log.md`；產生 `backend/out/strategy_trade_report_2026-05-01.md`。
+- **Validation:** `cd backend && /Library/Frameworks/Python.framework/Versions/3.11/bin/python3 scripts/generate_strategy_trade_report.py` 成功產出報告；`cd backend && /Library/Frameworks/Python.framework/Versions/3.11/bin/python3 -m pytest -q` → **932 passed**。
+- **Git Status:** 任務結束回報為準。當前 repo 已有未追蹤 `.ai-coding-relay/`、`.ai-heartbeat/`，本輪未觸碰。
+- **Next Steps:** 若要進一步產品化，可把這份報告做成後端 API / 前端「策略績效」頁；但需先決定是否把出場原因變成必填欄位，避免未來仍需用系統推論補原因。
+- **Notes / Warnings:** 美股目前沒有實際 trades，只有觀察策略 / 回放；不可把美股回放損益與使用者實際績效混算。台股早期交易 note 多數為空，出場原因是依當日訊號推論，不等於使用者當時主觀決策。
+
+---
+
 ## 2026-07-13 — launchd 排程重建：錯過自動補跑（台股）+ 美股排程新增
 
 - **Date:** 2026-07-13

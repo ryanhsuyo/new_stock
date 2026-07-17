@@ -1,12 +1,12 @@
 import { useEffect, useState } from 'react'
 import { api } from '../api/client'
-import type { UsAnalysisItem, UsDataFreshness, UsMarketStatus, UsTrendFollow, UsWatchSignals, UsWbottom } from '../types'
+import type { UsAnalysisItem, UsDataFreshness, UsMarketStatus, UsTrendFollow, UsUpdateStatus, UsWatchSignals, UsWbottom } from '../types'
 
 /**
  * 美股頁：基本技術狀態 + 觀察訊號 + 觀察策略（us_trend_follow / us_wbottom_target）。
  * **非推薦、非買賣建議、無下單**；缺資料時誠實顯示。
  */
-export default function UsMarketPage() {
+export default function UsMarketPage({ onNavigateResearch }: { onNavigateResearch?: (code: string) => void }) {
   const [status, setStatus] = useState<UsMarketStatus | null>(null)
   const [freshness, setFreshness] = useState<UsDataFreshness | null>(null)
   const [items, setItems] = useState<UsAnalysisItem[]>([])
@@ -16,15 +16,38 @@ export default function UsMarketPage() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
   const [categoryFilter, setCategoryFilter] = useState<string>('all')
+  const [updateStatus, setUpdateStatus] = useState<UsUpdateStatus | null>(null)
+  const [updateError, setUpdateError] = useState('')
+
+  const loadAll = () => Promise.all([api.getUsMarketStatus(), api.getUsDataFreshness(), api.getUsAnalysis(), api.getUsSignals(), api.getUsTrendFollow(), api.getUsWbottom(), api.getUsUpdateStatus()])
 
   useEffect(() => {
     let alive = true
-    Promise.all([api.getUsMarketStatus(), api.getUsDataFreshness(), api.getUsAnalysis(), api.getUsSignals(), api.getUsTrendFollow(), api.getUsWbottom()])
-      .then(([s, f, a, sig, strat, wb]) => { if (alive) { setStatus(s); setFreshness(f); setItems(a); setSignals(sig); setStrategy(strat); setWbottom(wb) } })
+    loadAll()
+      .then(([s, f, a, sig, strat, wb, update]) => { if (alive) { setStatus(s); setFreshness(f); setItems(a); setSignals(sig); setStrategy(strat); setWbottom(wb); setUpdateStatus(update) } })
       .catch(e => { if (alive) setError(e instanceof Error ? e.message : '載入失敗') })
       .finally(() => { if (alive) setLoading(false) })
     return () => { alive = false }
   }, [])
+
+  useEffect(() => {
+    if (updateStatus?.status !== 'running') return
+    const timer = window.setInterval(() => {
+      api.getUsUpdateStatus().then(next => {
+        setUpdateStatus(next)
+        if (next.status === 'success') {
+          loadAll().then(([s, f, a, sig, strat, wb, update]) => { setStatus(s); setFreshness(f); setItems(a); setSignals(sig); setStrategy(strat); setWbottom(wb); setUpdateStatus(update) }).catch(() => {})
+        }
+      }).catch(() => {})
+    }, 3000)
+    return () => window.clearInterval(timer)
+  }, [updateStatus?.status])
+
+  const triggerUpdate = async () => {
+    setUpdateError('')
+    try { setUpdateStatus(await api.triggerUsUpdate(1)) }
+    catch (e) { setUpdateError(e instanceof Error ? e.message : '美股更新觸發失敗') }
+  }
 
   if (loading) return <main className="app-main"><p className="page-loading">載入中…</p></main>
   if (error) return <main className="app-main"><div className="page-error">美股資料載入失敗：{error}</div></main>
@@ -65,7 +88,11 @@ export default function UsMarketPage() {
               : '尚無資料'}
           </span>
         )}
+        <button type="button" className="btn btn-primary btn-sm" disabled={updateStatus?.status === 'running'} onClick={triggerUpdate}>{updateStatus?.status === 'running' ? '美股更新中…' : '立即更新美股'}</button>
       </div>
+      {updateError && <div className="page-error" role="alert">{updateError}</div>}
+      {updateStatus?.status === 'failed' && <div className="alert alert-error" role="alert"><div className="alert-title">最近一次美股更新失敗</div><div className="alert-meta">{updateStatus.error || '請查看後端紀錄後重試'}</div></div>}
+      {updateStatus?.status === 'success' && updateStatus.finished_at && <div className="us-update-success" role="status">✓ 美股更新完成：{updateStatus.finished_at.slice(0, 16).replace('T', ' ')}</div>}
 
       {!sourceReady && (
         <div className="alert alert-error" role="alert" style={{ marginBottom: 16 }}>
@@ -190,7 +217,7 @@ export default function UsMarketPage() {
         <tbody>
           {shownItems.map(u => (
             <tr key={u.code}>
-              <td><span className="td-id">{u.code}</span></td>
+              <td><button type="button" className="link-btn" onClick={() => onNavigateResearch?.(u.code)}><span className="td-id">{u.code}</span></button></td>
               <td>{u.name}</td>
               <td><span className="us-cat-tag">{u.category || '—'}</span></td>
               <td>{fmt(u.last_close)}</td>
@@ -233,7 +260,7 @@ export default function UsMarketPage() {
                 {strategy.candidates.map(c => (
                   <tr key={c.code}>
                     <td>{c.rank}</td>
-                    <td><span className="td-id">{c.code}</span></td>
+                    <td><button type="button" className="link-btn" onClick={() => onNavigateResearch?.(c.code)}><span className="td-id">{c.code}</span></button></td>
                     <td>{c.name}</td>
                     <td><span className="us-cat-tag">{c.category || '—'}</span></td>
                     <td>{fmt(c.close)}</td>
@@ -263,7 +290,7 @@ export default function UsMarketPage() {
               <tbody>
                 {strategy.excluded.map(e => (
                   <tr key={e.code}>
-                    <td><span className="td-id">{e.code}</span></td>
+                    <td><button type="button" className="link-btn" onClick={() => onNavigateResearch?.(e.code)}><span className="td-id">{e.code}</span></button></td>
                     <td>{e.name}</td>
                     <td><span className="us-cat-tag">{e.category || '—'}</span></td>
                     <td>{fmt(e.close)}</td>
@@ -302,7 +329,7 @@ export default function UsMarketPage() {
               <tbody>
                 {wbottom.patterns.map(p => (
                   <tr key={p.code}>
-                    <td><span className="td-id">{p.code}</span></td>
+                    <td><button type="button" className="link-btn" onClick={() => onNavigateResearch?.(p.code)}><span className="td-id">{p.code}</span></button></td>
                     <td>{p.name}</td>
                     <td><span className={`us-wb-state us-wb-state-${p.state}`}>{p.state_label}</span></td>
                     <td>{fmt(p.close)}</td>
@@ -343,7 +370,7 @@ export default function UsMarketPage() {
             <tbody>
               {shownSignals.map(s => (
                 <tr key={s.code}>
-                  <td><span className="td-id">{s.code}</span></td>
+                  <td><button type="button" className="link-btn" onClick={() => onNavigateResearch?.(s.code)}><span className="td-id">{s.code}</span></button></td>
                   <td>{s.name}</td>
                   <td><span className="us-cat-tag">{s.category || '—'}</span></td>
                   <td>{fmt(s.close)}</td>

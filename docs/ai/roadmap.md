@@ -8,6 +8,10 @@
 
 打造一個**自用、可解釋、可信任**的股票決策工作台（台股為主，逐步納入美股）：資料流穩定跑通，訊號與候選股都能說明「為何買 / 為何不買 / 為何不是入場點」，前端只做呈現與決策動線；**不碰自動交易**。
 
+### US market parity（2026-07-16 新方向）
+
+除策略規則、交易時區／交易日、USD、費稅與資料源外，美股逐步對齊台股的研究、自選、更新、交易、投組、統計與驗收體驗。採共用 market-aware 能力，不複製兩套產品碼；詳細 proposal / design / requirements / tasks 見 `openspec/changes/us-market-parity/`。交付順序：US 單股研究 + 自選 → 一鍵更新工作流 → 交易 / 投組 / 統計 → US 策略驗收。
+
 ## Now
 
 > 現在正在做 / 即將做的（對應 `current-status.md` 的 Current Phase）。

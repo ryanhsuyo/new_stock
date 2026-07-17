@@ -1,7 +1,7 @@
 # Current Status
 
 > 專案**現在**的狀態快照。改動狀態時就更新這裡。保持精簡、可接手。
-> Last updated: 2026-07-12
+> Last updated: 2026-07-17
 
 ## Current Phase
 
@@ -35,6 +35,8 @@
 
 > 已完成且已驗證的事。
 
+- 台股「策略驗收」UI（2026-07-16）：`#/validation` 顯示 100 萬空手起始 walk-forward 投組回放，支援自選開始／結束日期後重新計算合併、老王、穩健動能三組獨立帳戶；個股損益貢獻、持有 / 平倉 / 盈虧篩選、逐筆訊號日→成交日時間線、費稅與原因，以及本機線圖 / TradingView 交叉核對。`GET /api/system/strategy-validation` 讀最近快照；`POST` 依區間完整重跑並快取，不是前端截斷既有交易。新增相關測試與真實 3 日 smoke test通過；frontend build 成功。2026-07-17 已移除四個測試對舊 repo 絕對路徑的依賴，全套回歸 **953 passed**。
+
 - 後端核心（更早 commit）：資料回補、兩策略推薦桶、universe_report、daily_check / today_scan、決策日誌、signal alerts、launchd 每日更新。
 - 文件漂移修正 + guard（commit `b97807c`）：`backend/docs/api.md` 全端點索引、`test_api_docs.py`、`test_docs_consistency.py`；README / architecture / signal_rules 移除 buy_list/sell_list/hold_list。
 - 前端研究頁 UX + 可觀測性（commit `96694ba`）：導覽分 4 組、Dashboard 維運區摺疊、hash 路由（含 deep link）、研究頁左 rail（觀察/推薦/候選 + 策略切換 + 檢視過濾 + priority 排序 + ⟳）、加入觀察清單後 rail 自動刷新；vite proxy 改 127.0.0.1（修 IPv6）、`loadError` 載入失敗橫幅、背景連線中斷偵測（去抖 + 自動恢復）。
@@ -60,7 +62,10 @@
 
 ## In Progress
 
-- 無進行中的未完成程式（各輪皆已 commit；見 Current Phase 與 handoff-log）。
+- US parity 主要研究與驗收動線已落地：美股具市場總覽、技術分析、region-aware 觀察清單、策略驗收與日期區間；可回放 `us_trend_follow` / `us_wbottom_target` 並顯示逐筆訊號、D+1 open 進出、持有日、報酬與 TradingView。US 口徑是逐筆等權評估，不冒充台股 100 萬投組。
+- US parity Phase 1 核心已落地：新增 US 技術分析導覽與單股研究頁（120 根真實 OHLCV K 線、MA20/60、RSI、20 日漲跌、狀態、理由／風險、USD）；市場總覽 ticker 可直達研究頁。watchlist 股票身份改為 `(region, code)`，既有缺 region 資料相容視為 TW，美股可加入同一套群組且不覆寫／誤刪台股同代碼。
+- US 研究動線續補：市場總覽、觀察訊號、trend-follow 入選／排除、W-bottom patterns 的 ticker 全部可直達 US 研究頁；US 導覽新增「觀察清單」，依 region 只顯示美股，帶 US badge，移除時用 `(region, code)` 精準刪除。
+- US 一鍵更新已落地：獨立 `us_update_status.json`、background lock、`GET /markets/us/update-status`、`POST /markets/us/update-now?months=1`；前端立即更新、3 秒 polling、成功自動刷新 status / analysis / signals / strategies、失敗顯示錯誤。subprocess 明確只跑 `backfill_ohlcv_us.py`，不碰台股 update status / OHLCV。
 - 觀察中：us_wbottom 型態狀態機在日常使用的直覺性；背景連線偵測長 session 誤報率。
 
 ## Blocked / Risks

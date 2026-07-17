@@ -54,6 +54,30 @@ def test_watchlist_crud(tmp_path, monkeypatch):
     # 初始為空
     assert ws.get_all_groups() == []
 
+
+def test_watchlist_region_is_part_of_stock_identity(tmp_path, monkeypatch):
+    ws = _store()
+    monkeypatch.setattr(ws, "_WATCHLISTS_PATH", tmp_path / "watchlists.json")
+    ws.create_group("跨市場")
+    ws.add_stock("跨市場", "ABC", "台股 ABC")
+    ws.add_stock("跨市場", "ABC", "US ABC", "US")
+    stocks = ws.get_all_groups()[0]["stocks"]
+    assert [(item["code"], item.get("region", "TW")) for item in stocks] == [("ABC", "TW"), ("ABC", "US")]
+
+    ws.remove_stock("跨市場", "ABC", "US")
+    remaining = ws.get_all_groups()[0]["stocks"]
+    assert len(remaining) == 1
+    assert remaining[0]["name"] == "台股 ABC"
+
+
+def test_legacy_watchlist_item_without_region_is_treated_as_tw(tmp_path, monkeypatch):
+    ws = _store()
+    path = tmp_path / "watchlists.json"
+    path.write_text(json.dumps({"groups": [{"name": "舊資料", "stocks": [{"code": "2330", "name": "台積電", "added_at": "2026-01-01"}]}]}), encoding="utf-8")
+    monkeypatch.setattr(ws, "_WATCHLISTS_PATH", path)
+    ws.add_stock("舊資料", "2330", "台積電", "TW")
+    assert len(ws.get_all_groups()[0]["stocks"]) == 1
+
     # 建立群組
     g = ws.create_group("科技股")
     assert g["name"] == "科技股"
@@ -66,20 +90,21 @@ def test_watchlist_crud(tmp_path, monkeypatch):
     # 加入股票
     ws.add_stock("科技股", "2330", "台積電")
     groups = ws.get_all_groups()
-    assert len(groups[0]["stocks"]) == 1
-    assert groups[0]["stocks"][0]["code"] == "2330"
+    tech = next(group for group in groups if group["name"] == "科技股")
+    assert len(tech["stocks"]) == 1
+    assert tech["stocks"][0]["code"] == "2330"
 
     # 冪等：再次加入同一股票，數量不變
     ws.add_stock("科技股", "2330", "台積電")
-    assert len(ws.get_all_groups()[0]["stocks"]) == 1
+    assert len(next(group for group in ws.get_all_groups() if group["name"] == "科技股")["stocks"]) == 1
 
     # 加入第二支股票
     ws.add_stock("科技股", "2454", "聯發科")
-    assert len(ws.get_all_groups()[0]["stocks"]) == 2
+    assert len(next(group for group in ws.get_all_groups() if group["name"] == "科技股")["stocks"]) == 2
 
     # 移除股票
     ws.remove_stock("科技股", "2330")
-    assert len(ws.get_all_groups()[0]["stocks"]) == 1
+    assert len(next(group for group in ws.get_all_groups() if group["name"] == "科技股")["stocks"]) == 1
 
     # 移除不存在群組 → 拋 KeyError
     with pytest.raises(KeyError):
@@ -87,7 +112,7 @@ def test_watchlist_crud(tmp_path, monkeypatch):
 
     # 刪除群組
     ws.delete_group("科技股")
-    assert ws.get_all_groups() == []
+    assert [group["name"] for group in ws.get_all_groups()] == ["舊資料"]
 
     # 刪除不存在群組 → 拋 KeyError
     with pytest.raises(KeyError):

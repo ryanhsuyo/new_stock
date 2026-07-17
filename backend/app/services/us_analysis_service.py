@@ -160,3 +160,36 @@ def get_us_analysis() -> list[dict]:
             "status_label":    STATUS_LABELS[status],
         })
     return sorted(out, key=lambda x: x["code"])
+
+
+def get_us_stock_analysis(code: str, as_of: str | None = None) -> dict | None:
+    """Single-stock US research payload with a 120-bar chart window."""
+    normalized = code.strip().upper()
+    leaders = {item["code"]: item for item in load_us_leaders()}
+    if normalized not in leaders:
+        return None
+    rows = load_us_ohlcv().get(normalized, [])
+    if as_of:
+        rows = [row for row in rows if row["date"] <= as_of]
+    closes = _closes(rows)
+    last = rows[-1] if rows else None
+    ma20, ma60, rsi = _sma(closes, 20), _sma(closes, 60), _rsi(closes)
+    close = float(last["close"]) if last and _is_num(last.get("close")) else None
+    dist20 = _dist_pct(close, ma20)
+    status = classify_status(len(closes), close, ma20, ma60, rsi, dist20)
+    reasons = [f"技術狀態：{STATUS_LABELS[status]}"]
+    if close is not None and ma20 is not None:
+        reasons.append(f"收盤 {close:.2f}，相對 MA20 {dist20:+.2f}%")
+    if ma20 is not None and ma60 is not None:
+        reasons.append(f"MA20 {ma20:.2f} / MA60 {ma60:.2f}")
+    risk_notes = [] if rows else ["尚無 OHLCV，無法計算技術狀態"]
+    if len(rows) < 60:
+        risk_notes.append(f"目前僅 {len(rows)} 筆，少於 MA60 所需 60 筆")
+    item = leaders[normalized]
+    return {"code": normalized, "name": item.get("name", normalized), "category": item.get("category", ""),
+            "region": "US", "currency": "USD", "as_of": last["date"] if last else as_of,
+            "row_count": len(rows), "data_ok": len(rows) >= MIN_ROWS, "close": close,
+            "ma20": ma20, "ma60": ma60, "rsi14": rsi, "change_20d_pct": _pct_change(closes, 20),
+            "dist_ma20_pct": dist20, "dist_ma60_pct": _dist_pct(close, ma60),
+            "status": status, "status_label": STATUS_LABELS[status], "reasons": reasons,
+            "risk_notes": risk_notes, "ohlcv": rows[-120:]}
