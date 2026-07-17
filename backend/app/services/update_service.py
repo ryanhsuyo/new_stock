@@ -498,6 +498,28 @@ def trigger_background_update(months: int = 1) -> dict:
     return {"status": "started"}
 
 
+def _collect_recent_market_dates(days: int = 45) -> set:
+    """回傳 ohlcv.csv 中最近 N 天內出現過的日期集合（date 物件）。"""
+    from datetime import date as _date, timedelta as _timedelta
+    import csv as _csv
+
+    cutoff = (_date.today() - _timedelta(days=days)).isoformat()
+    found: set = set()
+    path = _BACKEND / "data" / "ohlcv.csv"
+    try:
+        with path.open(encoding="utf-8", newline="") as f:
+            for row in _csv.DictReader(f):
+                value = row.get("date") or ""
+                if value >= cutoff:
+                    try:
+                        found.add(_date.fromisoformat(value))
+                    except ValueError:
+                        continue
+    except OSError:
+        return set()
+    return found
+
+
 def run_full_update(months: int = 1, *, stream_subprocess_output: bool = False) -> dict:
     """
     統一更新流程：backfill → run_signals → 寫狀態檔。
@@ -605,6 +627,27 @@ def run_full_update(months: int = 1, *, stream_subprocess_output: bool = False) 
         return get_data_status()
 
     # ── Completed ──
+    # 推定臨時休市（颱風假等）：backfill 成功掃過近月窗口後，平日全市場無資料
+    # → 記入行事曆推定休市，避免假 stale 告警；資料晚到會自動撤銷。best-effort。
+    calendar_note = None
+    try:
+        from datetime import date as _date, timedelta as _timedelta
+        from app.services.trading_calendar_service import reconcile_presumed_closures
+
+        market_dates = _collect_recent_market_dates()
+        if market_dates:
+            changes = reconcile_presumed_closures(
+                market_dates,
+                window_start=_date.today() - _timedelta(days=35),
+            )
+            if changes["added"]:
+                calendar_note = f"推定臨時休市（全市場無資料）：{', '.join(changes['added'])}"
+            if changes["removed"]:
+                note = f"撤銷休市推定（資料已到）：{', '.join(changes['removed'])}"
+                calendar_note = f"{calendar_note}；{note}" if calendar_note else note
+    except Exception:
+        calendar_note = None
+
     finished_at = datetime.now().isoformat(timespec="seconds")
     is_stale, stale_days = _compute_stale(last_data_as_of)
     warning = None
@@ -624,6 +667,7 @@ def run_full_update(months: int = 1, *, stream_subprocess_output: bool = False) 
         lineage=lineage,
         coverage_report_path=lineage.get("coverage_report_path"),
         data_coverage_pct=status.get("data_coverage_pct"),
+        calendar_note=calendar_note,
     )
     if coverage_warning and not warning:
         status["last_warning"] = coverage_warning

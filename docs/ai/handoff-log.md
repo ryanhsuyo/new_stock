@@ -13,6 +13,21 @@
 ---
 
 
+
+## 2026-07-17 — 補完輪：推定臨時休市 + UsResearchPage 聲明 + 記憶搬家（不 push）
+
+- **Date:** 2026-07-17
+- **Task:** 使用者指示補齊掃描清單的 2/3/4 項；**明確不 push**（44 commits 仍僅在本機——單點風險已告知，等使用者決定）。
+- **Completed:**
+  - **推定臨時休市（假 stale 警報修復）**：`trading_calendar_service.reconcile_presumed_closures()`——成功更新後，近 35 天窗口內「平日 + 全市場整天無資料」→ 寫入 `data/trading_calendar.json` 的 `presumed_closures`（loader 併入 holidays 參與新鮮度判定）；資料晚到自動撤銷；人工 `holidays` / `makeup_trading_days` 不受影響；無變更不寫檔。掛在 `run_full_update()` Step 5 之後、stale 判定之前（best-effort，失敗不擋更新），status 增 `calendar_note`。颱風假（如 2026-07-10）不再誤發「資料過期」告警。+4 測試。
+  - **UsResearchPage 補免責聲明**（描述性技術觀察、非推薦非買賣非下單、Yahoo 非官方資料源）——最後一個漏聲明的策略/分析 UI。
+  - **Claude 記憶搬家**：memory 檔複製到新路徑對應目錄 `~/.claude/projects/-Users-ryan-Developer-new-stock/memory/`（專案搬家後新 session 才讀得到 launchd TCC、vite proxy、時效性事實查證等 gotcha）。
+- **Changed Files:** `backend/app/services/trading_calendar_service.py`、`backend/app/services/update_service.py`、`backend/tests/test_trading_calendar_service.py`、`frontend/src/pages/UsResearchPage.tsx`、`docs/ai/handoff-log.md`。（記憶檔在 repo 外。）
+- **Validation:** `python3.11 -m pytest -q` → **966 passed**（+4）；`npm run build` ✓。
+- **Git Status:** 乾淨（commit 後）。**未 push（使用者明示）。**
+- **Next Steps:** 剩餘缺口：push 備份（等使用者）、美股觀察歷史/決策日誌（功能輪）、NYSE 假日曆、台股基本面（blocked）、候選復盤（人工）。
+- **Notes / Warnings:** 推定休市是**推定**——TWSE 整天故障也會被記為休市，但資料晚到會自動撤銷、且有 `note_presumed_closures` 說明；別把它改成永久人工假日清單的自動維護器。
+
 ## 2026-07-17 — 策略驗證實驗室收斂：免責聲明 + 背景執行 + guardrail 交接
 
 - **Date:** 2026-07-17

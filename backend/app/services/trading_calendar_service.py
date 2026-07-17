@@ -27,6 +27,7 @@ def _empty_calendar() -> dict[str, set[date]]:
     return {
         "holidays": set(),
         "makeup_trading_days": set(),
+        "presumed_closures": set(),
     }
 
 
@@ -43,9 +44,12 @@ def load_trading_calendar(path: Path | str | None = None) -> dict[str, set[date]
         return _empty_calendar()
     if not isinstance(raw, dict):
         return _empty_calendar()
+    presumed = _parse_date_set(raw.get("presumed_closures"))
     return {
-        "holidays": _parse_date_set(raw.get("holidays")),
+        # 推定休市（見 reconcile_presumed_closures）視同 holiday 參與新鮮度判定
+        "holidays": _parse_date_set(raw.get("holidays")) | presumed,
         "makeup_trading_days": _parse_date_set(raw.get("makeup_trading_days")),
+        "presumed_closures": presumed,
     }
 
 
@@ -88,3 +92,57 @@ def count_missed_trading_days_since(
             count += 1
         cursor += timedelta(days=1)
     return count
+
+
+def reconcile_presumed_closures(
+    market_dates: set[date],
+    *,
+    window_start: date,
+    today: date | None = None,
+    path: Path | str | None = None,
+) -> dict[str, list[str]]:
+    """成功更新後呼叫：以「全市場整天無資料」推定臨時休市（颱風假等），並自我修復。
+
+    - 加入：window_start ≤ D < today、平日、非既有假日/推定，且 D 不在 market_dates
+      （資料源已成功抓過該窗口仍一列都沒有 → 幾乎確定休市）。
+    - 移除：既有推定日後來出現資料（資料源晚到）→ 撤銷推定。
+    人工維護的 holidays / makeup_trading_days 不受影響。失敗不 raise（呼叫端 best-effort）。
+    """
+    current = today or date.today()
+    calendar_path = Path(path) if path is not None else TRADING_CALENDAR_PATH
+    try:
+        raw = json.loads(calendar_path.read_text(encoding="utf-8"))
+        if not isinstance(raw, dict):
+            raw = {}
+    except (OSError, json.JSONDecodeError):
+        raw = {}
+
+    holidays = _parse_date_set(raw.get("holidays"))
+    makeup = _parse_date_set(raw.get("makeup_trading_days"))
+    presumed = _parse_date_set(raw.get("presumed_closures"))
+
+    removed = sorted(d.isoformat() for d in presumed if d in market_dates)
+    presumed = {d for d in presumed if d not in market_dates}
+
+    added: list[str] = []
+    if market_dates:
+        cursor = max(window_start, min(market_dates))
+        while cursor < current:
+            base_trading_day = cursor in makeup or (cursor.weekday() < 5 and cursor not in holidays)
+            if base_trading_day and cursor not in market_dates and cursor not in presumed:
+                presumed.add(cursor)
+                added.append(cursor.isoformat())
+            cursor += timedelta(days=1)
+
+    if added or removed:
+        raw["presumed_closures"] = sorted(d.isoformat() for d in presumed)
+        raw.setdefault(
+            "note_presumed_closures",
+            "由更新流程自動推定：全市場整天無資料的平日（如颱風假）。資料晚到會自動撤銷；人工假日請維護 holidays。",
+        )
+        try:
+            calendar_path.parent.mkdir(parents=True, exist_ok=True)
+            calendar_path.write_text(json.dumps(raw, ensure_ascii=False, indent=2), encoding="utf-8")
+        except OSError:
+            return {"added": [], "removed": []}
+    return {"added": added, "removed": removed}
