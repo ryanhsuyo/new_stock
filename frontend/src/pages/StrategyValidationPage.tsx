@@ -258,6 +258,29 @@ function TaiwanStrategyValidationPanel({ onNavigateAnalysis }: { onNavigateAnaly
         <span>D 日收盤訊號</span><b>→</b><span>D+1 開盤成交</span><b>→</b><span>滑價限制於當日高低</span><b>→</b><span>期末扣費稅清算</span>
       </div>
 
+      {result.entry_guardrails && (
+        <div className="validation-risk-banner validation-guardrail-banner">
+          <strong>組合風控已啟用</strong>
+          <span>
+            正常：單檔 {result.entry_guardrails.normal.max_position_pct}%／總曝險 {result.entry_guardrails.normal.max_exposure_pct}%／每日最多 {result.entry_guardrails.normal.max_new_positions} 個新倉；
+            警戒降至 {result.entry_guardrails.watch.max_position_pct}%／{result.entry_guardrails.watch.max_exposure_pct}%／{result.entry_guardrails.watch.max_new_positions} 檔；防守、極端或盤前資料未知時停止新倉。
+          </span>
+        </div>
+      )}
+      {(result.skipped_entry_count ?? 0) > 0 && (
+        <details className="validation-skipped-entries">
+          <summary>風控略過 {result.skipped_entry_count} 個進場候選</summary>
+          <div>
+            {(result.skipped_entries ?? []).map((item, index) => (
+              <p key={`${item.fill_date}-${item.code}-${index}`}>
+                <strong>{item.fill_date} · {item.name}（{item.code}）</strong>
+                <span>{item.reason}</span>
+              </p>
+            ))}
+          </div>
+        </details>
+      )}
+
       {concentration >= 40 && (
         <div className="validation-risk-banner">
           <strong>集中度偏高</strong>

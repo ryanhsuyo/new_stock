@@ -91,3 +91,29 @@ def test_pre_market_risk_api(client, monkeypatch):
     response = client.get("/api/system/pre-market-risk")
     assert response.status_code == 200
     assert response.json()["level"] == "watch"
+
+
+def test_historical_risk_uses_only_us_bars_before_tw_fill_date():
+    rows = {
+        "QQQ": [_rows(100, 96)[0], _rows(100, 96)[1], {"date": "2026-07-17", "close": "120"}],
+        "TSM": [_rows(100, 95)[0], _rows(100, 95)[1], {"date": "2026-07-17", "close": "120"}],
+        "SPY": [_rows(100, 97)[0], _rows(100, 97)[1], {"date": "2026-07-17", "close": "120"}],
+    }
+
+    report = svc.assess_historical_pre_market_risk("2026-07-17", rows)
+
+    assert report["level"] == "extreme"
+    assert report["data_as_of"] == "2026-07-16"
+    assert report["score"] == 11
+
+
+def test_historical_risk_fails_closed_when_bars_are_too_old():
+    rows = {
+        "QQQ": _rows(100, 101, "2026-07-10"),
+        "TSM": _rows(100, 101, "2026-07-10"),
+        "SPY": _rows(100, 101, "2026-07-10"),
+    }
+
+    report = svc.assess_historical_pre_market_risk("2026-07-17", rows)
+
+    assert report["level"] == "unknown"

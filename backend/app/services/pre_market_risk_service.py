@@ -99,6 +99,28 @@ def _classification(score: int) -> tuple[str, str, int | None, bool]:
     return "normal", "正常", 100, True
 
 
+def assess_historical_pre_market_risk(fill_date: str, ohlcv: dict[str, list[dict]]) -> dict[str, Any]:
+    """用台股成交日前已完成的美股日 K 評估風險；嚴禁使用 date >= fill_date。"""
+    selected: dict[str, list[dict]] = {}
+    for spec in _BENCHMARKS:
+        rows = [row for row in ohlcv.get(spec["code"], []) if str(row.get("date") or "") < fill_date]
+        selected[spec["code"]] = rows
+    signals = [_benchmark_signal(spec, selected[spec["code"]]) for spec in _BENCHMARKS]
+    score = sum(int(item["points"]) for item in signals)
+    dates = [str(item["data_as_of"]) for item in signals if item.get("data_as_of")]
+    enough = sum(item["change_pct"] is not None for item in signals) >= 2
+    data_as_of = max(dates) if dates else None
+    fresh = False
+    try:
+        fresh = 0 < (datetime.strptime(fill_date, "%Y-%m-%d").date() - datetime.strptime(str(data_as_of), "%Y-%m-%d").date()).days <= 4
+    except ValueError:
+        pass
+    if not enough or not fresh:
+        return {"level": "unknown", "level_label": "待確認", "score": score, "data_as_of": data_as_of, "signals": signals}
+    level, label, _, _ = _classification(score)
+    return {"level": level, "level_label": label, "score": score, "data_as_of": data_as_of, "signals": signals}
+
+
 def get_pre_market_risk_report() -> dict[str, Any]:
     ohlcv = load_us_ohlcv()
     signals = [_benchmark_signal(spec, ohlcv.get(spec["code"], [])) for spec in _BENCHMARKS]

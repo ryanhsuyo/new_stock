@@ -145,3 +145,19 @@ def test_run_strategy_validation_rejects_bad_ranges_before_reading_data():
             assert str(exc) == message
         else:
             raise AssertionError("expected ValueError")
+
+
+def test_entry_guardrails_are_conservative_and_fail_closed():
+    from app.services.strategy_validation_service import ENTRY_GUARDRAIL_PROFILES
+
+    assert ENTRY_GUARDRAIL_PROFILES["combined"]["normal"] == {
+        "max_position_pct": 15, "max_exposure_pct": 60, "max_new_positions": 3,
+    }
+    assert ENTRY_GUARDRAIL_PROFILES["steady_momentum"]["normal"] == {
+        "max_position_pct": 15, "max_exposure_pct": 60, "max_new_positions": 3,
+    }
+    for profile in ENTRY_GUARDRAIL_PROFILES.values():
+        assert profile["watch"]["max_exposure_pct"] < profile["normal"]["max_exposure_pct"]
+        assert profile["defensive"]["max_new_positions"] == 0
+        assert profile["extreme"]["max_new_positions"] == 0
+        assert profile["unknown"]["max_new_positions"] == 0

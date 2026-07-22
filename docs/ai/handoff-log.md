@@ -13,6 +13,30 @@
 ---
 
 
+## 2026-07-19 — 策略別 guardrail 二次驗證
+
+- **Date:** 2026-07-19
+- **Task:** 接續完善上一輪組合風控，處理所有策略共用同一曝險限制造成的報酬犧牲。
+- **Completed:** 將 guardrails 改為每個回放 mode 各自凍結並隨 result 輸出；合併與穩健動能維持 15%／60%／3，老王一般日調整為 20%／80%／4（watch 仍 10%／40%／2），所有 mode 在 defensive/extreme/unknown 仍停止新倉。前端改讀 result 實際限制，不再硬編碼合併模式數字。曾驗證穩健動能 20%／80%／5 候選，但長窗口惡化，已拒絕且未保留。
+- **Changed Files:** 延續同批 `strategy-portfolio-guardrails` 變更；主要追加 `backend/app/services/strategy_validation_service.py`、`backend/tests/test_strategy_validation_api.py`、`frontend/src/pages/StrategyValidationPage.tsx`、OpenSpec 與 `docs/ai/*`／API 文件。
+- **Validation:** 相關測試 **18 passed**；完整 backend **969 passed**；frontend build 成功（僅既有 chunk warning）。短窗口老王 −2.38%／MDD 5.20%（無風控 −2.99%／6.48%）；長窗口老王 +31.98%／11.11%（無風控 +34.66%／14.81%，嚴格版 +24.91%／8.22%）。穩健動能放寬候選為 +4.12%／18.51%，已拒絕；最終仍為 +12.97%／10.61%。回放只寫 `/private/tmp`。
+- **Git Status:** 未 commit、未 push；最終狀態見完成回報。
+- **Next Steps:** 增加更長、跨多空市場的樣本外分段比較；正式 production 是否採用仍需另行決策。
+- **Notes / Warnings:** 這次只改 evaluation 容量，沒有調整策略選股、排序或出場。不要把被拒絕的穩健動能放寬設定重新加回。
+
+
+## 2026-07-19 — 台股策略組合風控驗收（evaluation-only）
+
+- **Date:** 2026-07-19
+- **Task:** 使用者發現策略在大跌窗口表現有問題，要求繼續完善。
+- **Completed:** 從既有回放定位到同日多筆進場與總曝險集中；新增只讀成交日前美股 K 線的歷史盤前風險判斷，並在台股驗收回放加入凍結的單檔／總曝險／每日新倉限制。賣出規則與 production 兩策略均未修改。API 回傳每日風險與逐筆略過原因，前端可展開稽核。
+- **Changed Files:** `backend/app/services/{pre_market_risk_service,strategy_validation_service}.py`、`backend/tests/{test_pre_market_risk,test_strategy_validation_api}.py`、`backend/docs/api.md`、`frontend/src/{App.css,types/index.ts}`、`frontend/src/pages/StrategyValidationPage.tsx`、`openspec/changes/strategy-portfolio-guardrails/*`、`docs/ai/{current-status,roadmap,validation,handoff-log}.md`。
+- **Validation:** 相關測試 **18 passed**；完整 backend **969 passed**；frontend build 成功（僅既有 chunk size warning）；`git diff --check` 待最終回報。壓力窗口 2026-07-08～07-15：合併模式 −8.56%／MDD 11.52% → +0.64%／2.92%。長窗口 2026-05-04～07-15：合併 +34.30%／10.69% → +34.04%／7.55%。輸出僅寫 `/private/tmp`，未覆寫正式 `backend/out`。
+- **Git Status:** 未 commit、未 push；最終狀態見本次完成回報。
+- **Next Steps:** 用更多樣本外期間與不同市場狀態驗證；尤其穩健動能長窗口報酬由 +31.12% 降至 +12.97%、MDD 僅 11.01% → 10.61%，通過策略別門檻前不得連到 production。
+- **Notes / Warnings:** 這是驗收層的風控假設，不是第三套策略，也不是崩盤預測。`unknown` 刻意禁止新倉；若未來考慮 production，需另開明確決策並先定義策略別接受門檻。
+
+
 
 ## 2026-07-17 — 補完輪：推定臨時休市 + UsResearchPage 聲明 + 記憶搬家（不 push）
 

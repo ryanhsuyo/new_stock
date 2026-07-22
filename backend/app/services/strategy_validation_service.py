@@ -13,6 +13,7 @@ from urllib.parse import quote
 from app.storage.atomic_write import atomic_write_text
 
 from app.services import signals_service as ss
+from app.services.pre_market_risk_service import assess_historical_pre_market_risk
 from app.services.trade_service import calculate_trade_amounts
 from app.storage.settings_store import load_trading_settings
 from scripts.replay_tw_old_wang import _SyncPool
@@ -31,6 +32,23 @@ MODE_LABELS = {
 INITIAL_CASH = 1_000_000.0
 SLIPPAGE_BPS = 10.0
 EXCLUDED_CODES = {"0050", "0052", "2603", "6269"}
+ENTRY_GUARDRAIL_PROFILES = {
+    "combined": {
+        "normal": {"max_position_pct": 15, "max_exposure_pct": 60, "max_new_positions": 3},
+        "watch": {"max_position_pct": 10, "max_exposure_pct": 40, "max_new_positions": 2},
+    },
+    "old_wang": {
+        "normal": {"max_position_pct": 20, "max_exposure_pct": 80, "max_new_positions": 4},
+        "watch": {"max_position_pct": 10, "max_exposure_pct": 40, "max_new_positions": 2},
+    },
+    "steady_momentum": {
+        "normal": {"max_position_pct": 15, "max_exposure_pct": 60, "max_new_positions": 3},
+        "watch": {"max_position_pct": 10, "max_exposure_pct": 40, "max_new_positions": 2},
+    },
+}
+for _profile in ENTRY_GUARDRAIL_PROFILES.values():
+    for _level in ("defensive", "extreme", "unknown"):
+        _profile[_level] = {"max_position_pct": 0, "max_exposure_pct": 0, "max_new_positions": 0}
 
 
 def _load_json(path: Path, default):
@@ -97,6 +115,11 @@ def load_strategy_validation_report(
             for item in raw_result.get("open_positions", [])
             if isinstance(item, dict)
         ]
+        result["skipped_entries"] = [
+            _enrich_item(item, names, markets)
+            for item in raw_result.get("skipped_entries", [])
+            if isinstance(item, dict)
+        ]
         results[mode] = result
 
     modified = datetime.fromtimestamp(path.stat().st_mtime).astimezone().isoformat(timespec="seconds")
@@ -122,6 +145,21 @@ def _load_prices(data_dir: Path) -> tuple[dict, list[str]]:
             except (TypeError, ValueError, KeyError):
                 continue
     return dict(prices), sorted(market_days)
+
+
+def _load_us_prices(data_dir: Path) -> dict[str, list[dict]]:
+    path = data_dir / "ohlcv_us.csv"
+    if not path.exists():
+        return {}
+    rows: dict[str, list[dict]] = defaultdict(list)
+    with path.open(newline="", encoding="utf-8") as handle:
+        for row in csv.DictReader(handle):
+            code, day = str(row.get("code") or "").upper(), str(row.get("date") or "")
+            if code and day:
+                rows[code].append({"date": day, "close": row.get("close")})
+    for values in rows.values():
+        values.sort(key=lambda item: item["date"])
+    return dict(rows)
 
 
 def _affordable_shares(budget: float, price: float, settings: dict) -> int:
@@ -154,11 +192,14 @@ def _strategy_tag(signal: dict) -> str:
     return "+".join(tags) or "none"
 
 
-def _run_mode(mode: str, days: list[str], portfolio_start: str, prices: dict, settings: dict) -> dict:
+def _run_mode(mode: str, days: list[str], portfolio_start: str, prices: dict, us_prices: dict, settings: dict) -> dict:
     codes, groups = ss._load_leaders(), ss._load_leader_groups()
     stock_markets, fundamentals = ss.load_stock_markets(), ss.load_fundamentals()
     cash, positions, pending, trades, curve = INITIAL_CASH, {}, [], [], []
     total_fees = total_tax = 0.0
+    skipped_entries: list[dict] = []
+    risk_by_day: list[dict] = []
+    guardrails = ENTRY_GUARDRAIL_PROFILES[mode]
 
     def equity(day: str) -> float:
         value = cash
@@ -190,19 +231,38 @@ def _run_mode(mode: str, days: list[str], portfolio_start: str, prices: dict, se
 
         current_equity = equity(day)
         entries = sorted((item for item in orders if item["side"] == "buy"), key=lambda item: (-item["priority"], -item["score"], item["code"]))
+        pre_market = assess_historical_pre_market_risk(day, us_prices)
+        limits = guardrails.get(pre_market["level"], guardrails["unknown"])
+        risk_by_day.append({"date": day, "level": pre_market["level"], "score": pre_market["score"], "data_as_of": pre_market["data_as_of"], **limits})
+        opened_today = 0
         for order in entries:
             code, bar = order["code"], prices.get(order["code"], {}).get(day)
             if code in positions or code in EXCLUDED_CODES or not bar:
                 continue
+            if limits["max_position_pct"] <= 0:
+                skipped_entries.append({"code": code, "signal_date": order["signal_date"], "fill_date": day, "reason_code": "pre_market_gate", "reason": f"盤前風險 {pre_market['level_label']}，停止新倉", "risk_level": pre_market["level"]})
+                continue
+            if opened_today >= limits["max_new_positions"]:
+                skipped_entries.append({"code": code, "signal_date": order["signal_date"], "fill_date": day, "reason_code": "daily_entry_limit", "reason": f"每日新倉上限 {limits['max_new_positions']} 檔", "risk_level": pre_market["level"]})
+                continue
+            current_exposure = max(0.0, current_equity - cash)
+            remaining_exposure = max(0.0, current_equity * limits["max_exposure_pct"] / 100 - current_exposure)
+            if remaining_exposure <= 0:
+                skipped_entries.append({"code": code, "signal_date": order["signal_date"], "fill_date": day, "reason_code": "total_exposure_limit", "reason": f"已達總曝險上限 {limits['max_exposure_pct']}%", "risk_level": pre_market["level"]})
+                continue
             fill = _slipped(bar, "buy")
-            shares = _affordable_shares(min(cash, current_equity * order["position_size_pct"] / 100), fill, settings)
+            position_pct = min(order["position_size_pct"], limits["max_position_pct"])
+            budget = min(cash, current_equity * position_pct / 100, remaining_exposure)
+            shares = _affordable_shares(budget, fill, settings)
             if shares <= 0:
+                skipped_entries.append({"code": code, "signal_date": order["signal_date"], "fill_date": day, "reason_code": "insufficient_budget", "reason": "風控後可用預算不足", "risk_level": pre_market["level"]})
                 continue
             amounts = calculate_trade_amounts("buy", fill, shares, settings=settings)
             cash -= amounts["net_amount"]
             total_fees += amounts["fee"]
             positions[code] = {"shares": shares, "entry_cost": amounts["net_amount"], "entry_date": day, "entry_price": fill, "strategy": order["strategy"]}
             trades.append({"code": code, "side": "buy", "signal_date": order["signal_date"], "fill_date": day, "fill_price": round(fill, 4), "shares": shares, "fee": amounts["fee"], "tax": 0.0, "realized_pnl": None, "reason": order["reason"], "strategy": order["strategy"]})
+            opened_today += 1
 
         if day >= portfolio_start:
             curve.append({"date": day, "equity": round(equity(day), 2)})
@@ -233,7 +293,7 @@ def _run_mode(mode: str, days: list[str], portfolio_start: str, prices: dict, se
         liquidation = calculate_trade_amounts("sell", close, position["shares"], settings=settings)["net_amount"]
         open_positions.append({"code": code, **position, "close": close, "estimated_liquidation_value": liquidation, "unrealized_pnl_after_exit_cost": round(liquidation - position["entry_cost"], 2)})
     realized = sum(item["realized_pnl"] or 0 for item in trades if item["side"] == "sell")
-    return {"mode": mode, "initial_cash": INITIAL_CASH, "start_date": portfolio_start, "end_date": final_day, "final_equity_after_estimated_liquidation_cost": round(final_equity, 2), "net_pnl": round(final_equity - INITIAL_CASH, 2), "return_pct": round((final_equity / INITIAL_CASH - 1) * 100, 4), "max_drawdown_pct": round(max_drawdown, 2), "realized_pnl": round(realized, 2), "total_fees": round(total_fees, 2), "total_tax": round(total_tax, 2), "trade_event_count": len(trades), "buy_count": sum(item["side"] == "buy" for item in trades), "sell_count": sum(item["side"] == "sell" for item in trades), "cash": round(cash, 2), "open_positions": open_positions, "trades": trades, "equity_curve": curve}
+    return {"mode": mode, "initial_cash": INITIAL_CASH, "start_date": portfolio_start, "end_date": final_day, "final_equity_after_estimated_liquidation_cost": round(final_equity, 2), "net_pnl": round(final_equity - INITIAL_CASH, 2), "return_pct": round((final_equity / INITIAL_CASH - 1) * 100, 4), "max_drawdown_pct": round(max_drawdown, 2), "realized_pnl": round(realized, 2), "total_fees": round(total_fees, 2), "total_tax": round(total_tax, 2), "trade_event_count": len(trades), "buy_count": sum(item["side"] == "buy" for item in trades), "sell_count": sum(item["side"] == "sell" for item in trades), "cash": round(cash, 2), "open_positions": open_positions, "trades": trades, "equity_curve": curve, "entry_guardrails": guardrails, "risk_by_day": risk_by_day, "skipped_entry_count": len(skipped_entries), "skipped_entries": skipped_entries}
 
 
 def run_strategy_validation(start: str, end: str, out_dir: Path = OUT_DIR, data_dir: Path = DATA_DIR) -> dict:
@@ -245,6 +305,7 @@ def run_strategy_validation(start: str, end: str, out_dir: Path = OUT_DIR, data_
     if start_dt > end_dt:
         raise ValueError("開始日期不可晚於結束日期")
     prices, market_days = _load_prices(data_dir)
+    us_prices = _load_us_prices(data_dir)
     in_range = [day for day in market_days if start <= day <= end]
     prior = [day for day in market_days if day < start]
     if not in_range:
@@ -253,9 +314,9 @@ def run_strategy_validation(start: str, end: str, out_dir: Path = OUT_DIR, data_
         raise ValueError("開始日期之前至少需要一個交易日以產生 D+1 成交")
     signal_days = [prior[-1], *in_range]
     settings = load_trading_settings()
-    payload = {"config": {"signal_start": prior[-1], "portfolio_start": in_range[0], "requested_start": start, "requested_end": end, "end": in_range[-1], "initial_cash": INITIAL_CASH, "slippage_bps": SLIPPAGE_BPS, "odd_lot_shares": True, "entry": "D close daily_action=enter and official strategy flag; D+1 open", "exit": "daily_action=exit: all; reduce: half; D+1 open", "excluded_codes": sorted(EXCLUDED_CODES), "final_value": "cash + estimated net liquidation at final close"}, "limitations": ["Paper portfolio, not broker fills.", "Universe and fundamentals use current snapshots; survivor/history bias remains.", "TWSE prices are not fully corporate-action adjusted; known polluted codes excluded.", "No dividends; 10 bps slippage; current fee/tax settings; odd lots allowed."], "results": {}}
+    payload = {"config": {"signal_start": prior[-1], "portfolio_start": in_range[0], "requested_start": start, "requested_end": end, "end": in_range[-1], "initial_cash": INITIAL_CASH, "slippage_bps": SLIPPAGE_BPS, "odd_lot_shares": True, "entry": "D close daily_action=enter and official strategy flag; D+1 open", "exit": "daily_action=exit: all; reduce: half; D+1 open", "entry_guardrail_profiles": ENTRY_GUARDRAIL_PROFILES, "pre_market_data": "Only US bars with date < TW fill date; unknown fails closed in evaluation", "excluded_codes": sorted(EXCLUDED_CODES), "final_value": "cash + estimated net liquidation at final close"}, "limitations": ["Paper portfolio, not broker fills.", "Universe and fundamentals use current snapshots; survivor/history bias remains.", "TWSE prices are not fully corporate-action adjusted; known polluted codes excluded.", "No dividends; 10 bps slippage; current fee/tax settings; odd lots allowed.", "Portfolio guardrails are evaluation-only and do not change production recommendation flags."], "results": {}}
     for mode in MODE_LABELS:
-        payload["results"][mode] = _run_mode(mode, signal_days, in_range[0], prices, settings)
+        payload["results"][mode] = _run_mode(mode, signal_days, in_range[0], prices, us_prices, settings)
     out_dir.mkdir(parents=True, exist_ok=True)
     path = out_dir / f"tw_portfolio_replay_{in_range[0]}_{in_range[-1]}.json"
     path.write_text(json.dumps(payload, ensure_ascii=False, indent=2), encoding="utf-8")

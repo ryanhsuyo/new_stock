@@ -7192,6 +7192,16 @@ button.journal-progress-card.active {
 .validation-risk-banner { display: flex; align-items: center; gap: 12px; padding: 11px 14px; background: #fffbeb; border-left: 4px solid #d97706; color: #78350f; }
 .validation-risk-banner strong { flex: 0 0 auto; }
 .validation-risk-banner span { font-size: 13px; }
+.validation-guardrail-banner { background: #eff6ff; border-left-color: #2563eb; color: #1e3a8a; }
+.validation-skipped-entries { margin: 10px 0; border: 1px solid #bfdbfe; border-radius: 8px; background: #f8fbff; padding: 9px 12px; }
+.validation-skipped-entries summary { cursor: pointer; color: #1d4ed8; font-weight: 800; }
+.validation-skipped-entries > div { display: grid; gap: 6px; margin-top: 8px; }
+.validation-skipped-entries p { display: flex; gap: 10px; justify-content: space-between; margin: 0; border-top: 1px solid #dbeafe; padding-top: 6px; font-size: 12px; }
+.validation-skipped-entries span { color: #475569; text-align: right; }
+@media (max-width: 720px) {
+  .validation-skipped-entries p { display: block; }
+  .validation-skipped-entries span { display: block; margin-top: 3px; text-align: left; }
+}
 
 .validation-toolbar { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
 .validation-toolbar input { width: 220px; padding: 8px 11px; border: 1px solid #cbd5e1; border-radius: 6px; font: inherit; }

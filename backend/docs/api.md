@@ -1429,6 +1429,16 @@ Query：`start=YYYY-MM-DD&end=YYYY-MM-DD`。依指定日期區間同時執行 `u
 { "detail": { "message": "持股不足", "available": 500, "requested": 1000 } }
 ```
 
+### `GET /api/system/strategy-validation`
+
+讀取最近一份台股 walk-forward 投組驗收報告。除合併、老王、穩健動能三組結果外，每組會帶 `entry_guardrails`、逐日 `risk_by_day`、`skipped_entry_count` 與可稽核的 `skipped_entries`。略過紀錄包含訊號日、預定成交日、股票與原因；賣出／減碼規則不受此層影響。
+
+### `POST /api/system/strategy-validation?start=YYYY-MM-DD&end=YYYY-MM-DD`
+
+背景重跑指定區間的台股驗收。此回放使用**凍結、evaluation-only** 的策略別組合新倉限制：合併與穩健動能一般日為每檔 15%、總曝險 60%、每日最多 3 筆，觀察日 10%／40%／2；老王一般日放寬為 20%／80%／4，觀察日仍為 10%／40%／2。防守、極端或資料不足時一律不開新倉。盤前分級只讀取成交日前已存在的 SPY／QQQ／TSM K 線，禁止未來資料洩漏。每個 result 的 `entry_guardrails` 是該 mode 實際使用的設定。
+
+此功能只用於比較策略在風控限制下的表現，**不修改 production 兩策略訊號、推薦桶、持倉或下單流程**；不得因單一區間改善就直接接上 production。
+
 ### `GET /api/system/pre-market-risk`
 
 唯讀盤前風險提示。使用本機 `ohlcv_us.csv` 的 SPY／QQQ／TSM 最新單日漲跌與最近一筆人工市場筆記，回傳 `normal`、`watch`、`defensive`、`extreme` 或 `unknown`。

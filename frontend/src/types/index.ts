@@ -672,6 +672,29 @@ export interface StrategyValidationOpenPosition {
   analysis_hash: string
 }
 
+export interface StrategyValidationSkippedEntry {
+  code: string
+  name: string
+  market: string
+  signal_date: string
+  fill_date: string
+  reason_code: string
+  reason: string
+  risk_level: string
+  tradingview_url: string
+  analysis_hash: string
+}
+
+export interface StrategyValidationRiskDay {
+  date: string
+  level: string
+  score: number
+  data_as_of: string | null
+  max_position_pct: number
+  max_exposure_pct: number
+  max_new_positions: number
+}
+
 export interface StrategyValidationResult {
   mode: string
   mode_label: string
@@ -692,6 +715,10 @@ export interface StrategyValidationResult {
   open_positions: StrategyValidationOpenPosition[]
   trades: StrategyValidationTrade[]
   equity_curve: { date: string; equity: number }[]
+  skipped_entry_count?: number
+  skipped_entries?: StrategyValidationSkippedEntry[]
+  risk_by_day?: StrategyValidationRiskDay[]
+  entry_guardrails?: Record<string, { max_position_pct: number; max_exposure_pct: number; max_new_positions: number }>
 }
 
 export interface StrategyValidationRunStatus {

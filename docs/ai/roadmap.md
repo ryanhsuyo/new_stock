@@ -2,7 +2,7 @@
 
 > 專案的方向與規劃。用 Now / Next / Later 分層，細節放在各 Phase。
 > 規劃改變時就更新這裡。
-> Last updated: 2026-07-17
+> Last updated: 2026-07-19
 
 ## Vision
 
@@ -16,6 +16,7 @@
 
 > 現在正在做 / 即將做的（對應 `current-status.md` 的 Current Phase）。
 
+- **台股策略組合風控驗收（evaluation-only）已落地**：以歷史盤前風險、策略別單檔／總曝險與每日新倉上限重跑既有兩策略，不改訊號規則；老王可用較寬容量保留多數報酬並降低回撤，穩健動能的放寬候選反而惡化，已拒絕並維持嚴格設定。尚不接 production。規格與證據見 `openspec/changes/strategy-portfolio-guardrails/`。
 - **美股第二套觀察策略 us_wbottom_target（W 底突破 + 量幅目標）上線**：使用者選定「勝率最高」（5 年 62.4%）；偵測 / 觀察輸出 / 回放單一規則來源、參數凍結；關鍵價位為觀察用非下單指令；已知代價（空頭年為負、贏家封頂、生存者折扣）寫死在 UI/API。證據：`docs/ai/us-wbottom-replay-5y.md`。**非推薦、非買賣建議、不下單。**
 - 前一輪：**us_wang_breakout（老王美股版）5 年回放驗證（evaluation-only）**：突破+量能+MA10 波段+硬止損，參數凍結後 5 年樣本外重測（含 2022 空頭）。機制通過、edge 被生存者敏感度測試否定（拿掉前 5 貢獻檔 → 5/6 年虧損）。**不建議照此下單；可考慮做成第二套觀察策略。** 證據：`docs/ai/us-wang-breakout-replay-5y.md`。
 - 前一輪：**us_trend_follow 逐日回放驗證（evaluation-only）**：walk-forward 回放 2026-06-15～06-30、兩套退出規則比較，證實 candidate_exit 太敏感、trend_protect 結構較合理；gate 本窗口未被壓力測試。**production 規則零改動**；結論與證據見 `docs/ai/us-trend-follow-replay-2026-06.md`。
@@ -25,6 +26,7 @@
 
 > 接下來會做的（Now 完成後）。
 
+- 以不同市場狀態與更長樣本外區間驗證台股組合 guardrails；分策略檢查報酬犧牲、略過原因與基準敏感度，通過前不得接 production。
 - 把本 session 未提交的前端 / 文件改動整合驗證後 commit。
 - 連線偵測 `connectionLost` 抽成共用 hook（單例探測）。
 - 真實基本面資料匯入流程驗收（等外部 CSV）。
