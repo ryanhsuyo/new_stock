@@ -1,4 +1,8 @@
+@AGENTS.md
+
 # CLAUDE.md — 專案協作規範（給 Claude CLI / AI 代理使用）
+
+進場程序（先讀哪些文件、先跑 `git status`）在 AGENTS.md，由上方那行載入；本檔是專案自己的編碼規範。
 
 本專案為「React 18 (TypeScript) + FastAPI」的台灣股票分析與投資紀錄系統。
 請嚴格遵守以下規範，避免大改架構、引入不必要複雜度，或產出看似完成但實際不可用的功能。
