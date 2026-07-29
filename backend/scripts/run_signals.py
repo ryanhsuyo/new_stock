@@ -31,7 +31,7 @@ sys.path.insert(0, str(_BACKEND))
 
 from app.services.signals_service import run_daily_signals
 from app.services.signal_alert_service import load_signal_alerts
-from app.services.today_scan_service import load_today_scan_report
+from app.services.today_scan_service import load_today_scan_report, refresh_today_scan_usage_status
 from daily_check import build_daily_summary, load_summary_for_daily_check, write_daily_summary
 from doctor import build_doctor_report
 
@@ -168,7 +168,9 @@ def write_daily_check_report() -> Path:
         today_scan=load_today_scan_report(_BACKEND / "out"),
         signals_summary=load_summary_for_daily_check(_BACKEND),
     )
-    return write_daily_summary(summary, _BACKEND)
+    path = write_daily_summary(summary, _BACKEND)
+    refresh_today_scan_usage_status(_BACKEND / "out")
+    return path
 
 
 def main() -> None:

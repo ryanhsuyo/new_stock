@@ -6,7 +6,7 @@ import uuid
 from datetime import date, datetime
 from typing import Any
 
-from app.models.trade import Position, Stats, TradeImportItem, TradeRecord
+from app.models.trade import Position, Stats, TradeImportItem, TradeRecord, TradeUpdateRequest
 from app.services.stock_service import get_all_current_prices
 from app.storage.json_store import (
     backup_trades,
@@ -289,6 +289,37 @@ def restore_trades_backup(*, filename: str, confirm: str) -> dict:
         raise ValueError("確認字串錯誤；若要還原交易備份，confirm 必須為 RESTORE_TRADES")
     result = restore_trades_from_backup(filename)
     return {**result, "warnings": []}
+
+
+def update_trade_record(trade_id: str, req: TradeUpdateRequest) -> TradeRecord:
+    if req.price <= 0:
+        raise ValueError("交易價格必須大於 0")
+    if req.shares <= 0:
+        raise ValueError("交易股數必須大於 0")
+
+    trades = load_trades()
+    index = next((i for i, trade in enumerate(trades) if trade.id == trade_id), None)
+    if index is None:
+        raise KeyError(trade_id)
+
+    original = trades[index]
+    amounts = calculate_trade_amounts(original.trade_type, req.price, req.shares)
+    updated = original.model_copy(update={
+        "date": req.date,
+        "price": req.price,
+        "shares": req.shares,
+        "note": req.note,
+        **amounts,
+    })
+    candidate = list(trades)
+    candidate[index] = updated
+    errors = _collect_import_errors(candidate)
+    if errors:
+        raise ValueError(errors[0])
+
+    backup_trades()
+    save_trades(candidate)
+    return updated
 
 
 def calculate_positions(trades: list[TradeRecord]) -> list[Position]:

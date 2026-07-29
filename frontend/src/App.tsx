@@ -244,7 +244,7 @@ export default function App() {
       </nav>
 
       <main className={`app-main${tab === 'universe-report' || tab === 'strategy-validation' ? ' app-main-wide' : ''}`}>
-        {tab === 'dashboard'       && <Dashboard onNavigateAnalysis={navigateToAnalysis} onNavigateUniverseReport={navigateToUniverseReport} />}
+        {tab === 'dashboard'       && <Dashboard onNavigateAnalysis={navigateToAnalysis} onNavigateUniverseReport={navigateToUniverseReport} onNavigateStrategyValidation={() => setTab('strategy-validation')} />}
         {tab === 'stocks'          && <StocksPage onNavigateAnalysis={navigateToAnalysis} />}
         {tab === 'universe-report' && <UniverseReportPage onNavigateAnalysis={navigateToAnalysis} initialJournalFilter={universeJournalFilter} />}
         {tab === 'strategy-validation' && <StrategyValidationPage onNavigateAnalysis={navigateToAnalysis} />}

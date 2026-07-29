@@ -20,3 +20,10 @@
 ## Delivery strategy
 
 每個 phase 必須可獨立驗收並保持台股 baseline。上一 phase 未通過完整測試與 frontend build 前，不進下一 phase。
+
+## Daily action boundary
+
+- `us_trend_follow` candidate 必須同時為 bullish gate + `candidate`，才可標成「次一交易日開盤紙上追蹤」；mixed 一律等待 SPY / QQQ 同步。
+- trend 保護線只呈現既有 evaluation-only `trend_protect` 語意（連 2 日跌破 MA20 或跌破 MA60），不可宣稱已升格 production 出場規則。
+- `us_wbottom_target` 只有 `breakout_today` 且軟濾網 active 才保留 D+1 紙上追蹤語意；`breakout_in_progress` 必須標示原始 D+1 已過、不追價。
+- forming、target_reached、invalidated 不進入每日推薦觀察表。所有輸出維持非下單、非實際交易。

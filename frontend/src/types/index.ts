@@ -631,6 +631,31 @@ export interface TradeRecord {
   created_at: string
 }
 
+export interface TradeIntegrityItem {
+  trade_id: string
+  status: 'ok' | 'warning' | 'unverified'
+  reason: string
+  day_low?: number | null
+  day_high?: number | null
+  day_close?: number | null
+  difference_pct?: number | null
+}
+
+export interface TradeIntegrityReport {
+  checked_count: number
+  warning_count: number
+  unverified_count: number
+  performance_status: 'verified' | 'provisional'
+  items: TradeIntegrityItem[]
+}
+
+export interface TradeUpdateRequest {
+  date: string
+  price: number
+  shares: number
+  note: string
+}
+
 export interface TradingSettings {
   brokerage_fee_rate: number
   brokerage_discount: number
@@ -711,6 +736,7 @@ export interface StrategyValidationResult {
   trade_event_count: number
   buy_count: number
   sell_count: number
+  planned_stop_count?: number
   cash: number
   open_positions: StrategyValidationOpenPosition[]
   trades: StrategyValidationTrade[]
@@ -732,6 +758,7 @@ export interface StrategyValidationRunStatus {
 
 export interface StrategyValidationReport {
   report_id: string
+  available_report_count?: number
   generated_at: string
   config: Record<string, unknown>
   limitations: string[]
@@ -1051,6 +1078,27 @@ export interface PreMarketRiskReport {
     is_stale?: boolean
     points?: number
   } | null
+  official_event_summary: {
+    verified_at: string | null
+    verification_age_days: number | null
+    is_stale: boolean
+    verification_note: string
+    window_days: number
+    event_count: number
+    events: Array<{
+      id: string
+      title: string
+      category: string
+      importance: string
+      scheduled_at: string
+      date_label: string
+      time_label: string
+      original_time: string
+      source_label: string
+      source_url: string
+    }>
+    scoring_note: string
+  }
   guidance: {
     new_positions?: string
     opening_rule?: string

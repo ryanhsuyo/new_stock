@@ -14,7 +14,7 @@ import ParseErrorAlert from '../components/ParseErrorAlert'
 import PrimaryActionCard from '../components/PrimaryActionCard'
 import TodayFocusCards from '../components/TodayFocusCards'
 import UpdateWorkflowBox from '../components/UpdateWorkflowBox'
-import type { DailyBrief, DailyCheckReport, DataStatus, DecisionJournalCreate, DecisionJournalDecision, DecisionJournalEntry, DecisionJournalSummary, FundamentalsPriorityMergeResult, FundamentalsStatus, ManualWatchlistReview, MarketNoteInput, OfficialFundamentalsCoverageAudit, OfficialFundamentalsStatus, PmWorklist, PreMarketRiskReport, RecommendationStrategy, SignalsSummary, SignalsStatus, StockRecommendation, StockUniverseItem, TodayScanReport, UniverseReportReviewWorkflow, UpdateWorkflowStatus, WorkflowPortfolioTask, WorkflowStatus } from '../types'
+import type { DailyBrief, DailyCheckReport, DataStatus, DecisionJournalCreate, DecisionJournalDecision, DecisionJournalEntry, DecisionJournalSummary, FundamentalsPriorityMergeResult, FundamentalsStatus, ManualWatchlistReview, MarketNoteInput, OfficialFundamentalsCoverageAudit, OfficialFundamentalsStatus, PmWorklist, PreMarketRiskReport, RecommendationStrategy, SignalsSummary, SignalsStatus, StockRecommendation, StockUniverseItem, StrategyValidationReport, TodayScanReport, UniverseReportReviewWorkflow, UpdateWorkflowStatus, WorkflowPortfolioTask, WorkflowStatus } from '../types'
 
 interface WorkflowUniversePendingItem {
   code: string
@@ -1536,6 +1536,32 @@ function PreMarketRiskCard({ report }: { report: PreMarketRiskReport | null }) {
           <span>{report.latest_event.headline || '已列入風險判斷'}</span>
         </div>
       )}
+      <div className="official-event-summary">
+        <div className="official-event-summary-head">
+          <div>
+            <b>未來 {report.official_event_summary.window_days} 天官方事件</b>
+            <span>{report.official_event_summary.is_stale ? '清單需要重新查證' : `查證日 ${report.official_event_summary.verified_at ?? '—'}`}</span>
+          </div>
+          <em>{report.official_event_summary.event_count} 項</em>
+        </div>
+        {report.official_event_summary.events.length > 0 ? (
+          <ul>
+            {report.official_event_summary.events.slice(0, 5).map(event => (
+              <li key={event.id}>
+                <time dateTime={event.scheduled_at}>{event.date_label} {event.time_label}</time>
+                <div>
+                  <strong>{event.title}</strong>
+                  <a href={event.source_url} target="_blank" rel="noreferrer">{event.source_label}</a>
+                </div>
+                <span className={`event-importance ${event.importance}`}>{event.importance === 'high' ? '重要' : '留意'}</span>
+              </li>
+            ))}
+          </ul>
+        ) : (
+          <p>目前查證清單內沒有未來事件；不代表沒有突發新聞。</p>
+        )}
+        <small>{report.official_event_summary.scoring_note}</small>
+      </div>
       <details>
         <summary>官方事件來源與限制</summary>
         <div className="pre-market-risk-sources">
@@ -2250,9 +2276,76 @@ function RecCard({
 interface DashboardProps {
   onNavigateAnalysis?: (code: string) => void
   onNavigateUniverseReport?: (journalFilter?: 'all' | 'unrecorded' | 'recorded') => void
+  onNavigateStrategyValidation?: () => void
 }
 
-export default function Dashboard({ onNavigateAnalysis, onNavigateUniverseReport }: DashboardProps) {
+function StrategyValidationSummaryCard({
+  report,
+  currentDataAsOf,
+  onNavigate,
+}: {
+  report: StrategyValidationReport | null
+  currentDataAsOf?: string | null
+  onNavigate?: () => void
+}) {
+  const modeOrder = ['combined', 'old_wang', 'steady_momentum']
+  const modeLabels: Record<string, string> = {
+    combined: '兩策略合併',
+    old_wang: '老王短波段',
+    steady_momentum: '穩健動能',
+  }
+  const results = report
+    ? modeOrder.flatMap(mode => report.results[mode] ? [report.results[mode]] : [])
+    : []
+  const reportEnd = results[0]?.end_date ?? null
+  const historicalReport = Boolean(reportEnd && currentDataAsOf && reportEnd < currentDataAsOf)
+
+  return (
+    <section className="dashboard-validation-card" aria-labelledby="dashboard-validation-title">
+      <div className="dashboard-validation-head">
+        <div>
+          <span>策略驗收報告</span>
+          <h2 id="dashboard-validation-title">最近一次回放摘要</h2>
+          <p>
+            {report
+              ? `${results[0]?.start_date ?? '—'} 至 ${reportEnd ?? '—'} · 產生於 ${report.generated_at.slice(0, 10)} · 目前保存 ${report.available_report_count ?? 1} 份`
+              : '目前尚無可讀取的台股策略驗收報告'}
+          </p>
+        </div>
+        <button type="button" className="btn btn-secondary btn-sm" onClick={onNavigate} disabled={!onNavigate}>
+          查看完整報告
+        </button>
+      </div>
+      {historicalReport && (
+        <div className="dashboard-validation-stale" role="status">
+          這是截至 {reportEnd} 的歷史回放；目前行情資料已到 {currentDataAsOf}，不可當成今日策略狀態。
+        </div>
+      )}
+      {results.length > 0 ? (
+        <div className="dashboard-validation-grid">
+          {results.map(result => (
+            <article key={result.mode}>
+              <span>{result.mode_label || modeLabels[result.mode] || result.mode}</span>
+              <strong className={result.return_pct >= 0 ? 'pnl-positive' : 'pnl-negative'}>
+                報酬 {result.return_pct >= 0 ? '+' : ''}{result.return_pct.toFixed(2)}%
+              </strong>
+              <dl>
+                <div><dt>最大回撤</dt><dd>{result.max_drawdown_pct.toFixed(2)}%</dd></div>
+                <div><dt>買／賣</dt><dd>{result.buy_count}／{result.sell_count}</dd></div>
+                <div><dt>風控略過</dt><dd>{result.skipped_entry_count ?? 0}</dd></div>
+              </dl>
+            </article>
+          ))}
+        </div>
+      ) : (
+        <p className="dashboard-validation-empty">前往策略驗收選擇日期區間並執行回放，完成後摘要會出現在這裡。</p>
+      )}
+      <small>evaluation-only：回放結果不是推薦、買賣建議或下單指令。</small>
+    </section>
+  )
+}
+
+export default function Dashboard({ onNavigateAnalysis, onNavigateUniverseReport, onNavigateStrategyValidation }: DashboardProps) {
   const [status, setStatus]         = useState<SignalsStatus | null>(null)
   const [dataStatus, setDataStatus] = useState<DataStatus | null>(null)
   const [preMarketRisk, setPreMarketRisk] = useState<PreMarketRiskReport | null>(null)
@@ -2263,6 +2356,7 @@ export default function Dashboard({ onNavigateAnalysis, onNavigateUniverseReport
   const [updateWorkflow, setUpdateWorkflow] = useState<UpdateWorkflowStatus | null>(null)
   const [pmWorklist, setPmWorklist] = useState<PmWorklist | null>(null)
   const [todayScan, setTodayScan] = useState<TodayScanReport | null>(null)
+  const [strategyValidation, setStrategyValidation] = useState<StrategyValidationReport | null>(null)
   const [dailyCheck, setDailyCheck] = useState<DailyCheckReport | null>(null)
   const [decisionJournal, setDecisionJournal] = useState<DecisionJournalEntry[]>([])
   const [decisionJournalSummary, setDecisionJournalSummary] = useState<DecisionJournalSummary | null>(null)
@@ -2335,7 +2429,7 @@ export default function Dashboard({ onNavigateAnalysis, onNavigateUniverseReport
   }
 
   const fetchAll = async (nextStrategy: RecommendationStrategy = strategy) => {
-    const [s, r, ds, preRisk, fs, ofs, oca, wf, uw, pm, scan, dc, sm, brief, manual, universeItems] = await Promise.all([
+    const [s, r, ds, preRisk, fs, ofs, oca, wf, uw, pm, scan, dc, validation, sm, brief, manual, universeItems] = await Promise.all([
       api.getSignalsStatus(),
       api.getRecommendations(nextStrategy),
       api.getDataStatus(),
@@ -2348,6 +2442,7 @@ export default function Dashboard({ onNavigateAnalysis, onNavigateUniverseReport
       api.getPmWorklist(),
       api.getTodayScanOrNull(),
       api.getDailyCheckOrNull(),
+      api.getStrategyValidation().catch(() => null),
       api.getSummaryOrNull(),
       api.getDailyBriefOrNull(),
       api.getManualWatchlistReviewOrNull(),
@@ -2365,6 +2460,7 @@ export default function Dashboard({ onNavigateAnalysis, onNavigateUniverseReport
     setPmWorklist(pm)
     setTodayScan(scan)
     setDailyCheck(dc)
+    setStrategyValidation(validation)
     await refreshDecisionJournal(wf, journalDateFilter || wf.data_as_of || todayInputValue(), journalDecisionFilter, journalCodeFilter)
     setSummary(sm)
     setDailyBrief(brief)
@@ -2909,6 +3005,12 @@ export default function Dashboard({ onNavigateAnalysis, onNavigateUniverseReport
           </div>
         </div>
       )}
+
+      <StrategyValidationSummaryCard
+        report={strategyValidation}
+        currentDataAsOf={dataStatus?.last_data_as_of}
+        onNavigate={onNavigateStrategyValidation}
+      />
 
       <DecisionConsole
         dataStatus={dataStatus}

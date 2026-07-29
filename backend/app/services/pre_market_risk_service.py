@@ -2,11 +2,13 @@
 
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from typing import Any
+from zoneinfo import ZoneInfo
 
 from app.services.us_market_service import get_us_data_freshness
 from app.storage.market_note_store import load_market_notes
+from app.storage.official_market_event_store import load_official_market_events
 from app.storage.us_market_store import load_us_ohlcv
 
 
@@ -22,6 +24,7 @@ _OFFICIAL_SOURCES = (
     {"label": "Federal Reserve FOMC Calendar", "url": "https://www.federalreserve.gov/monetarypolicy/fomccalendars.htm", "scope": "利率決議與會議紀要"},
     {"label": "U.S. BLS Release Calendar", "url": "https://www.bls.gov/schedule/news_release/", "scope": "CPI、PPI、就業等美國數據"},
 )
+_TAIPEI = ZoneInfo("Asia/Taipei")
 
 
 def _to_float(value: Any) -> float | None:
@@ -96,7 +99,52 @@ def _classification(score: int) -> tuple[str, str, int | None, bool]:
         return "defensive", "防守", 50, False
     if score >= 2:
         return "watch", "警戒", 70, True
-    return "normal", "正常", 100, True
+    return "normal", "未觸發額外防守", 100, True
+
+
+def _official_event_summary(now: datetime | None = None) -> dict[str, Any]:
+    current = (now or datetime.now(_TAIPEI)).astimezone(_TAIPEI)
+    payload = load_official_market_events()
+    verified_at = str(payload.get("verified_at") or "")
+    verification_age_days: int | None = None
+    try:
+        verified = datetime.strptime(verified_at, "%Y-%m-%d").date()
+        verification_age_days = max(0, (current.date() - verified).days)
+    except ValueError:
+        pass
+
+    window_end = current + timedelta(days=14)
+    events: list[dict[str, Any]] = []
+    for raw in payload.get("events") or []:
+        try:
+            scheduled = datetime.fromisoformat(str(raw.get("scheduled_at") or "")).astimezone(_TAIPEI)
+        except (TypeError, ValueError):
+            continue
+        if scheduled < current or scheduled > window_end:
+            continue
+        events.append({
+            "id": str(raw.get("id") or ""),
+            "title": str(raw.get("title") or "官方事件"),
+            "category": str(raw.get("category") or "other"),
+            "importance": str(raw.get("importance") or "medium"),
+            "scheduled_at": scheduled.isoformat(timespec="minutes"),
+            "date_label": "今日" if scheduled.date() == current.date() else scheduled.strftime("%m/%d"),
+            "time_label": scheduled.strftime("%H:%M"),
+            "original_time": str(raw.get("original_time") or ""),
+            "source_label": str(raw.get("source_label") or "官方來源"),
+            "source_url": str(raw.get("source_url") or ""),
+        })
+    events.sort(key=lambda item: item["scheduled_at"])
+    return {
+        "verified_at": verified_at or None,
+        "verification_age_days": verification_age_days,
+        "is_stale": verification_age_days is None or verification_age_days > 7,
+        "verification_note": str(payload.get("verification_note") or ""),
+        "window_days": 14,
+        "event_count": len(events),
+        "events": events,
+        "scoring_note": "官方事件只做時間提醒，不直接加入風險分數。",
+    }
 
 
 def assess_historical_pre_market_risk(fill_date: str, ohlcv: dict[str, list[dict]]) -> dict[str, Any]:
@@ -136,7 +184,7 @@ def get_pre_market_risk_report() -> dict[str, Any]:
     else:
         level, label, max_exposure, can_open = _classification(score)
         reason = {
-            "normal": "目前可用的隔夜行情與事件證據未形成明顯共振。",
+            "normal": "目前可用的隔夜行情與人工事件筆記未觸發防守門檻；這不代表今日不會大跌。",
             "watch": "已有單一或輕度風險訊號，降低追價與新倉規模。",
             "defensive": "多項風險訊號共振，暫停一般新倉並降低曝險。",
             "extreme": "權值／科技市場出現極端壓力，維持防守並等待開盤波動收斂。",
@@ -154,15 +202,25 @@ def get_pre_market_risk_report() -> dict[str, Any]:
         "max_exposure_pct": max_exposure,
         "signals": signals,
         "latest_event": event,
+        "official_event_summary": _official_event_summary(),
         "guidance": {
-            "new_positions": "暫停一般新倉" if not can_open else "可依原策略，但遵守部位上限",
-            "opening_rule": "極端或未知狀態先等開盤 30 分鐘，再用當日市場廣度重新判斷。" if level in {"extreme", "unknown"} else "不因新聞標題追價，仍需價格與量能確認。",
+            "new_positions": (
+                "暫停一般新倉"
+                if not can_open
+                else "未觸發額外防守；仍依策略、停損與部位上限"
+            ),
+            "opening_rule": (
+                "極端或未知狀態先等開盤 30 分鐘，再用當日市場廣度重新判斷。"
+                if level in {"extreme", "unknown"}
+                else "開盤跳空、盤中市場廣度或突發新聞仍可能改變風險；不因盤前未觸發就放寬停損。"
+            ),
             "max_exposure_pct": max_exposure,
         },
         "official_sources": list(_OFFICIAL_SOURCES),
         "limitations": [
             "這是風險提示，不是崩盤預測或買賣建議。",
             "第一版未自動抓取新聞全文；事件證據來自人工市場筆記，官方連結供交叉確認。",
+            "未觸發只代表目前已納入的資料沒有越過門檻，不代表市場安全或排除盤中突發事件。",
             "美股 EOD 行情若過期，系統會回傳待確認而不是假裝正常。",
         ],
     }

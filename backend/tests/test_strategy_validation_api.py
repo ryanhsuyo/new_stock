@@ -1,4 +1,5 @@
 import json
+import os
 
 from app.services.strategy_validation_service import load_strategy_validation_report
 
@@ -31,11 +32,36 @@ def test_load_strategy_validation_report_enriches_stock_links(tmp_path):
     report = load_strategy_validation_report(out, data)
 
     assert report is not None
+    assert report["available_report_count"] == 1
     assert report["results"]["combined"]["mode_label"] == "兩策略合併"
     trade = report["results"]["combined"]["trades"][0]
     assert trade["name"] == "台積電"
     assert trade["tradingview_url"].endswith("TWSE%3A2330")
     assert trade["analysis_hash"] == "#/research/2330"
+
+
+def test_load_strategy_validation_report_uses_newest_file_mtime(tmp_path):
+    out = tmp_path / "out"
+    data = tmp_path / "data"
+    out.mkdir()
+    data.mkdir()
+    data.joinpath("stock_names.json").write_text("{}", encoding="utf-8")
+    data.joinpath("stock_markets.json").write_text("{}", encoding="utf-8")
+
+    lexically_later = out / "tw_portfolio_replay_2026-07-08_2026-07-15.json"
+    actually_newer = out / "tw_portfolio_replay_2026-07-01_2026-07-29.json"
+    lexically_later.write_text(json.dumps(_sample_report()), encoding="utf-8")
+    newer_report = _sample_report()
+    newer_report["config"] = {"start": "2026-07-01", "end": "2026-07-29"}
+    actually_newer.write_text(json.dumps(newer_report), encoding="utf-8")
+    os.utime(lexically_later, (1_000, 1_000))
+    os.utime(actually_newer, (2_000, 2_000))
+
+    report = load_strategy_validation_report(out, data)
+
+    assert report is not None
+    assert report["config"] == {"start": "2026-07-01", "end": "2026-07-29"}
+    assert report["available_report_count"] == 2
 
 
 def test_strategy_validation_endpoint_returns_404_when_report_missing(client, monkeypatch):
@@ -145,6 +171,37 @@ def test_run_strategy_validation_rejects_bad_ranges_before_reading_data():
             assert str(exc) == message
         else:
             raise AssertionError("expected ValueError")
+
+
+def test_planned_stop_uses_stop_level_when_intraday_low_crosses():
+    from app.services.strategy_validation_service import _planned_stop_fill
+
+    fill = _planned_stop_fill(
+        {"open": 105.0, "high": 106.0, "low": 94.0, "close": 96.0},
+        100.0,
+    )
+
+    assert fill == 99.9
+
+
+def test_planned_stop_uses_gap_open_when_open_is_below_stop():
+    from app.services.strategy_validation_service import _planned_stop_fill
+
+    fill = _planned_stop_fill(
+        {"open": 92.0, "high": 95.0, "low": 90.0, "close": 94.0},
+        100.0,
+    )
+
+    assert fill == 91.908
+
+
+def test_planned_stop_does_not_trigger_above_stop():
+    from app.services.strategy_validation_service import _planned_stop_fill
+
+    assert _planned_stop_fill(
+        {"open": 105.0, "high": 106.0, "low": 101.0, "close": 102.0},
+        100.0,
+    ) is None
 
 
 def test_entry_guardrails_are_conservative_and_fail_closed():

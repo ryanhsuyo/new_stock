@@ -150,6 +150,8 @@ def test_bullish_gate_candidates_sorted_and_ranked(monkeypatch):
     for c in out["candidates"]:
         assert c["state"] == "candidate"
         assert c["reasons"] and c["risk_notes"]       # 必有 reasons + risk_notes
+        for key in ("ma20", "ma60", "rsi14", "dist_ma20_pct", "change_20d_pct"):
+            assert c[key] is not None
     # ETF 與 weak 都在 excluded，各有 reasons
     exc = {e["code"]: e for e in out["excluded"]}
     assert set(exc) == {"SPY", "QQQ", "CCC"}
@@ -201,7 +203,8 @@ def test_trend_follow_endpoint_schema():
     assert isinstance(body["candidates"], list) and isinstance(body["excluded"], list)
     for c in body["candidates"]:
         for key in ("code", "name", "category", "close", "state", "rank",
-                    "reasons", "risk_notes", "data_as_of"):
+                    "reasons", "risk_notes", "data_as_of", "ma20", "ma60",
+                    "rsi14", "dist_ma20_pct", "change_20d_pct"):
             assert key in c
         assert c["state"] in VALID_STATES
         assert c["reasons"] and c["risk_notes"]

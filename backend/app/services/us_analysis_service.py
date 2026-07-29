@@ -116,7 +116,7 @@ def classify_status(
     return "pullback_watch"
 
 
-def get_us_analysis() -> list[dict]:
+def get_us_analysis(as_of: str | None = None) -> list[dict]:
     """回傳每檔美股的基本技術狀態；無資料時指標為 null、狀態 no_data（非 weak）。"""
     leaders = load_us_leaders()
     ohlcv = load_us_ohlcv()
@@ -126,6 +126,8 @@ def get_us_analysis() -> list[dict]:
     for item in leaders:
         code = item["code"]
         rows = ohlcv.get(code, [])
+        if as_of:
+            rows = [row for row in rows if row["date"] <= as_of]
         closes = _closes(rows)
         row_count = len(closes)
         last_close = closes[-1] if closes else None

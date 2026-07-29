@@ -1,0 +1,66 @@
+{
+  "verified_at": "2026-07-29",
+  "verification_note": "人工查證官方行事曆；只記錄預定發布時間，不代表已取得結果。",
+  "events": [
+    {
+      "id": "fed-fomc-2026-07-29",
+      "title": "FOMC 利率決議",
+      "category": "monetary_policy",
+      "importance": "high",
+      "scheduled_at": "2026-07-30T02:00:00+08:00",
+      "original_time": "2026-07-29 14:00 ET",
+      "source_label": "Federal Reserve",
+      "source_url": "https://www.federalreserve.gov/newsevents/2026-july.htm"
+    },
+    {
+      "id": "fed-fomc-press-2026-07-29",
+      "title": "FOMC 記者會",
+      "category": "monetary_policy",
+      "importance": "high",
+      "scheduled_at": "2026-07-30T02:30:00+08:00",
+      "original_time": "2026-07-29 14:30 ET",
+      "source_label": "Federal Reserve",
+      "source_url": "https://www.federalreserve.gov/newsevents/2026-july.htm"
+    },
+    {
+      "id": "bls-eci-2026-07-31",
+      "title": "美國就業成本指數（ECI）",
+      "category": "labor",
+      "importance": "medium",
+      "scheduled_at": "2026-07-31T20:30:00+08:00",
+      "original_time": "2026-07-31 08:30 ET",
+      "source_label": "U.S. BLS",
+      "source_url": "https://www.bls.gov/schedule/2026/07_sched.htm"
+    },
+    {
+      "id": "bls-jolts-2026-08-04",
+      "title": "美國職位空缺與勞動力流動調查（JOLTS）",
+      "category": "labor",
+      "importance": "medium",
+      "scheduled_at": "2026-08-04T22:00:00+08:00",
+      "original_time": "2026-08-04 10:00 ET",
+      "source_label": "U.S. BLS",
+      "source_url": "https://www.bls.gov/newsroom/home.htm"
+    },
+    {
+      "id": "bls-jobs-2026-08-07",
+      "title": "美國就業報告",
+      "category": "labor",
+      "importance": "high",
+      "scheduled_at": "2026-08-07T20:30:00+08:00",
+      "original_time": "2026-08-07 08:30 ET",
+      "source_label": "U.S. BLS",
+      "source_url": "https://www.bls.gov/ces/"
+    },
+    {
+      "id": "bls-cpi-2026-08-12",
+      "title": "美國消費者物價指數（CPI）",
+      "category": "inflation",
+      "importance": "high",
+      "scheduled_at": "2026-08-12T20:30:00+08:00",
+      "original_time": "2026-08-12 08:30 ET",
+      "source_label": "U.S. BLS",
+      "source_url": "https://www.bls.gov/cpi/"
+    }
+  ]
+}

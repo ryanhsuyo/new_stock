@@ -12,10 +12,13 @@ from app.models.trade import (
     TradeImportRequest,
     TradeImportResult,
     TradeImportValidationResult,
+    TradeIntegrityReport,
     TradeRestoreRequest,
     TradeRestoreResult,
     TradeRecord,
+    TradeUpdateRequest,
 )
+from app.services.trade_integrity_service import build_trade_integrity_report
 from app.services.trade_service import (
     calculate_positions,
     calculate_trade_amounts,
@@ -24,6 +27,7 @@ from app.services.trade_service import (
     import_trades,
     preview_import_trades,
     restore_trades_backup,
+    update_trade_record,
     validate_import_trades,
 )
 from app.storage.json_store import load_trades, save_trades
@@ -34,6 +38,11 @@ router = APIRouter()
 @router.get("/trades", response_model=list[TradeRecord])
 def list_trades() -> list[TradeRecord]:
     return load_trades()
+
+
+@router.get("/trades/integrity", response_model=TradeIntegrityReport)
+def get_trade_integrity() -> dict:
+    return build_trade_integrity_report()
 
 
 @router.get("/trades/backups", response_model=list[TradeBackupInfo])
@@ -143,3 +152,13 @@ def sell_stock(req: SellRequest) -> TradeRecord:
     trades.append(record)
     save_trades(trades)
     return record
+
+
+@router.patch("/trades/{trade_id}", response_model=TradeRecord)
+def update_trade(trade_id: str, req: TradeUpdateRequest) -> TradeRecord:
+    try:
+        return update_trade_record(trade_id, req)
+    except KeyError as exc:
+        raise HTTPException(status_code=404, detail="找不到交易紀錄") from exc
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc

@@ -251,11 +251,11 @@ function TaiwanStrategyValidationPanel({ onNavigateAnalysis }: { onNavigateAnaly
         <div><span>報酬率</span><strong className={result.return_pct >= 0 ? 'pnl-positive' : 'pnl-negative'}>{fmtPct(result.return_pct)}</strong></div>
         <div><span>最大回撤</span><strong className="pnl-negative">-{result.max_drawdown_pct.toFixed(2)}%</strong></div>
         <div><span>估計總成本</span><strong>{fmtMoney(estimatedFinalCosts)}</strong></div>
-        <div><span>交易 / 持股</span><strong>{result.buy_count} 買 · {result.sell_count} 賣 · {result.open_positions.length} 持有</strong></div>
+        <div><span>交易 / 持股</span><strong>{result.buy_count} 買 · {result.sell_count} 賣 · {result.planned_stop_count ?? 0} 停損 · {result.open_positions.length} 持有</strong></div>
       </section>
 
       <div className="validation-method-strip">
-        <span>D 日收盤訊號</span><b>→</b><span>D+1 開盤成交</span><b>→</b><span>滑價限制於當日高低</span><b>→</b><span>期末扣費稅清算</span>
+        <span>D 日收盤訊號</span><b>→</b><span>D+1 開盤成交</span><b>→</b><span>計畫停損／日線退出</span><b>→</b><span>期末扣費稅清算</span>
       </div>
 
       {result.entry_guardrails && (

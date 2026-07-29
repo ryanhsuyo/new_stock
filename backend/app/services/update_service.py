@@ -379,7 +379,7 @@ def _write_daily_check_report() -> None:
     if str(_SCRIPTS) not in sys.path:
         sys.path.insert(0, str(_SCRIPTS))
     from app.services.signal_alert_service import load_signal_alerts
-    from app.services.today_scan_service import load_today_scan_report
+    from app.services.today_scan_service import load_today_scan_report, refresh_today_scan_usage_status
     from daily_check import build_daily_summary, load_summary_for_daily_check, write_daily_summary
     from doctor import build_doctor_report
 
@@ -392,6 +392,7 @@ def _write_daily_check_report() -> None:
         signals_summary=load_summary_for_daily_check(_BACKEND),
     )
     write_daily_summary(summary, _BACKEND)
+    refresh_today_scan_usage_status(_BACKEND / "out")
 
 
 def _refresh_daily_check_safely() -> None:

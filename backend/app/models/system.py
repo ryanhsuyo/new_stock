@@ -40,6 +40,7 @@ class PreMarketRiskReport(BaseModel):
     max_exposure_pct: int | None = None
     signals: list[dict] = Field(default_factory=list)
     latest_event: dict | None = None
+    official_event_summary: dict = Field(default_factory=dict)
     guidance: dict = Field(default_factory=dict)
     official_sources: list[dict] = Field(default_factory=list)
     limitations: list[str] = Field(default_factory=list)

@@ -5,7 +5,11 @@ set -euo pipefail
 
 echo "=== 卸載 launchd 排程 ==="
 
-for label in com.stockapp.daily-update com.stockapp.us-update; do
+for label in \
+    com.stockapp.daily-update \
+    com.stockapp.us-update \
+    com.stockapp.us-strategy-report \
+    com.stockapp.tw-strategy-report; do
     plist_path="${HOME}/Library/LaunchAgents/${label}.plist"
     if [[ ! -f "${plist_path}" ]]; then
         echo "（${label} 未安裝，略過）"

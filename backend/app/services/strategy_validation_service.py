@@ -58,6 +58,13 @@ def _load_json(path: Path, default):
         return default
 
 
+def _optional_float(value) -> float | None:
+    try:
+        return float(value) if value not in (None, "") else None
+    except (TypeError, ValueError):
+        return None
+
+
 def _tradingview_url(code: str, market: str) -> str:
     exchange = "TPEX" if market == "TPEX" else "TWSE"
     symbol = quote(f"{exchange}:{code}", safe="")
@@ -83,11 +90,11 @@ def load_strategy_validation_report(
     report_path: Path | None = None,
 ) -> dict | None:
     """Load the latest generated replay without recalculating strategy signals."""
-    candidates = sorted(out_dir.glob(REPORT_PATTERN)) if report_path is None else [report_path]
+    candidates = list(out_dir.glob(REPORT_PATTERN)) if report_path is None else [report_path]
     if not candidates:
         return None
 
-    path = candidates[-1]
+    path = max(candidates, key=lambda candidate: candidate.stat().st_mtime_ns)
     payload = _load_json(path, None)
     if not isinstance(payload, dict) or not isinstance(payload.get("results"), dict):
         return None
@@ -125,6 +132,7 @@ def load_strategy_validation_report(
     modified = datetime.fromtimestamp(path.stat().st_mtime).astimezone().isoformat(timespec="seconds")
     return {
         "report_id": path.stem,
+        "available_report_count": len(candidates),
         "generated_at": modified,
         "config": payload.get("config") or {},
         "limitations": payload.get("limitations") or [],
@@ -179,6 +187,14 @@ def _slipped(bar: dict, side: str) -> float:
     return min(bar["high"], max(bar["low"], estimate))
 
 
+def _planned_stop_fill(bar: dict, stop_price: float | None) -> float | None:
+    if stop_price is None or stop_price <= 0 or bar["low"] > stop_price:
+        return None
+    trigger = bar["open"] if bar["open"] <= stop_price else stop_price
+    estimate = trigger * (1 - SLIPPAGE_BPS / 10_000)
+    return min(bar["high"], max(bar["low"], estimate))
+
+
 def _qualifies(signal: dict, mode: str) -> bool:
     if signal.get("daily_action") != "enter":
         return False
@@ -211,6 +227,31 @@ def _run_mode(mode: str, days: list[str], portfolio_start: str, prices: dict, us
 
     for day in days:
         orders, pending = pending, []
+        for code, position in list(positions.items()):
+            bar = prices.get(code, {}).get(day)
+            fill = _planned_stop_fill(bar, position.get("stop_price")) if bar else None
+            if fill is None:
+                continue
+            shares = position["shares"]
+            amounts = calculate_trade_amounts("sell", fill, shares, settings=settings)
+            cash += amounts["net_amount"]
+            total_fees += amounts["fee"]
+            total_tax += amounts["tax"]
+            trades.append({
+                "code": code,
+                "side": "sell",
+                "signal_date": day,
+                "fill_date": day,
+                "fill_price": round(fill, 4),
+                "shares": shares,
+                "fee": amounts["fee"],
+                "tax": amounts["tax"],
+                "realized_pnl": round(amounts["net_amount"] - position["entry_cost"], 2),
+                "reason": f"計畫停損 {position['stop_price']:.2f} 觸發",
+                "strategy": position["strategy"],
+                "reason_code": "planned_stop",
+            })
+            del positions[code]
         for order in [item for item in orders if item["side"] == "sell"]:
             code, position, bar = order["code"], positions.get(order["code"]), prices.get(order["code"], {}).get(day)
             if not position or not bar:
@@ -260,7 +301,14 @@ def _run_mode(mode: str, days: list[str], portfolio_start: str, prices: dict, us
             amounts = calculate_trade_amounts("buy", fill, shares, settings=settings)
             cash -= amounts["net_amount"]
             total_fees += amounts["fee"]
-            positions[code] = {"shares": shares, "entry_cost": amounts["net_amount"], "entry_date": day, "entry_price": fill, "strategy": order["strategy"]}
+            positions[code] = {
+                "shares": shares,
+                "entry_cost": amounts["net_amount"],
+                "entry_date": day,
+                "entry_price": fill,
+                "stop_price": order.get("stop_price"),
+                "strategy": order["strategy"],
+            }
             trades.append({"code": code, "side": "buy", "signal_date": order["signal_date"], "fill_date": day, "fill_price": round(fill, 4), "shares": shares, "fee": amounts["fee"], "tax": 0.0, "realized_pnl": None, "reason": order["reason"], "strategy": order["strategy"]})
             opened_today += 1
 
@@ -280,7 +328,17 @@ def _run_mode(mode: str, days: list[str], portfolio_start: str, prices: dict, us
             if code in positions and action in {"exit", "reduce"}:
                 pending.append({"side": "sell", "kind": action, "code": code, "signal_date": day, "reason": signal.get("daily_action_reason", "")})
             elif code not in positions and _qualifies(signal, mode):
-                pending.append({"side": "buy", "code": code, "signal_date": day, "position_size_pct": int(signal.get("position_size_pct") or 0), "priority": int(signal.get("daily_priority") or 0), "score": int(signal.get("score") or 0), "reason": signal.get("daily_action_reason", ""), "strategy": _strategy_tag(signal)})
+                pending.append({
+                    "side": "buy",
+                    "code": code,
+                    "signal_date": day,
+                    "position_size_pct": int(signal.get("position_size_pct") or 0),
+                    "priority": int(signal.get("daily_priority") or 0),
+                    "score": int(signal.get("score") or 0),
+                    "stop_price": _optional_float(signal.get("stop_price")),
+                    "reason": signal.get("daily_action_reason", ""),
+                    "strategy": _strategy_tag(signal),
+                })
 
     final_day, final_equity = days[-1], equity(days[-1])
     peak, max_drawdown = INITIAL_CASH, 0.0
@@ -293,7 +351,7 @@ def _run_mode(mode: str, days: list[str], portfolio_start: str, prices: dict, us
         liquidation = calculate_trade_amounts("sell", close, position["shares"], settings=settings)["net_amount"]
         open_positions.append({"code": code, **position, "close": close, "estimated_liquidation_value": liquidation, "unrealized_pnl_after_exit_cost": round(liquidation - position["entry_cost"], 2)})
     realized = sum(item["realized_pnl"] or 0 for item in trades if item["side"] == "sell")
-    return {"mode": mode, "initial_cash": INITIAL_CASH, "start_date": portfolio_start, "end_date": final_day, "final_equity_after_estimated_liquidation_cost": round(final_equity, 2), "net_pnl": round(final_equity - INITIAL_CASH, 2), "return_pct": round((final_equity / INITIAL_CASH - 1) * 100, 4), "max_drawdown_pct": round(max_drawdown, 2), "realized_pnl": round(realized, 2), "total_fees": round(total_fees, 2), "total_tax": round(total_tax, 2), "trade_event_count": len(trades), "buy_count": sum(item["side"] == "buy" for item in trades), "sell_count": sum(item["side"] == "sell" for item in trades), "cash": round(cash, 2), "open_positions": open_positions, "trades": trades, "equity_curve": curve, "entry_guardrails": guardrails, "risk_by_day": risk_by_day, "skipped_entry_count": len(skipped_entries), "skipped_entries": skipped_entries}
+    return {"mode": mode, "initial_cash": INITIAL_CASH, "start_date": portfolio_start, "end_date": final_day, "final_equity_after_estimated_liquidation_cost": round(final_equity, 2), "net_pnl": round(final_equity - INITIAL_CASH, 2), "return_pct": round((final_equity / INITIAL_CASH - 1) * 100, 4), "max_drawdown_pct": round(max_drawdown, 2), "realized_pnl": round(realized, 2), "total_fees": round(total_fees, 2), "total_tax": round(total_tax, 2), "trade_event_count": len(trades), "buy_count": sum(item["side"] == "buy" for item in trades), "sell_count": sum(item["side"] == "sell" for item in trades), "planned_stop_count": sum(item.get("reason_code") == "planned_stop" for item in trades), "cash": round(cash, 2), "open_positions": open_positions, "trades": trades, "equity_curve": curve, "entry_guardrails": guardrails, "risk_by_day": risk_by_day, "skipped_entry_count": len(skipped_entries), "skipped_entries": skipped_entries}
 
 
 def run_strategy_validation(start: str, end: str, out_dir: Path = OUT_DIR, data_dir: Path = DATA_DIR) -> dict:

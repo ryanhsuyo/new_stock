@@ -39,6 +39,31 @@ class SellRequest(BaseModel):
     note: str = ""
 
 
+class TradeUpdateRequest(BaseModel):
+    date: str
+    price: float
+    shares: int
+    note: str = ""
+
+
+class TradeIntegrityItem(BaseModel):
+    trade_id: str
+    status: Literal["ok", "warning", "unverified"]
+    reason: str
+    day_low: float | None = None
+    day_high: float | None = None
+    day_close: float | None = None
+    difference_pct: float | None = None
+
+
+class TradeIntegrityReport(BaseModel):
+    checked_count: int
+    warning_count: int
+    unverified_count: int
+    performance_status: Literal["verified", "provisional"]
+    items: list[TradeIntegrityItem]
+
+
 class TradeImportItem(BaseModel):
     id: str | None = None
     stock_id: str

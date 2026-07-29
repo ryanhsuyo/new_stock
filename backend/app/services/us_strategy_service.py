@@ -124,12 +124,12 @@ def classify_trend_follow(a: dict, market_bias: str) -> dict:
     return {"bucket": "candidate", "state": state, "reasons": reasons, "risk_notes": risk_notes}
 
 
-def get_us_trend_follow() -> dict:
+def get_us_trend_follow(as_of: str | None = None) -> dict:
     """
     us_trend_follow 策略總表。bearish / unknown 時 market_gate.active=false、
     candidates=[]（原本符合條件者移入 excluded 並註明守門關閉）。
     """
-    analysis = get_us_analysis()
+    analysis = get_us_analysis(as_of=as_of) if as_of else get_us_analysis()
     by_code = {x["code"]: x for x in analysis}
     bias, _detail = _market_context(by_code)
     active = bias in ("bullish", "mixed")
@@ -144,6 +144,11 @@ def get_us_trend_follow() -> dict:
             "name":       a["name"],
             "category":   a.get("category", ""),
             "close":      a["last_close"],
+            "ma20":       a.get("ma20"),
+            "ma60":       a.get("ma60"),
+            "rsi14":      a.get("rsi14"),
+            "dist_ma20_pct": a.get("dist_ma20_pct"),
+            "change_20d_pct": a.get("change_20d_pct"),
             "state":      r["state"],
             "reasons":    r["reasons"],
             "data_as_of": a["last_data_as_of"],

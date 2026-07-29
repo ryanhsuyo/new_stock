@@ -12,6 +12,116 @@
 
 ---
 
+## 2026-07-29 — 官方事件摘要與近期策略壓力驗收
+
+- **Date:** 2026-07-29
+- **Task:** 加入可事前查看的官方市場事件，並重跑近期大跌區間以檢查策略風控。
+- **Completed:** 盤前風險 API／Dashboard 顯示未來 14 天人工查證的 Fed／BLS 事件、來源與查證新鮮度，事件不計分。策略回放持倉保存訊號日停損價，盤中觸價與跳空跌破採不同成交基準並套既有滑價；UI 顯示停損次數。最新報告改依檔案修改時間選取，修正日期檔名字典序載入舊報告的問題。重跑 2026-07-01～07-29：合併 −13.35%／MDD 13.35%／14 次停損，老王 −13.67%／13.98%／10 次，穩健動能 −14.91%／15.27%／14 次；結果不通過，未調 production 規則。
+- **Changed Files:** `backend/data/official_market_events.json`、`backend/app/{models/system.py,storage/official_market_event_store.py,services/{pre_market_risk_service.py,strategy_validation_service.py}}`、`backend/tests/{test_pre_market_risk.py,test_strategy_validation_api.py}`、`frontend/src/{types/index.ts,pages/{Dashboard.tsx,StrategyValidationPage.tsx},App.css}`、`openspec/changes/{pre-market-risk-center,strategy-portfolio-guardrails}`、`docs/ai/{current-status,roadmap,validation,handoff-log}.md`。
+- **Validation:** 官方事件與策略 targeted **25 passed**；完整 backend **1005 passed**；frontend build 成功（僅既有 chunk size warning）。瀏覽器確認事件摘要、官方來源與新鮮度；策略頁在最新報告選取修正後顯示 2026-07-01～07-29 與停損統計。
+- **Git Status:** 未 commit、未 push；進場前已有大量未提交修改，均保留。
+- **Next Steps:** 逐筆分析 10～14 次計畫停損是否集中於同標的短期重新進場與盤勢切換落後；用另一段未參與設計的樣本外區間驗證，再決定是否提出 production 規則變更。
+- **Notes / Warnings:** 官方事件是人工維護的行事曆，不是即時新聞、情緒模型或崩盤預測；超過 7 天未查證會提示過期。策略壓力驗收為 evaluation-only。
+
+## 2026-07-29 — Stock 系統日期完整性與報告可信度修正
+
+- **Date:** 2026-07-29
+- **Task:** 掃描並修正目前 Stock 的高優先問題，避免 Today Scan、台股日報與歷史策略驗收被誤讀為可直接採用的今日結果。
+- **Completed:** Daily Check 三條寫入路徑完成後都同步刷新 Today Scan；Today Scan 新增逐股資料日 gate，資料混雜時即使 Daily Check 仍可用也會封鎖交易輸出。台股日報同樣停止輸出候選與降風險清單，排程由 15:00 改為 15:40，已更新並重新載入本機 launchd；Monitor 卡片同步顯示 15:40。大盤濾網為風險模式時，Today Scan 明示只供觀察與風險處理；台股日報將內部狀態翻譯為「風險模式／出場警示」，Monitor 日報描述也與獨立歷史稽核切乾淨。盤前風險零分由「正常」改成「未觸發額外防守」，明示不能排除盤中突發事件，也不可因此放寬停損。交易自動檢查文案改為「價格範圍正常／待確認／無同日行情」。Dashboard 驗收摘要補回放區間、產生日期及歷史資料警示。沒有自動修改 9 筆待確認交易、人工市場筆記或缺少的基本面資料。
+- **Changed Files:** `backend/app/services/{today_scan_service.py,update_service.py}`、`backend/scripts/{generate_strategy_trade_report.py,run_signals.py,scheduled_strategy_report.py,setup_schedule.sh,update_all_data.py}`、`backend/tests/{test_run_signals_cli.py,test_scheduled_strategy_report.py,test_strategy_trade_report.py,test_today_scan_service.py}`、`frontend/src/{App.css,components/TradeTable.tsx,pages/Dashboard.tsx}`、`openspec/changes/{daily-report-integrity,us-market-parity}`、`docs/ai/{current-status,handoff-log,roadmap,validation}.md`；Monitor Dashboard 的 `monitor.config.json`、`test/jobs.test.mjs`；generated TW daily/audit reports。
+- **Validation:** backend 完整 **999 passed**（本輪受本機資源波動影響耗時 392 秒，但零失敗）；frontend `npm run build` 成功（僅既有 >500 kB chunk warning）；Monitor targeted **4 passed**。實際 TW artifact 在 68/76 檔對齊時停止輸出動作清單；重新載入 15:40 launchd 後補跑 exit 0，資料更新為 76/76。瀏覽器確認 Dashboard 顯示歷史回放警示、Today Scan 顯示 observation-only；Monitor 顯示 15:40 並可開啟最新日報，內容為 0 檔進場候選、12 檔降風險，沒有 `block`／`exit_warning` 裸代碼。盤前風險新增固定測試，零分狀態不得宣稱安全。
+- **Git Status:** 未 commit、未 push；New Stock 與 Monitor 進場前已有大量未提交修改，全部保留。
+- **Next Steps:** 觀察下一個正常交易日的 15:30 台股更新與 15:40 報告是否照排程完成。9 筆交易仍需使用者依券商對帳單逐筆核對；市場筆記與官方基本面覆蓋需真實外部資料，未自動填造。
+- **Notes / Warnings:** 本輪只加可信度 gate、同步與呈現，不改策略門檻、不新增依賴／資料庫、不自動下單。歷史策略驗收仍是 evaluation-only。
+
+## 2026-07-24 — 日常報告完整性、交易修正與美股去重
+
+- **Date:** 2026-07-24
+- **Task:** 完善台／美股日常報告：處理台股交易資料疑點、拆開日報與歷史稽核、移除美股重複標的，並驗證固定日期不讀未來資料。
+- **Completed:** 台股產生精簡日報與獨立 audit artifact；15 筆實際交易中 9 筆被 OHLCV 完整性檢查標為待確認，所有績效顯示暫估，沒有自動改價。新增安全的單筆 PATCH 與交易頁修正介面，修改前備份、重算金額並驗證持股。美股詳表只保留尚未突破 W 底，主要決策標的不再重複；trend/W-bottom 支援固定 `as_of`，測試證明未來極端行情不影響歷史日輸出。Monitor 新增獨立手動台股稽核卡。
+- **Changed Files:** `backend/app/{models/trade.py,routers/trades.py,services/{trade_integrity_service.py,trade_service.py,us_analysis_service.py,us_strategy_service.py,us_wbottom_service.py}}`、`backend/scripts/generate_strategy_trade_report.py`、相關 backend tests/API docs；`frontend/src/{api/client.ts,types/index.ts,App.css,pages/TradesPage.tsx,components/{TradeTable.tsx,EditTradeModal.tsx}}`；`openspec/changes/{daily-report-integrity,us-market-parity}`、`docs/ai/{current-status,roadmap,validation,handoff-log}.md`；Monitor 的 `monitor.config.json`、`test/jobs.test.mjs` 與 operations design；generated TW/US reports。
+- **Validation:** backend 完整 **987 passed**；frontend `npm run build` 成功（僅既有 >500 kB chunk warning）；Monitor 完整 **49 passed**。實際 artifacts 已重產，TW 日報與 audit 分離；US 已突破 W 底只出現於主要清單。瀏覽器確認交易頁顯示暫估警示、資料狀態與修正入口。
+- **Git Status:** 未 commit、未 push；兩個 repo 進場前已有大量未提交修改，均保留且未覆蓋。
+- **Next Steps:** 由使用者依券商對帳單逐筆修正 9 筆待確認交易；修正完成後重產 TW 報告，確認績效由暫估轉為已核對。美股如要正式績效，仍需另做 market-aware 交易帳與費稅契約。
+- **Notes / Warnings:** 未自動修改任何交易、未新增資料庫、未改策略參數、未把美股觀察升格為正式推薦或下單。
+
+## 2026-07-24 — 美股報告移除內部代碼與破碎換行
+
+- **Date:** 2026-07-24
+- **Task:** 使用者指出 Monitor 內的美股報告表格不乾淨，策略代碼、日期與判斷換行破碎。
+- **Completed:** 回放摘要將 `us_*`／`candidate_exit`／`trend_protect` 等內部代碼改為讀者名稱；日期縮為可比較格式；判斷改成短結論並明示採用狀態。推薦清單、結論、觀察章節與方法限制同步改成人話。Monitor 表格前五欄固定不換行、數值使用 tabular figures、第一欄提高視覺層級，長判斷留在末欄。
+- **Changed Files:** `backend/scripts/generate_strategy_trade_report.py`、`backend/tests/test_strategy_trade_report.py`、`docs/ai/handoff-log.md`；Monitor Dashboard：`public/jobs.css`；generated US report。
+- **Validation:** strategy report tests 12 passed；Monitor tests 49 passed、typecheck passed；實際重新產生 US artifact，回放表已確認沒有 `us_` 或 `evaluation-only` 對外字樣。
+- **Git Status:** 未 commit、未 push；兩個 repo 既有未提交修改均保留。
+- **Next Steps:** 使用者重新整理 Monitor 並重開美股報告確認密度；若其他大型候選表仍太寬，下一切片應改成摘要卡＋可展開完整表，而不是繼續縮字。
+- **Notes / Warnings:** UI/UX Pro Max 的 table handling、line-height、數值格式與內容層級規則已套用；只改呈現文字，不改策略、回放數值或採用判定。
+
+## 2026-07-24 — Monitor 報告卡片精簡
+
+- **Date:** 2026-07-24
+- **Task:** 使用 UI/UX Pro Max 評估並精簡 Monitor Dashboard 的排程／報告區。
+- **Completed:** 依 data-dense operations dashboard 規則，把原本每個工作佔滿一列的卡片改為桌面三欄、平板兩欄、手機單欄；資訊由三個技術框精簡為「最近報告／排程」兩項，launchd/exit 降為次要狀態列；中文化狀態與操作，讓「查看報告」成為唯一主操作，紀錄／重新執行降為次操作。保留 44px 操作高度、focus-visible、aria-live、reduced-motion，並修正長排程字串的安全斷行。
+- **Changed Files:** Monitor Dashboard：`public/app.js`、`public/jobs.css`、`public/index.html`；New Stock：`docs/ai/handoff-log.md`。
+- **Validation:** Monitor tests 49 passed、typecheck passed；本機 Chrome 1440px 視覺驗收確認三張工作卡同列、層級與對齊正常。375px 截圖流程受桌面 Chrome 最小 viewport 限制，但 CSS 斷點已改為單欄、meta 上下排列、長字串可斷行。
+- **Git Status:** 未 commit、未 push；兩個 repo 既有未提交修改均保留。
+- **Next Steps:** 使用者重新整理 Monitor 確認實際瀏覽器密度；若仍嫌資訊多，下一切片可將 launchd 狀態只在異常時顯示，不應再壓縮主要按鈕。
+- **Notes / Warnings:** UI/UX Pro Max 建議的 minimal/data-dense、單一 primary CTA、progressive disclosure 與 accessibility 規則已採用；沒有改 API、排程或報告內容。
+
+## 2026-07-24 — 台股／美股日常報告拆分排程
+
+- **Date:** 2026-07-24
+- **Task:** 不再用一份報告同時看台股與美股；美股早上、台股下午分開提供並由 Monitor 查看。
+- **Completed:** 報告 CLI 新增 `--market all|us|tw`；新增 `scheduled_strategy_report.py`，依市場先強制刷新資料再產生單一 artifact，成功後寫每日 marker。launchd 新增美股 10:00 `com.stockapp.us-strategy-report` 與台股 15:00 `com.stockapp.tw-strategy-report`，保留原有 08:30／15:30 資料更新工作。Monitor 合併卡片改為兩張獨立卡片，各自顯示排程、log、報告與重跑入口。
+- **Changed Files:** `backend/scripts/{generate_strategy_trade_report.py,scheduled_strategy_report.py,setup_schedule.sh,remove_schedule.sh}`、`backend/tests/{test_strategy_trade_report.py,test_scheduled_strategy_report.py}`、`openspec/changes/us-market-parity/{proposal,tasks}.md`、`docs/ai/{current-status,handoff-log}.md`；Monitor Dashboard：`monitor.config.json`、`test/{jobs.test.mjs,server.test.mjs}`、`openspec/changes/operations-task-center/design.md`；generated TW/US reports。
+- **Validation:** New Stock 完整 backend 978 passed（其中拆分排程／報告 targeted 48 passed）；Monitor 完整 49 passed。兩份個別 artifact 實際產生成功；四個 stockapp launchd agents 已載入。安裝時美股 10:00 已過，catch-up 實際完成：runs=1、last exit code=0、資料更新與報告 markers 均寫入。
+- **Git Status:** 未 commit、未 push；兩個 repo 的既有未提交修改全部保留。
+- **Next Steps:** 觀察下一個 10:00／15:00 實際執行的資料日、exit code 與報告 marker；歷史 as-of replay 防未來資料洩漏仍是 US Phase 5 待辦。
+- **Notes / Warnings:** 台股報告明確要求 15:00，因此會在原 15:30 台股更新前自行刷新一次；若交易所資料尚未完全上架，原 15:30 更新仍會再次補齊資料。沒有自動下單或推播。
+
+## 2026-07-24 — 美股報告由候選清單升級為每日決策表
+
+- **Date:** 2026-07-24
+- **Task:** 繼續讓美股更加實際可應用。
+- **Completed:** `us_trend_follow` response 加入既有 MA20／MA60／RSI／乖離／20 日變化欄位；報告把候選分成「紙上追蹤」「等待條件」「只追蹤既有型態」。trend 只有 bullish + candidate 可標 D+1 紙上追蹤；mixed 等待。W 底只有 breakout_today + gate active 可標 D+1，breakout_in_progress 明示原始觸發已過、不追價。最前方新增可行動數與總結。
+- **Changed Files:** `backend/app/services/us_strategy_service.py`、`backend/scripts/generate_strategy_trade_report.py`、`backend/tests/test_us_strategy.py`、`backend/tests/test_strategy_trade_report.py`、`backend/docs/api.md`、`openspec/changes/us-market-parity/{proposal,design,tasks}.md`、`docs/ai/current-status.md`、`docs/ai/handoff-log.md`；generated reports。
+- **Validation:** targeted 26 passed；完整 backend suite 975 passed；最新真實輸出為 trend gate bearish、W-bottom gate inactive、新紙上追蹤 0 檔、既有型態追蹤 4 檔。Monitor 本輪未改程式，重新開啟報告即讀取最新 generated artifact。
+- **Git Status:** 未 commit、未 push；進場前既有未提交修改均保留。
+- **Next Steps:** OpenSpec Phase 5 尚缺固定歷史 as-of replay 驗證今日動作無未來資料洩漏；若要升格正式美股進出場／實績，先完成 market-aware trades 與 US fee/tax 決策。
+- **Notes / Warnings:** trend-protect 仍是 evaluation-only，報告只稱保護觀察線；沒有升格 production 出場規則。沒有自動下單、沒有新策略、沒有偽造倉位比例。
+
+## 2026-07-23 — 美股報告加入推薦觀察清單
+
+- **Date:** 2026-07-23
+- **Task:** 使用者要求美股也提供推薦標的。
+- **Completed:** `generate_strategy_trade_report.py` 新增美股推薦觀察排序：先列 `us_trend_follow.candidates`，再列未重複且狀態為 `breakout_today`／`breakout_in_progress` 的 `us_wbottom_target`；forming／invalidated 不納入。報告逐檔顯示策略、收盤、觸發／守線、失效條件／價格、觀察目標與主要理由。目前實際輸出 8 檔。
+- **Changed Files:** `backend/scripts/generate_strategy_trade_report.py`、`backend/tests/test_strategy_trade_report.py`、`docs/ai/current-status.md`、`docs/ai/handoff-log.md`；generated outputs：合併、台股與美股策略報告。
+- **Validation:** 報告產生成功；新增排序／去重測試通過；完整 backend suite 972 passed；Monitor 瀏覽器實測顯示「美股推薦觀察清單」且表格為 8 列。
+- **Git Status:** 未 commit、未 push；進場前既有未提交修改均保留。
+- **Next Steps:** 若要把美股由「推薦觀察」提升為正式推薦桶，需另行定義進場／退出、風險門檻與樣本外驗收，不應只改 UI 名稱。
+- **Notes / Warnings:** 對外正式台股推薦策略仍只有 `old_wang` 與 `steady_momentum`；美股清單仍是 `us_trend_follow`／`us_wbottom_target` 的研究排序，不是下單指令。
+
+## 2026-07-23 — New Stock 報告獨立接入 Monitor Dashboard
+
+- **Date:** 2026-07-23
+- **Task:** 讓 `new_stock` 自己產生合併策略報告，並由 Monitor Dashboard 的獨立卡片查看；不得與 Discord 老王午報混用。
+- **Completed:** `generate_strategy_trade_report.py` 新增合併輸出 `backend/out/strategy_trade_report_2026-05-01.md`，內含台股交易復盤與美股觀察策略兩個清楚分隔的章節，並保留原本兩份個別報告。Monitor Dashboard 新增 `new-stock-strategy-report` 白名單 Job，使用 `new-stock` project、獨立 report path 與 Python 產生指令。Monitor 重跑確認文字改為依 Job 顯示；只有午報會提到再次推送 Discord。Browser 實測兩張卡片同時存在，點擊 New Stock 的 `View Report` 可開啟 `New Stock 策略報告 · Report`。
+- **Changed Files:** `backend/scripts/generate_strategy_trade_report.py`、`backend/tests/test_strategy_trade_report.py`、`docs/ai/current-status.md`、`docs/ai/handoff-log.md`；Monitor Dashboard：`monitor.config.json`、`public/app.js`、`test/jobs.test.mjs`、`openspec/changes/operations-task-center/{proposal,design,tasks}.md`；generated output：`backend/out/strategy_trade_report_2026-05-01.md`、台股／美股個別報告。
+- **Validation:** 報告產生成功；targeted backend tests 16 passed；完整 backend suite 970 passed；Monitor Dashboard 46 passed、typecheck passed；Browser 實測獨立卡片及報告內容成功。
+- **Git Status:** 未 commit、未 push；兩個 repo 均有本次進場前既存的未提交修改，未覆蓋。
+- **Next Steps:** 若需要日期區間由 Monitor 直接輸入，應另開有參數白名單契約；目前 `Run Again` 依既有固定 `2026-05-01` 起始範圍重產，不接受 HTTP 任意 args。
+- **Notes / Warnings:** 合併報告是 New Stock 的研究／驗收 artifact，不是午報、推播或下單指令；台股實際績效與美股 evaluation-only 回放不可混算。
+
+## 2026-07-23 — Dashboard 顯示最新策略驗收摘要
+
+- **Date:** 2026-07-23
+- **Task:** 使用者詢問目前有多少報告，要求先把報告匯出到 Dashboard 查看。
+- **Completed:** `load_strategy_validation_report()` 新增 `available_report_count`；Dashboard 新增最近回放摘要卡，顯示保存份數、區間、三模式報酬／MDD／買賣／風控略過數，並可跳到完整策略驗收頁。API 404 或局部失敗只呈現空狀態，不拖垮首頁。沒有新增 PDF／Excel，也沒有在前端重算策略。
+- **Changed Files:** `backend/app/services/strategy_validation_service.py`、`backend/tests/test_strategy_validation_api.py`、`backend/docs/api.md`、`frontend/src/{App.tsx,App.css,types/index.ts}`、`frontend/src/pages/Dashboard.tsx`、`openspec/changes/strategy-portfolio-guardrails/{proposal,tasks}.md`、`docs/ai/{current-status,validation,handoff-log}.md`。
+- **Validation:** 實際 API 確認 **4 份**報告、最新為 `tw_portfolio_replay_2026-07-08_2026-07-15`；策略驗收 API tests **11 passed**；完整 backend **969 passed**；frontend build 成功（僅既有 chunk warning）。瀏覽器桌面卡片與 `#/validation` 跳轉通過；375px `scrollWidth=clientWidth=360`、卡片單欄、console 0 errors。
+- **Git Status:** 本次未 commit、未 push；另有進場前既存的 `backend/data/stock_markets.json`、`stock_names.json` 修改，未碰觸。
+- **Next Steps:** 使用者確認摘要內容與密度後，再決定是否增加報告歷史選擇器或 PDF／Excel 匯出；不要同時堆進 Dashboard。
+- **Notes / Warnings:** 最新持久化報告產生於 2026-07-17，仍是風控改版前的舊格式，所以 Dashboard 顯示略過數 0；需重新跑日期區間才會產生含 guardrails／skipped audit 的新版報告。
+
 
 ## 2026-07-19 — 策略別 guardrail 二次驗證
 

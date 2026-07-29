@@ -2,7 +2,7 @@
 
 > 這個專案怎麼驗收。AI 完成任務後，依本檔驗收並在回報中記錄結果。
 > 指令以本 repo 實際內容為準（見下方 Known Test Commands），不要沿用其他專案的猜測指令。
-> Last updated: 2026-07-19
+> Last updated: 2026-07-24
 
 ## Required Checks
 
@@ -20,6 +20,7 @@
 - [ ] 每日健康檢查快照：`cd backend && python3 scripts/daily_check.py --write-report`。
 - [ ] 前端手動實測互動流程（見 Manual Verification）。
 - [ ] 盤前風險中心：確認 stale 行情顯示「待確認」而非「正常」、官方來源可展開，且手機寬度無整頁橫向溢出。
+- [ ] 盤前風險零分狀態顯示「未觸發額外防守」，不可宣稱「正常／安全」；需提醒盤中突發新聞、跳空與市場廣度仍可能改變風險。
 
 ## Docs-only Rules
 
@@ -38,6 +39,11 @@
 - 美股頁動線：`#/us`（或別名 `#/markets/us`）直達美股頁、重整仍留在美股頁；header 台股/美股切換同步 hash、back/forward 一致；頂部資料狀態面板：資料完整時顯示覆蓋率，缺資料 / 筆數不足時列出代碼；「立即更新美股」觸發獨立 US background backfill，按鈕進入更新中、3 秒輪詢，成功後自動刷新，失敗顯示錯誤。
 - 後端關閉時，Dashboard 頂部應出現明確錯誤 / 連線中斷橫幅（不是靜默空白）。
 - 台股策略驗收：重跑含大跌日的區間後，確認「組合風控已啟用」顯示當前 mode 的實際策略別限制，且逐筆略過原因可展開；盤前風險只使用成交日前資料，防守／極端／資料不足日不得新開倉。此結果只供 evaluation，不得改動 production 訊號。
+- 台股計畫停損驗收：持倉須保存訊號日 `stop_price`；盤中最低價觸及時以停損價套賣出滑價，跳空低開跌破時以開盤價套賣出滑價，且同日不得再重複執行日線退出。報告需顯示停損次數。
+- Dashboard 策略驗收摘要：確認保存份數與最新區間正確，三模式皆顯示報酬／MDD／買賣／略過數；「查看完整報告」跳到 `#/validation`。375px 寬度卡片單欄且整頁無橫向溢出。
+- 官方事件摘要：只顯示人工查證的未來 14 天官方事件、來源連結與查證日；超過 7 天未查證需提示過期。事件不得直接改變盤前風險分數，也不得宣稱涵蓋即時或突發新聞。
+- 交易紀錄完整性：`#/trades` 若有異常成交價須顯示「績效暫估」與待確認筆數；單筆修正不得允許改股票／方向，儲存後需刷新狀態，且 `backend/data/backups/` 留下修改前備份。
+- 分市場報告：台股每日行動報告不得混入逐筆歷史交易；歷史稽核使用獨立 artifact。若 `universe_report.csv` 任一逐股資料日未對齊 summary `as_of`，Today Scan 與台股日報都必須阻擋交易輸出／動作清單；台股排程為 15:40。美股主要決策清單的已突破 W 底不得在下方詳表重複出現。
 
 ## Known Test Commands
 
@@ -49,6 +55,7 @@
 | 後端啟動 | `cd backend && uvicorn app.main:app --reload --port 19000` |
 | 前端 build（含 typecheck） | `cd frontend && npm run build` |
 | 前端 dev server | `cd frontend && npm run dev`（port 5173，proxy `/api` → `127.0.0.1:19000`） |
+| 分市場報告 | `cd backend && python3.11 scripts/generate_strategy_trade_report.py --market tw\|us [--as-of YYYY-MM-DD]` |
 | 每日更新 | `cd backend && python3 scripts/daily_update.py --months 1` |
 | 產生訊號 | `cd backend && python3 scripts/run_signals.py` |
 | 今日掃描 | `cd backend && python3 scripts/today_scan.py` |

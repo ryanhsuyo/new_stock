@@ -34,6 +34,8 @@ FastAPI 後端，所有端點皆以 `/api` 為前綴。
 | 方法 | 路徑 | 說明 |
 |------|------|------|
 | GET | `/api/trades` | 交易紀錄清單 |
+| GET | `/api/trades/integrity` | 交易價與同日 OHLCV 完整性檢查 |
+| PATCH | `/api/trades/{trade_id}` | 備份後修正單筆交易日期、價格、股數與備註 |
 | POST | `/api/trades/buy` | 記錄買入（含現金驗證） |
 | POST | `/api/trades/sell` | 記錄賣出（含超賣驗證） |
 | POST | `/api/trades/import` | 批次匯入交易紀錄（會先備份再覆蓋） |
@@ -352,6 +354,23 @@ FastAPI 後端，所有端點皆以 `/api` 為前綴。
 ### `GET /api/trades`
 
 列出所有交易紀錄，按時間升冪排列。
+
+### `GET /api/trades/integrity`
+
+逐筆比對成交價與同日 OHLCV 高低區間（保留 1% 容差）。回傳 `ok`、`warning` 或 `unverified`；只要有 warning／unverified，`performance_status` 即為 `provisional`。此 endpoint 唯讀，不會修正交易資料。
+
+### `PATCH /api/trades/{trade_id}`
+
+人工修正單筆交易的 `date`、`price`、`shares`、`note`。股票與買賣方向不可更改；後端會重新計算費用、驗證完整持倉序列，成功寫入前先備份 `trades.json`。
+
+```json
+{
+  "date": "2026-07-23",
+  "price": 1000.0,
+  "shares": 100,
+  "note": "已與券商對帳單核對"
+}
+```
 
 **回應**（`TradeRecord[]`）：
 
@@ -1354,6 +1373,8 @@ Query `months` 預設 1、允許 1–60。背景執行 `backfill_ohlcv_us.py`，
   "candidates": [
     {
       "code": "AAPL", "name": "Apple Inc.", "category": "Mega-cap Tech", "close": 314.08,
+      "ma20": 298.04, "ma60": 293.04, "rsi14": 61.0,
+      "dist_ma20_pct": 5.4, "change_20d_pct": 7.7,
       "state": "candidate", "rank": 1,
       "reasons": ["收盤 314.08 > MA20 298.04 > MA60 293.04（多頭排列）", "RSI 61 介於 50–68，有動能未過熱", "距 MA20 +5.4%（≤ +8%，未追高）", "20 日漲跌幅 +7.7%"],
       "risk_notes": ["趨勢延續觀察，非入場建議；跌破 MA20 即離開清單", "盤整市清單會反覆進出（whipsaw），清單變動不代表訊號翻轉"],
@@ -1375,7 +1396,7 @@ Query `months` 預設 1、允許 1–60。背景執行 `backfill_ohlcv_us.py`，
 
 **排除規則**（依序，附 reasons）：ETF 量尺 → `watch`；資料不足（< 60 筆）→ `avoid`；RSI ≥ 70 或 dist ≥ +15%（沿用 Phase 2 過熱門檻）→ `overheated`；跌破 MA60 → `avoid`；`recovering`（均線未翻多）→ `watch`；入選條件任一不符 → `watch`（逐項列出未通過原因）。
 
-**排序**：`dist_ma20_pct` 小→大（防追高排序化）→ `change_20d_pct` 大→小 → code 字母序；`rank` 為 1 起排序位置。**不產出 0–100 分數**；`state` 只有觀察語言（`candidate` / `watch` / `avoid` / `overheated`）。每筆（含 excluded）必有 `reasons`；candidate 另有 `risk_notes`。
+**排序**：`dist_ma20_pct` 小→大（防追高排序化）→ `change_20d_pct` 大→小 → code 字母序；`rank` 為 1 起排序位置。candidate / excluded 同步回傳 `ma20`、`ma60`、`rsi14`、`dist_ma20_pct`、`change_20d_pct`，供前端與報告呈現既有規則使用，不代表新增進出場契約。**不產出 0–100 分數**；`state` 只有觀察語言（`candidate` / `watch` / `avoid` / `overheated`）。每筆（含 excluded）必有 `reasons`；candidate 另有 `risk_notes`。
 
 ### `GET /api/markets/us/strategy/w-bottom`
 
@@ -1431,7 +1452,7 @@ Query：`start=YYYY-MM-DD&end=YYYY-MM-DD`。依指定日期區間同時執行 `u
 
 ### `GET /api/system/strategy-validation`
 
-讀取最近一份台股 walk-forward 投組驗收報告。除合併、老王、穩健動能三組結果外，每組會帶 `entry_guardrails`、逐日 `risk_by_day`、`skipped_entry_count` 與可稽核的 `skipped_entries`。略過紀錄包含訊號日、預定成交日、股票與原因；賣出／減碼規則不受此層影響。
+讀取最近一份台股 walk-forward 投組驗收報告。頂層 `available_report_count` 表示目前保存的有效報告份數；除合併、老王、穩健動能三組結果外，每組會帶 `entry_guardrails`、逐日 `risk_by_day`、`skipped_entry_count` 與可稽核的 `skipped_entries`。略過紀錄包含訊號日、預定成交日、股票與原因；賣出／減碼規則不受此層影響。
 
 ### `POST /api/system/strategy-validation?start=YYYY-MM-DD&end=YYYY-MM-DD`
 

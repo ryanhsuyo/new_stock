@@ -30,3 +30,11 @@
 - [x] 共用驗收入口與日期操作，顯示 USD、US market 與 US 策略限制。
 - [x] fixture smoke test、完整 pytest、frontend build 與桌面瀏覽器流程驗收。
 - [ ] 補手機寬度 RWD 瀏覽器驗收。
+
+## Phase 5 — Daily practical action report
+
+- [x] trend-follow response 回傳既有 MA20 / MA60 / RSI / 乖離 / 20 日變化欄位，供報告解釋決策。
+- [x] 報告區分紙上追蹤、等待條件、原始觸發已過三種動作。
+- [x] W 底只有 fresh breakout + gate active 可進紙上追蹤；既有突破不追價。
+- [x] 以固定日期重播驗證「今日動作」在歷史 as-of 下沒有未來資料洩漏。
+- [x] 將日常報告拆成 US 10:00 與 TW 15:40 兩個獨立排程及 artifact；TW 混合資料日不輸出動作清單。

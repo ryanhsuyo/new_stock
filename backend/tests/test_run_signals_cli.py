@@ -41,6 +41,7 @@ def test_run_signals_daily_check_refresh_includes_today_scan_and_alerts(monkeypa
     import run_signals
 
     captured = {}
+    refresh_calls = []
 
     monkeypatch.setattr(run_signals, "build_doctor_report", lambda backend: {"overall_status": "ok"})
     monkeypatch.setattr(run_signals, "load_signal_alerts", lambda out_dir: {"alert_count": 1})
@@ -51,12 +52,18 @@ def test_run_signals_daily_check_refresh_includes_today_scan_and_alerts(monkeypa
         lambda report, **kwargs: captured.setdefault("kwargs", kwargs) or {"overall_status": "ok"},
     )
     monkeypatch.setattr(run_signals, "write_daily_summary", lambda summary, backend: backend / "out" / "daily_check.json")
+    monkeypatch.setattr(
+        run_signals,
+        "refresh_today_scan_usage_status",
+        lambda out_dir: refresh_calls.append(out_dir),
+    )
 
     path = run_signals.write_daily_check_report()
 
     assert path.name == "daily_check.json"
     assert captured["kwargs"]["signal_alerts"] == {"alert_count": 1}
     assert captured["kwargs"]["today_scan"] == {"as_of": "2026-06-26"}
+    assert refresh_calls == [run_signals._BACKEND / "out"]
 
 
 def test_run_signals_daily_check_refresh_includes_manual_market_note_summary(monkeypatch):
@@ -81,6 +88,7 @@ def test_run_signals_daily_check_refresh_includes_manual_market_note_summary(mon
         lambda report, **kwargs: captured.setdefault("kwargs", kwargs) or {"overall_status": "ok"},
     )
     monkeypatch.setattr(run_signals, "write_daily_summary", lambda summary, backend: backend / "out" / "daily_check.json")
+    monkeypatch.setattr(run_signals, "refresh_today_scan_usage_status", lambda out_dir: None)
 
     run_signals.write_daily_check_report()
 

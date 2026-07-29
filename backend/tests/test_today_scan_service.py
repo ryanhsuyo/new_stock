@@ -356,6 +356,68 @@ def test_refresh_today_scan_usage_status_preserves_candidates(tmp_path):
     assert snapshot["usage_status"] == loaded["usage_status"]
 
 
+def test_today_scan_blocks_trade_outputs_when_universe_dates_are_mixed(tmp_path):
+    from app.services.today_scan_service import build_today_scan_report
+
+    out = tmp_path / "out"
+    out.mkdir()
+    (out / "summary.json").write_text(
+        json.dumps({"as_of": "2026-07-29", "generated_at": "2026-07-29T15:40:00+08:00"}),
+        encoding="utf-8",
+    )
+    (out / "daily_check.json").write_text(
+        json.dumps({"can_use_trade_outputs": True, "top_actions": []}),
+        encoding="utf-8",
+    )
+    (out / "universe_report.csv").write_text(
+        "code,name,data_as_of,internal_signal,daily_action\n"
+        "2330,台積電,2026-07-29,watchlist,watch\n"
+        "6223,旺矽,2026-07-28,ready_to_enter,enter\n",
+        encoding="utf-8",
+    )
+
+    report = build_today_scan_report(out)
+
+    assert report["data_freshness"]["fresh_count"] == 1
+    assert report["data_freshness"]["stale_count"] == 1
+    assert report["usage_status"]["can_use_trade_outputs"] is False
+    assert report["usage_status"]["status"] == "blocked_by_mixed_data_dates"
+    assert report["usage_status"]["blocking_action_key"] == "mixed_data_dates"
+
+
+def test_today_scan_marks_market_block_candidates_as_observation_only(tmp_path):
+    from app.services.today_scan_service import build_today_scan_report
+
+    out = tmp_path / "out"
+    out.mkdir()
+    (out / "summary.json").write_text(
+        json.dumps({
+            "as_of": "2026-07-29",
+            "market_context": {
+                "old_wang_market_filter": "block",
+                "old_wang_market_reason": "加權指數未站上短均線",
+            },
+        }),
+        encoding="utf-8",
+    )
+    (out / "daily_check.json").write_text(
+        json.dumps({"can_use_trade_outputs": True, "top_actions": []}),
+        encoding="utf-8",
+    )
+    (out / "universe_report.csv").write_text(
+        "code,name,data_as_of,old_wang_flag,internal_signal,daily_action\n"
+        "2892,第一金,2026-07-29,true,watchlist,watch\n",
+        encoding="utf-8",
+    )
+
+    report = build_today_scan_report(out)
+
+    assert report["usage_status"]["can_use_trade_outputs"] is True
+    assert report["usage_status"]["status"] == "observation_only_market_block"
+    assert report["usage_status"]["blocking_action_key"] == "old_wang_market_filter"
+    assert "不是今日進場清單" in report["usage_status"]["reason"]
+
+
 def test_write_and_load_today_scan_round_trip(tmp_path):
     from app.services.today_scan_service import load_today_scan_report, write_today_scan_report
 

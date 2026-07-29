@@ -25,6 +25,7 @@ OUT_DIR="${BACKEND_DIR}/out"
 # 依賴（pandas / requests 等）本機裝在 python3.11——優先使用，避免抓到系統 python
 PYTHON_BIN="${PYTHON_BIN:-$(command -v python3.11 || command -v python3)}"
 WRAPPER="${SCRIPT_DIR}/scheduled_update.py"
+REPORT_WRAPPER="${SCRIPT_DIR}/scheduled_strategy_report.py"
 
 # ── 前置檢查 ──────────────────────────────────────────────────────────────
 
@@ -54,6 +55,8 @@ echo "  Wrapper    : ${WRAPPER}"
 echo "  觸發機制   : 開機時 + 每小時檢查（錯過自動補跑、日成功一次即止）"
 echo "  台股目標   : 15:30 → daily_update.py --months 1"
 echo "  美股目標   : 08:30 → backfill_ohlcv_us.py --months 1"
+echo "  美股報告   : 10:00 → 刷新美股後產生獨立報告"
+echo "  台股報告   : 15:40 → 等 15:30 日常更新後刷新並產生獨立報告"
 echo "  執行紀錄   : ${OUT_DIR}/scheduled_update_{tw,us}.log"
 echo ""
 if [[ "${ASSUME_YES:-0}" != "1" ]]; then
@@ -123,6 +126,48 @@ PLIST
 
 install_agent "tw" "com.stockapp.daily-update" "${OUT_DIR}/update.launchd.log"
 install_agent "us" "com.stockapp.us-update"    "${OUT_DIR}/us_update.launchd.log"
+
+install_report_agent() {
+    local market="$1" hour="$2" minute="$3" label="$4" launchd_log="$5"
+    local plist_path="${HOME}/Library/LaunchAgents/${label}.plist"
+
+    cat > "${plist_path}" <<PLIST
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN"
+  "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>Label</key><string>${label}</string>
+    <key>ProgramArguments</key>
+    <array>
+        <string>${PYTHON_BIN}</string>
+        <string>${REPORT_WRAPPER}</string>
+        <string>--market</string><string>${market}</string>
+    </array>
+    <key>RunAtLoad</key><true/>
+    <key>StartInterval</key><integer>3600</integer>
+    <key>StartCalendarInterval</key>
+    <dict>
+        <key>Hour</key><integer>${hour}</integer>
+        <key>Minute</key><integer>${minute}</integer>
+    </dict>
+    <key>WorkingDirectory</key><string>${BACKEND_DIR}</string>
+    <key>StandardOutPath</key><string>${launchd_log}</string>
+    <key>StandardErrorPath</key><string>${launchd_log}</string>
+</dict>
+</plist>
+PLIST
+
+    if launchctl list 2>/dev/null | grep -q "${label}"; then
+        launchctl unload "${plist_path}" 2>/dev/null || true
+    fi
+    rm -f "${launchd_log}"
+    launchctl load "${plist_path}"
+    echo "✓ ${label} 已載入（${hour}:$(printf '%02d' "${minute}")，--market ${market}）"
+}
+
+install_report_agent "us" 10 0 "com.stockapp.us-strategy-report" "${OUT_DIR}/strategy_report_us.launchd.log"
+install_report_agent "tw" 15 40 "com.stockapp.tw-strategy-report" "${OUT_DIR}/strategy_report_tw.launchd.log"
 
 # ── 完成提示 ─────────────────────────────────────────────────────────────
 

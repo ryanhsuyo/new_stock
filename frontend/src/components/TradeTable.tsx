@@ -1,17 +1,19 @@
 import { useEffect, useState } from 'react'
 import { api } from '../api/client'
-import type { TradeRecord, TradingSettings } from '../types'
+import type { TradeIntegrityItem, TradeRecord, TradingSettings } from '../types'
 import { DEFAULT_TRADING_SETTINGS, tradeRecordAmounts } from '../utils/tradingFees'
 
 interface Props {
   trades: TradeRecord[]
+  integrity?: Map<string, TradeIntegrityItem>
+  onEdit?: (trade: TradeRecord) => void
 }
 
 function fmtMoney(value: number) {
   return value.toLocaleString(undefined, { maximumFractionDigits: 0 })
 }
 
-export default function TradeTable({ trades }: Props) {
+export default function TradeTable({ trades, integrity, onEdit }: Props) {
   const [settings, setSettings] = useState<TradingSettings>(DEFAULT_TRADING_SETTINGS)
 
   useEffect(() => {
@@ -38,12 +40,14 @@ export default function TradeTable({ trades }: Props) {
             <th>手續費</th>
             <th>證交稅</th>
             <th>實付 / 實收</th>
+            <th>資料檢查</th>
             <th>備註</th>
           </tr>
         </thead>
         <tbody>
           {sorted.map(t => {
             const amounts = tradeRecordAmounts(t, settings)
+            const check = integrity?.get(t.id)
             return (
               <tr key={t.id}>
                 <td>{t.date}</td>
@@ -63,6 +67,13 @@ export default function TradeTable({ trades }: Props) {
                 <td>{amounts.tax > 0 ? fmtMoney(amounts.tax) : '—'}</td>
                 <td className={t.trade_type === 'buy' ? 'down' : 'up'}>
                   {fmtMoney(amounts.net)}
+                </td>
+                <td>
+                  <span className={`trade-integrity ${check?.status ?? 'unverified'}`}>
+                    {check?.status === 'ok' ? '價格範圍正常' : check?.status === 'warning' ? '價格待確認' : '無同日行情'}
+                  </span>
+                  {check && <small className="trade-integrity-note">{check.reason}</small>}
+                  {onEdit && <button className="btn trade-edit-btn" type="button" onClick={() => onEdit(t)}>修正這筆</button>}
                 </td>
                 <td className="td-note">{t.note || '—'}</td>
               </tr>

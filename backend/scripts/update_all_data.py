@@ -119,6 +119,7 @@ def setup_logging(log_file: Path | None) -> None:
 def write_daily_check_report(backend: Path = _BACKEND) -> Path:
     """更新流程結束後寫出 PM Daily Check 快照，供 Dashboard 讀取。"""
     import doctor
+    from app.services.today_scan_service import refresh_today_scan_usage_status
 
     report = doctor.build_doctor_report(backend)
     summary = build_daily_summary(
@@ -128,7 +129,9 @@ def write_daily_check_report(backend: Path = _BACKEND) -> Path:
         today_scan=load_today_scan_report(backend / "out"),
         signals_summary=load_summary_for_daily_check(backend),
     )
-    return write_daily_summary(summary, backend)
+    path = write_daily_summary(summary, backend)
+    refresh_today_scan_usage_status(backend / "out")
+    return path
 
 
 def _run_full_update_cli(months: int) -> dict:

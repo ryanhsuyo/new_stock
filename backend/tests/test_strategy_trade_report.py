@@ -94,3 +94,305 @@ def test_split_market_trades_separates_us_tickers():
 
     assert [item["stock_id"] for item in tw] == ["2337"]
     assert [item["stock_id"] for item in us] == ["AAPL"]
+
+
+def test_parse_args_supports_independent_market_reports():
+    assert report.parse_args(["--market", "us"]).market == "us"
+    assert report.parse_args(["--market", "tw"]).market == "tw"
+    assert report.parse_args([]).market == "all"
+
+
+def test_combined_report_keeps_tw_and_us_sections_separate():
+    result = report.build_combined_report("# 台股報告\n台股內容", "# 美股報告\n美股內容")
+
+    assert result.startswith("# New Stock 策略報告")
+    assert "台股實際交易復盤與美股觀察策略，兩者不混算績效" in result
+    assert "# 台股報告\n台股內容\n\n---\n\n# 美股報告\n美股內容" in result
+
+
+def test_us_replay_rows_use_reader_facing_labels(monkeypatch):
+    monkeypatch.setattr(report, "_read_replay_summary", lambda _path: {})
+
+    rows = report._us_replay_rows()
+
+    assert [row[0] for row in rows] == [
+        "趨勢延續｜敏感出場",
+        "趨勢延續｜保護線",
+        "W 底突破",
+        "突破策略｜偏差檢查",
+    ]
+    assert all("us_" not in cell for row in rows for cell in row)
+    assert all("evaluation-only" not in cell for row in rows for cell in row)
+
+
+def test_only_fresh_gate_passed_signals_reach_the_enter_bucket():
+    trend = {
+        "market_gate": {"bias": "bullish", "active": True},
+        "candidates": [{
+            "code": "RTX", "name": "RTX", "state": "candidate", "close": 100,
+            "ma20": 98, "ma60": 90, "reasons": ["多頭排列"],
+        }],
+    }
+    wbottom = {
+        "market_gate": {"active": True},
+        "patterns": [{
+            "code": "AMZN", "name": "Amazon", "state": "breakout_today",
+            "state_label": "今日突破頸線", "close": 110, "neckline": 108,
+            "pattern_low": 95, "target_price": 121, "reasons": ["今日突破"],
+        }],
+    }
+
+    rows = report._us_watch_rows(trend, wbottom)
+
+    assert all(row.bucket == report.BUCKET_ENTER for row in rows)
+    assert all(row.action.startswith("可紙上追蹤") for row in rows)
+    assert "MA20 98" in rows[0].trigger
+    assert "MA60 90" in rows[0].invalidation
+
+
+def test_stale_and_gate_blocked_signals_fall_into_watch_not_enter():
+    trend = {
+        "market_gate": {"bias": "bearish", "active": False},
+        "candidates": [{
+            "code": "RTX", "name": "RTX", "state": "candidate", "close": 100,
+            "ma20": 98, "ma60": 90, "reasons": [],
+        }],
+    }
+    wbottom = {
+        "market_gate": {"active": False},
+        "patterns": [
+            _wbottom_pattern("GD", "breakout_in_progress", 389.14),
+            _wbottom_pattern("KO", "breakout_today", 84.07),
+        ],
+    }
+
+    buckets = {row.code: row.bucket for row in report._us_watch_rows(trend, wbottom)}
+
+    assert buckets == {"RTX": report.BUCKET_WATCH, "GD": report.BUCKET_WATCH, "KO": report.BUCKET_WATCH}
+
+
+def test_a_ticker_never_lands_in_two_buckets():
+    trend = {
+        "market_gate": {"bias": "bullish", "active": True},
+        "candidates": [{
+            "code": "AMZN", "name": "Amazon", "state": "candidate", "close": 1,
+            "ma20": 0.95, "ma60": 0.9, "reasons": [],
+        }],
+    }
+    wbottom = {
+        "market_gate": {"active": True},
+        "patterns": [_wbottom_pattern("AMZN", "breakout_today", 1.0)],
+    }
+
+    rows = report._us_watch_rows(trend, wbottom)
+
+    assert len(rows) == 1
+    assert rows[0].strategy == "趨勢延續"
+
+
+def test_us_daily_decision_blocks_new_tracking_when_both_gates_are_closed():
+    trend = {"market_gate": {"active": False, "bias": "bearish"}}
+    wbottom = {"market_gate": {"active": False}}
+
+    result = report._us_daily_decision(trend, wbottom, actionable_count=0)
+
+    assert result.startswith("今日不新增紙上追蹤")
+    assert "趨勢濾網＝偏空" in result
+    assert "只追蹤、不追價" in result
+
+
+def test_us_daily_decision_reports_fresh_actionable_signals():
+    result = report._us_daily_decision({}, {}, actionable_count=2)
+
+    assert "今日有 2 檔當日新訊號可進入紙上追蹤" in result
+
+
+def test_tw_daily_and_audit_reports_have_separate_responsibilities(monkeypatch):
+    monkeypatch.setattr(report, "_tw_report_freshness", lambda: {
+        "expected_as_of": "2026-07-23",
+        "row_count": 76,
+        "stale_count": 0,
+        "stale_items": [],
+        "is_complete": True,
+    })
+    monkeypatch.setattr(report, "build_closed_trades", lambda _trades: ([], []))
+    monkeypatch.setattr(report, "_trade_price_warnings", lambda _trades: [["warning"]])
+    monkeypatch.setattr(report, "_tw_entry_check_rows", lambda _trades: [])
+    monkeypatch.setattr(report, "_tw_current_rows", lambda: (
+        [["台積電 2330", "可小試", "ready", "100", "98–102", "95", "112", "條件成立"]],
+        [],
+        "allow",
+    ))
+    monkeypatch.setattr(report, "_load_json", lambda *_args: {"as_of": "2026-07-23"})
+
+    daily = report.build_tw_report([])
+    audit = report.build_tw_audit_report([])
+
+    assert "# 台股每日行動報告" in daily
+    assert "今日可能進場" in daily
+    assert "逐筆進場合規檢核" not in daily
+    assert "績效目前只能視為暫估" in daily
+    assert "# 台股歷史交易稽核" in audit
+    assert "逐筆進場合規檢核" in audit
+    assert "今日可能進場" not in audit
+
+
+def test_tw_daily_report_blocks_candidates_when_universe_dates_are_mixed(monkeypatch):
+    monkeypatch.setattr(report, "_tw_report_freshness", lambda: {
+        "expected_as_of": "2026-07-29",
+        "row_count": 76,
+        "stale_count": 1,
+        "stale_items": [{"code": "9999", "name": "舊資料候選", "data_as_of": "2026-07-28"}],
+        "is_complete": False,
+    })
+    monkeypatch.setattr(report, "build_closed_trades", lambda _trades: ([], []))
+    monkeypatch.setattr(report, "_trade_price_warnings", lambda _trades: [])
+    monkeypatch.setattr(report, "_tw_current_rows", lambda: (
+        [["舊資料候選 9999", "可小試", "ready", "100", "98–102", "95", "112", "條件成立"]],
+        [["舊資料風險 8888", "降風險", "exit", "80", "78", "條件轉弱"]],
+        "allow",
+    ))
+    monkeypatch.setattr(report, "_load_json", lambda *_args: {"as_of": "2026-07-29"})
+
+    daily = report.build_tw_report([])
+
+    assert "今日動作清單暫停輸出" in daily
+    assert "逐股資料日未完全一致" in daily
+    assert "舊資料候選 9999 |" not in daily
+    assert "舊資料風險 8888 |" not in daily
+
+
+def test_tw_daily_rows_translate_internal_signal_and_market_filter(monkeypatch):
+    monkeypatch.setattr(report, "_latest_tw_actions", lambda: (
+        [],
+        [{
+            "name": "南亞",
+            "code": "1303",
+            "daily_action_label": "暫不進場",
+            "internal_signal": "exit_warning",
+            "close": "141.5",
+            "support_price": "157",
+            "daily_action_reason": "跌破支撐",
+        }],
+        [{"old_wang_market_filter": "block"}],
+    ))
+
+    _entries, exits, market_filter = report._tw_current_rows()
+
+    assert exits[0][2] == "出場警示"
+    assert market_filter == "風險模式"
+
+
+def test_us_report_lists_each_ticker_in_exactly_one_bucket(monkeypatch):
+    patterns = [
+        _wbottom_pattern("AMZN", "breakout_in_progress", 100.0, neckline=99.0),
+        _wbottom_pattern("NVDA", "forming", 100.0, neckline=105.0),
+        _wbottom_pattern("VRT", "forming", 100.0, neckline=125.0),
+    ]
+
+    result = _us_report_with(patterns, monkeypatch)
+
+    for code in ("AMZN", "NVDA", "VRT"):
+        assert result.count(f"{code} {code} |") == 1, code
+
+
+def _wbottom_pattern(code: str, state: str, close: float, **overrides) -> dict:
+    pattern = {
+        "code": code, "name": code, "state": state, "state_label": state,
+        "close": close, "neckline": close * 1.05, "pattern_low": close * 0.9,
+        "target_price": close * 1.2, "reasons": [f"{code} 理由"],
+    }
+    pattern.update(overrides)
+    return pattern
+
+
+def _us_report_with(patterns: list[dict], monkeypatch) -> str:
+    monkeypatch.setattr(report, "_current_us_status", lambda **_kwargs: (
+        {"last_data_as_of": "2026-07-27"},
+        {"as_of": "2026-07-27", "market_gate": {"bias": "bearish", "active": False}, "candidates": []},
+        {"market_gate": {"active": False}, "patterns": patterns},
+    ))
+    monkeypatch.setattr(report, "_read_replay_summary", lambda _path: {})
+    return report.build_us_report([])
+
+
+def test_us_report_surfaces_invalidated_patterns_instead_of_dropping_them(monkeypatch):
+    # 曾追蹤、現在條件已破壞的型態如果不列出，讀者會以為它還在觀察名單裡
+    patterns = [
+        _wbottom_pattern("AMZN", "invalidated", 231.39, pattern_low=233.59),
+        _wbottom_pattern("PG", "forming", 148.63),
+    ]
+
+    result = _us_report_with(patterns, monkeypatch)
+    changed_section = result.split("## 已失效 / 狀態變化")[1].split("## ")[0]
+
+    assert "AMZN" in changed_section
+    assert "已失效 1 檔" in result
+    # 分桶數必須加總回全部型態，否則就是又有標的被靜靜丟掉
+    assert "合計 2 檔，涵蓋全部追蹤標的" in result
+
+
+def test_forming_patterns_split_between_watch_and_ignore_by_distance(monkeypatch):
+    near = _wbottom_pattern("PG", "forming", 100.0, neckline=103.0)
+    far = _wbottom_pattern("VRT", "forming", 100.0, neckline=125.0)
+
+    result = _us_report_with([far, near], monkeypatch)
+    watch_section = result.split("## 今日觀望")[1].split("## ")[0]
+    ignore_section = result.split("## 今日不必看")[1].split("## ")[0]
+
+    assert "PG" in watch_section and "VRT" not in watch_section
+    assert "VRT" in ignore_section and "PG" not in ignore_section
+    assert "等突破：離頸線 +3.0%" in watch_section
+
+
+def test_watch_row_prices_carry_distance_and_reward_risk():
+    wbottom = {
+        "market_gate": {"active": False},
+        "patterns": [_wbottom_pattern(
+            "GD", "breakout_in_progress", 389.14,
+            neckline=367.0, pattern_low=335.02, target_price=398.98,
+        )],
+    }
+
+    row = report._us_watch_rows({"market_gate": {}, "candidates": []}, wbottom)[0]
+
+    assert "（+2.5%）" in row.target          # 觀察目標只剩 2.5% 空間
+    assert "（-13.9%）" in row.invalidation   # 失效距離 13.9%
+    assert row.reward_risk == "1 : 0.2"      # 上檔遠小於下檔，不值得追進
+
+
+def test_reward_risk_reports_no_room_when_target_is_already_passed():
+    assert report._reward_risk(110.0, 108.0, 90.0) == "已無空間"
+    assert report._reward_risk(None, 108.0, 90.0) == "—"
+
+
+def test_invalidation_reason_explains_current_failure_not_old_breakout():
+    pattern = _wbottom_pattern(
+        "AMZN", "invalidated", 231.39, pattern_low=233.59, breakout_date="2026-07-20",
+        reasons=["2026-07-20 收盤 249.99 突破頸線 249.71"],
+    )
+
+    reason = report._invalidation_reason(pattern)
+
+    assert "跌破型態低 233.59" in reason
+    assert "低 0.9%" in reason
+    assert "突破頸線" not in reason
+
+
+def test_report_translates_market_gate_jargon(monkeypatch):
+    result = _us_report_with([_wbottom_pattern("PG", "forming", 100.0)], monkeypatch)
+
+    assert "bearish" not in result
+    assert "偏空" in result
+
+
+def test_invalidated_row_drops_prices_that_no_longer_mean_anything():
+    wbottom = {"market_gate": {"active": False}, "patterns": [
+        _wbottom_pattern("AMZN", "invalidated", 231.39, pattern_low=233.59, target_price=265.83),
+    ]}
+
+    row = report._us_watch_rows({"market_gate": {}, "candidates": []}, wbottom)[0]
+
+    assert row.bucket == report.BUCKET_DEAD
+    assert (row.trigger, row.target, row.reward_risk) == ("—", "—", "—")
+    assert row.invalidation == "已跌破型態低 233.59"

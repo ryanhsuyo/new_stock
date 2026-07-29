@@ -17,3 +17,10 @@
 ## Auditability
 
 每個 mode 回傳 `entry_guardrails`、`skipped_entries`、`skipped_entry_count` 與每日 `risk_level`。略過原因區分盤前風險、每日名額、單檔／總曝險與缺資料。
+
+## Planned stop execution
+
+- 進場排程保存訊號日已產生的 `stop_price`，成交後隨持倉保存，不重新用未來資料計算。
+- 自下一交易日起，若開盤已低於停損，使用開盤價加既有賣出滑價估算；若盤中低點穿越停損，使用停損價加既有賣出滑價估算。
+- 計畫停損先於日線 exit 排程執行，避免同一持倉重複賣出。
+- 此規則只修正 evaluation 回放與報告一致性，不改 production 候選、分數或下單行為。

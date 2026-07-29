@@ -224,7 +224,32 @@ def _bucket_notes() -> dict[str, str]:
     }
 
 
-def _usage_status(out_dir: Path, *, has_candidates: bool) -> dict[str, Any]:
+def _usage_status(
+    out_dir: Path,
+    *,
+    has_candidates: bool,
+    data_freshness: dict[str, Any] | None = None,
+    market_context: dict[str, Any] | None = None,
+) -> dict[str, Any]:
+    freshness = data_freshness or {}
+    row_count = int(freshness.get("row_count") or 0)
+    fresh_count = int(freshness.get("fresh_count") or 0)
+    if data_freshness is not None and (row_count == 0 or fresh_count != row_count):
+        expected = str(freshness.get("expected_as_of") or "今日")
+        stale_count = int(freshness.get("stale_count") or 0)
+        missing_count = int(freshness.get("missing_date_count") or 0)
+        return {
+            "can_use_trade_outputs": False,
+            "status": "blocked_by_mixed_data_dates",
+            "headline": "Today Scan 資料日未對齊，交易輸出暫不可用",
+            "reason": (
+                f"預期資料日 {expected}，共 {row_count} 檔中僅 {fresh_count} 檔對齊；"
+                f"落後 {stale_count} 檔、缺日期 {missing_count} 檔。"
+            ),
+            "next_action": "完成當日資料更新，確認全部追蹤股票資料日一致後再看候選。",
+            "blocking_action_key": "mixed_data_dates",
+            "blocking_action_status": "block",
+        }
     daily_check = _read_json(out_dir / "daily_check.json")
     top_actions = daily_check.get("top_actions") if isinstance(daily_check.get("top_actions"), list) else []
     blocker = next(
@@ -246,6 +271,20 @@ def _usage_status(out_dir: Path, *, has_candidates: bool) -> dict[str, Any]:
             "next_action": str((blocker or {}).get("next_action") or "先處理 Daily Check block 項目。"),
             "blocking_action_key": (blocker or {}).get("key"),
             "blocking_action_status": (blocker or {}).get("status"),
+        }
+    if str((market_context or {}).get("old_wang_market_filter") or "").lower() == "block":
+        reason = str(
+            (market_context or {}).get("old_wang_market_reason")
+            or "大盤短均線條件未通過"
+        )
+        return {
+            "can_use_trade_outputs": True,
+            "status": "observation_only_market_block",
+            "headline": "Today Scan 只供觀察與風險處理",
+            "reason": f"老王大盤濾網為 block：{reason}。觀察名單不是今日進場清單。",
+            "next_action": "先處理風險項目；短波段不新增多單，等待大盤濾網解除。",
+            "blocking_action_key": "old_wang_market_filter",
+            "blocking_action_status": "block",
         }
     if not has_candidates:
         return {
@@ -321,7 +360,12 @@ def build_today_scan_report(out_dir: Path | None = None, *, limit: int = DEFAULT
         "old_wang_candidates": old_wang_candidates,
         "steady_momentum_candidates": steady_momentum_candidates,
         "risk_items": risk_items,
-        "usage_status": _usage_status(out_dir, has_candidates=has_candidates),
+        "usage_status": _usage_status(
+            out_dir,
+            has_candidates=has_candidates,
+            data_freshness=data_freshness,
+            market_context=market_context,
+        ),
         "bucket_notes": _bucket_notes(),
         "data_freshness": data_freshness,
         "notes": _notes(summary, market_context, universe_rows, data_freshness),
@@ -353,7 +397,12 @@ def refresh_today_scan_usage_status(out_dir: Path | None = None) -> bool:
         payload.get(key)
         for key in ("formal_entries", "old_wang_candidates", "steady_momentum_candidates", "risk_items")
     )
-    payload["usage_status"] = _usage_status(out_dir, has_candidates=has_candidates)
+    payload["usage_status"] = _usage_status(
+        out_dir,
+        has_candidates=has_candidates,
+        data_freshness=payload.get("data_freshness") if isinstance(payload.get("data_freshness"), dict) else None,
+        market_context=payload.get("market_context") if isinstance(payload.get("market_context"), dict) else None,
+    )
     atomic_write_text(path, json.dumps(payload, ensure_ascii=False, indent=2))
     as_of = str(payload.get("as_of") or "").strip()
     if as_of:

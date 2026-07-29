@@ -146,13 +146,18 @@ def _soft_gate(ohlcv: dict[str, list[dict]]) -> dict:
     }
 
 
-def get_us_wbottom() -> dict:
+def get_us_wbottom(as_of: str | None = None) -> dict:
     """
     W 底型態觀察總表（唯讀、描述性）。每檔非 ETF 股票掃描最近 TRACK_BARS 根內的
     突破事件並分類；無突破則看是否有「形成中」型態。無型態者只計數不逐檔列出
     （多數股票多數時間沒有 W 底，缺席是常態不是錯誤）。
     """
     ohlcv = load_us_ohlcv()
+    if as_of:
+        ohlcv = {
+            code: [row for row in rows if row["date"] <= as_of]
+            for code, rows in ohlcv.items()
+        }
     leaders = load_us_leaders()
     stocks = [it for it in leaders if it.get("category") != ETF_CATEGORY]
     gate = _soft_gate(ohlcv)

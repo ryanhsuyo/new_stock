@@ -1,4 +1,6 @@
 import app.services.pre_market_risk_service as svc
+from datetime import datetime
+from zoneinfo import ZoneInfo
 
 
 def _rows(previous: float, latest: float, latest_date: str = "2026-07-16") -> list[dict]:
@@ -45,6 +47,57 @@ def test_stale_data_never_reports_normal(monkeypatch):
     assert report["level"] == "unknown"
     assert report["can_open_new_positions"] is False
     assert report["max_exposure_pct"] is None
+
+
+def test_zero_score_is_labeled_not_triggered_instead_of_safe(monkeypatch):
+    monkeypatch.setattr(svc, "load_us_ohlcv", lambda: {
+        "QQQ": _rows(100, 101), "TSM": _rows(100, 101), "SPY": _rows(100, 101),
+    })
+    monkeypatch.setattr(svc, "load_market_notes", lambda: [])
+    monkeypatch.setattr(svc, "get_us_data_freshness", _fresh)
+
+    report = svc.get_pre_market_risk_report()
+
+    assert report["level"] == "normal"
+    assert report["level_label"] == "未觸發額外防守"
+    assert "不代表今日不會大跌" in report["headline"]
+    assert "市場安全" in " ".join(report["limitations"])
+
+
+def test_official_events_are_sorted_and_do_not_change_risk_score(monkeypatch):
+    monkeypatch.setattr(svc, "load_official_market_events", lambda: {
+        "verified_at": "2026-07-29",
+        "verification_note": "fixture",
+        "events": [
+            {
+                "id": "later", "title": "稍後事件", "scheduled_at": "2026-08-01T20:30:00+08:00",
+                "importance": "medium", "source_label": "官方", "source_url": "https://example.test/later",
+            },
+            {
+                "id": "today", "title": "今日事件", "scheduled_at": "2026-07-29T20:30:00+08:00",
+                "importance": "high", "source_label": "官方", "source_url": "https://example.test/today",
+            },
+        ],
+    })
+    summary = svc._official_event_summary(datetime(2026, 7, 29, 9, 0, tzinfo=ZoneInfo("Asia/Taipei")))
+
+    assert [item["id"] for item in summary["events"]] == ["today", "later"]
+    assert summary["events"][0]["date_label"] == "今日"
+    assert summary["is_stale"] is False
+    assert "不直接加入風險分數" in summary["scoring_note"]
+
+
+def test_official_event_list_marks_old_verification_stale(monkeypatch):
+    monkeypatch.setattr(svc, "load_official_market_events", lambda: {
+        "verified_at": "2026-07-01",
+        "verification_note": "fixture",
+        "events": [],
+    })
+
+    summary = svc._official_event_summary(datetime(2026, 7, 29, 9, 0, tzinfo=ZoneInfo("Asia/Taipei")))
+
+    assert summary["verification_age_days"] == 28
+    assert summary["is_stale"] is True
 
 
 def test_recent_manual_event_adds_risk_without_becoming_a_trade(monkeypatch):

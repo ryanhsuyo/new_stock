@@ -1,4 +1,4 @@
-import type { BuyRequest, DailyBrief, DailyCheckReport, DataStatus, DecisionJournalBulkCreateResult, DecisionJournalCreate, DecisionJournalEntry, DecisionJournalSummary, FundamentalsPriorityMergeResult, FundamentalsStatus, HoldingAnalysis, IntradayMonitor, ManualWatchlistReview, MarketNoteInput, MarketNoteSaveResult, OfficialFundamentalsCoverageAudit, OfficialFundamentalsReportsResult, OfficialFundamentalsStatus, PmWorklist, PortfolioSummary, Position, PreMarketRiskReport, RecommendationStrategy, SellRequest, SignalAlertReviewStatus, SignalsSummary, SignalsStatus, Stats, StockAnalysis, StockRecommendation, StockTrackingResult, StockUniverseItem, StrategyValidationReport, StrategyValidationRunStatus, TodayScanReport, TradeRecord, TradingSettings, UniverseReportItem, UniverseReportReviewWorkflow, UpdateWorkflowStatus, UsAnalysisItem, UsDataFreshness, UsMarketStatus, UsStockAnalysis, UsStrategyValidationReport, UsTrendFollow, UsUniverseItem, UsUpdateStatus, UsWatchSignals, UsWbottom, WatchlistGroup, WorkflowStatus } from '../types'
+import type { BuyRequest, DailyBrief, DailyCheckReport, DataStatus, DecisionJournalBulkCreateResult, DecisionJournalCreate, DecisionJournalEntry, DecisionJournalSummary, FundamentalsPriorityMergeResult, FundamentalsStatus, HoldingAnalysis, IntradayMonitor, ManualWatchlistReview, MarketNoteInput, MarketNoteSaveResult, OfficialFundamentalsCoverageAudit, OfficialFundamentalsReportsResult, OfficialFundamentalsStatus, PmWorklist, PortfolioSummary, Position, PreMarketRiskReport, RecommendationStrategy, SellRequest, SignalAlertReviewStatus, SignalsSummary, SignalsStatus, Stats, StockAnalysis, StockRecommendation, StockTrackingResult, StockUniverseItem, StrategyValidationReport, StrategyValidationRunStatus, TodayScanReport, TradeIntegrityReport, TradeRecord, TradeUpdateRequest, TradingSettings, UniverseReportItem, UniverseReportReviewWorkflow, UpdateWorkflowStatus, UsAnalysisItem, UsDataFreshness, UsMarketStatus, UsStockAnalysis, UsStrategyValidationReport, UsTrendFollow, UsUniverseItem, UsUpdateStatus, UsWatchSignals, UsWbottom, WatchlistGroup, WorkflowStatus } from '../types'
 
 const BASE = '/api'
 
@@ -28,6 +28,12 @@ export const api = {
 
   getTrades: () =>
     request<TradeRecord[]>('/trades'),
+
+  getTradeIntegrity: () =>
+    request<TradeIntegrityReport>('/trades/integrity'),
+
+  updateTrade: (tradeId: string, req: TradeUpdateRequest) =>
+    request<TradeRecord>(`/trades/${encodeURIComponent(tradeId)}`, { method: 'PATCH', ...json(req) }),
 
   buyStock: (req: BuyRequest) =>
     request<TradeRecord>('/trades/buy', { method: 'POST', ...json(req) }),

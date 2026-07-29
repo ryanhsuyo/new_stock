@@ -2741,6 +2741,19 @@ body {
 .pre-market-risk-signals .warning,
 .pre-market-risk-signals .severe { border-color: #fca5a5; }
 .pre-market-risk-event { display: flex; gap: 8px; margin-top: 8px; font-size: 11px; color: #7c2d12; }
+.official-event-summary { margin-top: 12px; padding: 13px 14px; border: 1px solid rgba(100,116,139,.24); border-radius: 10px; background: rgba(248,250,252,.72); }
+.official-event-summary-head,.official-event-summary-head > div { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+.official-event-summary-head > div { align-items: baseline; justify-content: flex-start; }
+.official-event-summary-head span,.official-event-summary > small { color: #64748b; font-size: 12px; }
+.official-event-summary-head em { padding: 3px 8px; border-radius: 999px; background: #e2e8f0; color: #334155; font-size: 12px; font-style: normal; font-weight: 750; }
+.official-event-summary ul { display: grid; gap: 7px; margin: 10px 0; padding: 0; list-style: none; }
+.official-event-summary li { display: grid; grid-template-columns: 86px minmax(0,1fr) auto; align-items: center; gap: 10px; padding-top: 7px; border-top: 1px solid rgba(148,163,184,.2); }
+.official-event-summary time { color: #334155; font-size: 12px; font-variant-numeric: tabular-nums; font-weight: 750; }
+.official-event-summary li > div { display: grid; gap: 2px; min-width: 0; }
+.official-event-summary li strong { font-size: 13px; }
+.official-event-summary li a { color: #2563eb; font-size: 12px; }
+.event-importance { padding: 3px 7px; border-radius: 999px; background: #e2e8f0; color: #475569; font-size: 11px; font-weight: 750; }
+.event-importance.high { background: #fee2e2; color: #991b1b; }
 .pre-market-risk-card details { margin-top: 8px; font-size: 11px; color: #475569; }
 .pre-market-risk-card summary { cursor: pointer; font-weight: 800; }
 .pre-market-risk-sources { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 7px; }
@@ -2751,6 +2764,9 @@ body {
   .pre-market-risk-signals { grid-template-columns: 1fr; }
   .pre-market-risk-event { display: block; }
   .pre-market-risk-event span { display: block; margin-top: 3px; }
+  .official-event-summary-head > div { align-items: flex-start; flex-direction: column; gap: 2px; }
+  .official-event-summary li { grid-template-columns: 78px minmax(0,1fr); }
+  .official-event-summary li > .event-importance { grid-column: 2; justify-self: start; }
 }
 .decision-status-strip {
   display: grid;
@@ -4775,6 +4791,53 @@ body {
   display: inline-block;
   margin-bottom: 12px;
   font-size: 13px;
+}
+
+.trade-integrity-banner {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  margin: 0 0 16px;
+  padding: 14px 16px;
+  border: 1px solid #f0c36a;
+  border-radius: 12px;
+  background: #fff8e8;
+  color: #6b4a08;
+}
+.trade-integrity-banner strong { flex: 0 0 auto; }
+.trade-integrity-banner span { line-height: 1.55; }
+.trade-integrity {
+  display: inline-flex;
+  padding: 3px 8px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 700;
+  white-space: nowrap;
+}
+.trade-integrity.ok { background: #e4f6ec; color: #176b3a; }
+.trade-integrity.warning { background: #fff0d5; color: #875700; }
+.trade-integrity.unverified { background: #edf0f4; color: #596575; }
+.trade-integrity-note {
+  display: block;
+  min-width: 180px;
+  max-width: 260px;
+  margin-top: 5px;
+  color: #6d7784;
+  line-height: 1.45;
+}
+.trade-edit-btn { display: block; min-width: 76px; margin-top: 7px; padding: 6px 9px; }
+.trade-edit-modal .modal-header p { margin: 4px 0 0; color: #707a88; font-size: 13px; }
+.trade-edit-modal label { display: grid; gap: 6px; font-weight: 650; }
+.trade-edit-modal input,.trade-edit-modal textarea {
+  width: 100%;
+  padding: 10px 12px;
+  border: 1px solid #d6dbe3;
+  border-radius: 9px;
+  font: inherit;
+}
+.trade-edit-help { margin: 0; color: #66717f; font-size: 13px; line-height: 1.55; }
+@media (max-width: 720px) {
+  .trade-integrity-banner { flex-direction: column; gap: 4px; }
 }
 
 .trade-type-toggle {
@@ -7147,6 +7210,27 @@ button.journal-progress-card.active {
 
 /* ── 策略驗收 ───────────────────────────────────────────────────────────── */
 .strategy-validation-page { display: flex; flex-direction: column; gap: 16px; color: #1f2937; }
+.dashboard-validation-card { margin: 16px 0 20px; padding: 18px; border: 1px solid #cbd5e1; border-radius: 12px; background: #fff; color: #0f172a; }
+.dashboard-validation-head { display: flex; align-items: center; justify-content: space-between; gap: 16px; }
+.dashboard-validation-head > div > span { color: #2563eb; font-size: 12px; font-weight: 800; letter-spacing: .04em; }
+.dashboard-validation-head h2 { margin: 3px 0; font-size: 18px; }
+.dashboard-validation-head p { margin: 0; color: #64748b; font-size: 13px; }
+.dashboard-validation-stale { margin-top: 12px; padding: 10px 12px; border: 1px solid #f59e0b; border-radius: 8px; background: #fffbeb; color: #92400e; font-size: 13px; line-height: 1.5; }
+.dashboard-validation-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; margin-top: 14px; }
+.dashboard-validation-grid article { min-width: 0; padding: 14px; border: 1px solid #e2e8f0; border-radius: 9px; background: #f8fafc; }
+.dashboard-validation-grid article > span { display: block; color: #475569; font-size: 12px; font-weight: 700; }
+.dashboard-validation-grid article > strong { display: block; margin: 5px 0 10px; font-size: 18px; }
+.dashboard-validation-grid dl { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); margin: 0; gap: 6px; }
+.dashboard-validation-grid dl div { min-width: 0; }
+.dashboard-validation-grid dt { color: #64748b; font-size: 11px; }
+.dashboard-validation-grid dd { margin: 2px 0 0; font-size: 13px; font-weight: 800; }
+.dashboard-validation-card > small { display: block; margin-top: 12px; color: #64748b; line-height: 1.5; }
+.dashboard-validation-empty { margin: 14px 0 0; padding: 12px; border-radius: 8px; background: #f8fafc; color: #475569; }
+@media (max-width: 760px) {
+  .dashboard-validation-head { align-items: flex-start; flex-direction: column; }
+  .dashboard-validation-head .btn { width: 100%; min-height: 44px; }
+  .dashboard-validation-grid { grid-template-columns: 1fr; }
+}
 .validation-title-row { display: flex; align-items: flex-end; justify-content: space-between; gap: 16px; }
 .validation-title-row h2 { margin: 0 0 4px; font-size: 22px; letter-spacing: 0; }
 .validation-title-row p, .validation-generated { margin: 0; color: #64748b; font-size: 12px; }

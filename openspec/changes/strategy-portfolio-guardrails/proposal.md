@@ -11,6 +11,8 @@
 - 所有被風控略過的進場記錄 code、日期、規則與原因，避免只看到「沒有買」。
 - 規則先在 evaluation-only 回放驗證，不直接改 production 推薦桶。
 - 合併帳戶與單策略帳戶使用各自凍結的曝險上限，避免以合併模式的限制錯殺單策略；盤前 defensive/extreme/unknown gate 仍一致 fail closed。
+- Dashboard 顯示最近一份驗收報告的三模式摘要與目前保存份數，完整交易明細仍連回策略驗收頁。
+- 驗收持倉必須沿用進場訊號既有的 `stop_price`；不得只在報告顯示停損、回放卻等待隔日日線 exit。
 
 ## Out of scope
 
