@@ -40,10 +40,30 @@ def _compact_signal(sig: dict[str, Any]) -> dict[str, Any]:
         "target_source": sig.get("target_source"),
         "old_wang_flag": sig.get("old_wang_flag"),
         "old_wang_score": sig.get("old_wang_score"),
+        # 沒存風控狀態，日後就只能重算指數去猜當天的判斷，而重算值不等於當時記錄值
+        "old_wang_market_filter": sig.get("old_wang_market_filter"),
+        "old_wang_market_regime": sig.get("old_wang_market_regime"),
         "steady_momentum_flag": sig.get("steady_momentum_flag"),
         "steady_momentum_score": sig.get("steady_momentum_score"),
         "holding_shares": sig.get("holding_shares"),
         "holding_position_pct": sig.get("holding_position_pct"),
+    }
+
+
+def _pre_market_risk_snapshot() -> dict[str, Any]:
+    """存下當日盤前風險，讓日後的驗收不必重算指數就能重建風控判斷。"""
+    try:
+        from app.services.pre_market_risk_service import get_pre_market_risk_report
+
+        report = get_pre_market_risk_report()
+    except Exception as exc:  # 快照不該因為風險模組出錯就整份寫不出來
+        return {"level": None, "error": str(exc)}
+    return {
+        "level": report.get("level"),
+        "level_label": report.get("level_label"),
+        "score": report.get("score"),
+        "data_as_of": report.get("data_as_of"),
+        "can_open_new_positions": report.get("can_open_new_positions"),
     }
 
 
@@ -55,6 +75,7 @@ def build_signal_snapshot(summary: dict[str, Any]) -> dict[str, Any]:
     return {
         "as_of": as_of,
         "generated_at": summary.get("generated_at"),
+        "pre_market_risk": _pre_market_risk_snapshot(),
         "rules_version": summary.get("rules_version"),
         "rules_metadata": summary.get("rules_metadata") or {},
         "batch_id": summary.get("batch_id"),

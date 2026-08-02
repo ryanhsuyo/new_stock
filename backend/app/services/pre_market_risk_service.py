@@ -147,6 +147,44 @@ def _official_event_summary(now: datetime | None = None) -> dict[str, Any]:
     }
 
 
+_RISK_SEVERITY = {"normal": 0, "watch": 1, "defensive": 2, "extreme": 3}
+_RISK_LABELS = {"normal": "未觸發額外防守", "watch": "警戒", "defensive": "防守", "extreme": "極端風險"}
+
+# 缺幾項輸入 → 至少要落在哪一級。回放可以在 unknown 時停手，production 每天都要出報告，
+# 所以改成推估；但推估只能往保守方向，缺資料不得產生比較安全的結論。
+_DEGRADED_FLOOR = {0: "defensive", 1: "watch"}
+
+
+def _more_severe(left: str, right: str) -> str:
+    return left if _RISK_SEVERITY.get(left, 0) >= _RISK_SEVERITY.get(right, 0) else right
+
+
+def estimate_pre_market_risk(signals: list[dict[str, Any]], score: int) -> dict[str, Any]:
+    """輸入不完整時推出一個等級，而不是停在 unknown。
+
+    已知分數是真實分數的下界（缺漏項只可能加分、不會扣分），所以 level(已知分數)
+    是「可得資料所支持」的最寬鬆結果；推估值不得比它更寬鬆。
+    """
+    usable = [s for s in signals if s.get("change_pct") is not None]
+    missing = [str(s.get("code")) for s in signals if s.get("change_pct") is None]
+    supported_level, _label, _exposure, _ok = _classification(score)
+    floor = _DEGRADED_FLOOR.get(len(usable), "normal")
+    level = _more_severe(supported_level, floor)
+    return {
+        "level": level,
+        "level_label": _RISK_LABELS.get(level, level),
+        "score": score,
+        "degraded": True,
+        "usable_count": len(usable),
+        "missing_inputs": missing,
+        "supported_level": supported_level,
+        "reason": (
+            f"盤前輸入只有 {len(usable)} 項可用（缺 {'、'.join(missing) or '無'}），"
+            f"以可得資料推估為「{_RISK_LABELS.get(level, level)}」；缺資料不下修風險。"
+        ),
+    }
+
+
 def assess_historical_pre_market_risk(fill_date: str, ohlcv: dict[str, list[dict]]) -> dict[str, Any]:
     """用台股成交日前已完成的美股日 K 評估風險；嚴禁使用 date >= fill_date。"""
     selected: dict[str, list[dict]] = {}

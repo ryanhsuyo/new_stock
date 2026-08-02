@@ -207,6 +207,72 @@ def test_us_daily_decision_reports_fresh_actionable_signals():
     assert "今日有 2 檔當日新訊號可進入紙上追蹤" in result
 
 
+def _forward_validation(**overrides) -> dict:
+    result = {
+        "as_of": "2026-07-31", "window_days": 30, "window_start": "2026-07-01",
+        "covered_snapshot_days": 19, "covered_dates": [], "signal_count": 37,
+        "evaluated_count": 37, "closed_count": 32, "open_count": 5,
+        "no_stop_defined_count": 0,
+        "stats": {"n": 37, "win_rate_pct": 10.8, "avg_return_pct": -6.35, "median_return_pct": -6.67},
+        "market_reference": {"median_return_pct": -14.18, "falling_ratio_pct": 80.5,
+                             "benchmark_code": "0050", "benchmark_return_pct": -6.33},
+        "trades": [], "note": "進場基準為快照 generated_at 之後的第一個交易日開盤",
+    }
+    result.update(overrides)
+    return result
+
+
+def test_evidence_status_comes_before_the_candidate_list():
+    # 負面績效放在候選之後等於沒放：閱讀動線是從上往下找今天能買什麼
+    lines = "\n".join(report._evidence_status_lines(_forward_validation()))
+
+    assert "-6.35%" in lines
+    assert "勝率 10.8%" in lines
+    assert "市場中位 -14.18%" in lines
+
+
+def test_evidence_status_states_zero_sample_instead_of_going_blank():
+    lines = "\n".join(report._evidence_status_lines(
+        _forward_validation(signal_count=0, note="美股尚未保存 signal snapshot")
+    ))
+
+    assert "0 筆" in lines
+    assert "美股尚未保存 signal snapshot" in lines
+    assert "不要把「沒有反證」當成有效" in lines
+
+
+def test_evidence_status_flags_signals_that_had_no_stop_price():
+    lines = "\n".join(report._evidence_status_lines(_forward_validation(no_stop_defined_count=4)))
+
+    assert "4 筆訊號沒有失效價" in lines
+    assert "未計入上述統計" in lines
+
+
+def test_evidence_status_does_not_invent_a_composite_score():
+    # 把 -6.35% 和 -14.18% 壓成一個分數會製造樣本量撐不起的精確感
+    lines = "\n".join(report._evidence_status_lines(_forward_validation()))
+
+    for banned in ("健康度", "綜合評分", "策略排名", "評級"):
+        assert banned not in lines
+
+
+def test_tw_report_puts_evidence_above_the_conclusion(monkeypatch):
+    monkeypatch.setattr(report, "_tw_forward_validation", lambda: _forward_validation())
+    monkeypatch.setattr(report, "_tw_report_freshness", lambda: {
+        "expected_as_of": "2026-07-31", "row_count": 76, "stale_count": 0,
+        "stale_items": [], "is_complete": True,
+    })
+    monkeypatch.setattr(report, "build_closed_trades", lambda _trades: ([], []))
+    monkeypatch.setattr(report, "_trade_price_warnings", lambda _trades: [])
+    monkeypatch.setattr(report, "_tw_current_rows", lambda *_a, **_k: ([], [], "allow", []))
+    monkeypatch.setattr(report, "_load_json", lambda *_args: {"as_of": "2026-07-31"})
+
+    result = report.build_tw_report([])
+
+    assert result.index(report.EVIDENCE_HEADING) < result.index("## 今日結論")
+    assert result.index("-6.35%") < result.index("## 今日可能進場／觀察")
+
+
 def test_tw_daily_and_audit_reports_have_separate_responsibilities(monkeypatch):
     monkeypatch.setattr(report, "_tw_report_freshness", lambda: {
         "expected_as_of": "2026-07-23",
@@ -218,10 +284,9 @@ def test_tw_daily_and_audit_reports_have_separate_responsibilities(monkeypatch):
     monkeypatch.setattr(report, "build_closed_trades", lambda _trades: ([], []))
     monkeypatch.setattr(report, "_trade_price_warnings", lambda _trades: [["warning"]])
     monkeypatch.setattr(report, "_tw_entry_check_rows", lambda _trades: [])
-    monkeypatch.setattr(report, "_tw_current_rows", lambda: (
+    monkeypatch.setattr(report, "_tw_current_rows", lambda *_a, **_k: (
         [["台積電 2330", "可小試", "ready", "100", "98–102", "95", "112", "條件成立"]],
-        [],
-        "allow",
+        [], "allow", [],
     ))
     monkeypatch.setattr(report, "_load_json", lambda *_args: {"as_of": "2026-07-23"})
 
@@ -247,10 +312,11 @@ def test_tw_daily_report_blocks_candidates_when_universe_dates_are_mixed(monkeyp
     })
     monkeypatch.setattr(report, "build_closed_trades", lambda _trades: ([], []))
     monkeypatch.setattr(report, "_trade_price_warnings", lambda _trades: [])
-    monkeypatch.setattr(report, "_tw_current_rows", lambda: (
+    monkeypatch.setattr(report, "_tw_current_rows", lambda *_a, **_k: (
         [["舊資料候選 9999", "可小試", "ready", "100", "98–102", "95", "112", "條件成立"]],
         [["舊資料風險 8888", "降風險", "exit", "80", "78", "條件轉弱"]],
         "allow",
+        [["舊資料擋下 7777", "ready", "60", "盤前風險 防守，停止新倉", "defensive"]],
     ))
     monkeypatch.setattr(report, "_load_json", lambda *_args: {"as_of": "2026-07-29"})
 
@@ -260,6 +326,8 @@ def test_tw_daily_report_blocks_candidates_when_universe_dates_are_mixed(monkeyp
     assert "逐股資料日未完全一致" in daily
     assert "舊資料候選 9999 |" not in daily
     assert "舊資料風險 8888 |" not in daily
+    # 資料日沒對齊時，風控擋下清單也不能照印，否則會暗示今天的候選是可信的
+    assert "舊資料擋下 7777 |" not in daily
 
 
 def test_tw_daily_rows_translate_internal_signal_and_market_filter(monkeypatch):
@@ -277,7 +345,7 @@ def test_tw_daily_rows_translate_internal_signal_and_market_filter(monkeypatch):
         [{"old_wang_market_filter": "block"}],
     ))
 
-    _entries, exits, market_filter = report._tw_current_rows()
+    _entries, exits, market_filter, _blocked = report._tw_current_rows()
 
     assert exits[0][2] == "出場警示"
     assert market_filter == "風險模式"
@@ -324,7 +392,7 @@ def test_us_report_surfaces_invalidated_patterns_instead_of_dropping_them(monkey
     ]
 
     result = _us_report_with(patterns, monkeypatch)
-    changed_section = result.split("## 已失效 / 狀態變化")[1].split("## ")[0]
+    changed_section = result.split("## 已完成 / 已失效")[1].split("\n## ")[0]
 
     assert "AMZN" in changed_section
     assert "已失效 1 檔" in result
@@ -337,8 +405,8 @@ def test_forming_patterns_split_between_watch_and_ignore_by_distance(monkeypatch
     far = _wbottom_pattern("VRT", "forming", 100.0, neckline=125.0)
 
     result = _us_report_with([far, near], monkeypatch)
-    watch_section = result.split("## 今日觀望")[1].split("## ")[0]
-    ignore_section = result.split("## 今日不必看")[1].split("## ")[0]
+    watch_section = result.split("## 今日觀望")[1].split("\n## ")[0]
+    ignore_section = result.split("## 今日不必看")[1].split("\n## ")[0]
 
     assert "PG" in watch_section and "VRT" not in watch_section
     assert "VRT" in ignore_section and "PG" not in ignore_section
@@ -356,9 +424,9 @@ def test_watch_row_prices_carry_distance_and_reward_risk():
 
     row = report._us_watch_rows({"market_gate": {}, "candidates": []}, wbottom)[0]
 
-    assert "（+2.5%）" in row.target          # 觀察目標只剩 2.5% 空間
-    assert "（-13.9%）" in row.invalidation   # 失效距離 13.9%
-    assert row.reward_risk == "1 : 0.2"      # 上檔遠小於下檔，不值得追進
+    assert "（+2.5%）" in row.target                  # 觀察目標只剩 2.5% 空間
+    assert "（-13.9%）" in row.invalidation           # 失效距離 13.9%
+    assert row.reward_risk == "1 : 0.2（現價追進）"    # 上檔遠小於下檔，不值得追進
 
 
 def test_reward_risk_reports_no_room_when_target_is_already_passed():
@@ -384,6 +452,69 @@ def test_report_translates_market_gate_jargon(monkeypatch):
 
     assert "bearish" not in result
     assert "偏空" in result
+
+
+def test_target_reached_patterns_are_not_shown_as_still_waiting_to_break_out():
+    # 已達量幅目標的型態收盤遠在頸線之上，若沒獨立處理就會掉進「離頸線 -12.6%，等突破」
+    wbottom = {"market_gate": {"active": True}, "patterns": [_wbottom_pattern(
+        "MSFT", "target_reached", 464.72,
+        neckline=405.99, pattern_low=373.35, target_price=438.63, breakout_date="2026-07-30",
+    )]}
+
+    row = report._us_watch_rows({"market_gate": {}, "candidates": []}, wbottom)[0]
+
+    assert row.bucket == report.BUCKET_DONE
+    assert "等突破" not in row.action
+    assert (row.trigger, row.target, row.reward_risk) == ("—", "—", "—")
+    assert "量幅目標 438.63" in row.reason
+
+
+def test_forming_reward_risk_is_measured_at_the_neckline_not_at_today_close():
+    # 量幅目標 = 頸線 +（頸線 − 型態低），所以在頸線進場時每檔都是 1:1；
+    # 用今天收盤當進場價會憑空造出「這檔 1:10、那檔 1:1」的假差異
+    wbottom = {"market_gate": {"active": False}, "patterns": [_wbottom_pattern(
+        "NVDA", "forming", 200.75,
+        neckline=213.99, pattern_low=197.97, target_price=230.01,
+    )]}
+
+    row = report._us_watch_rows({"market_gate": {}, "candidates": []}, wbottom)[0]
+
+    assert row.reward_risk == "1 : 1.0（頸線進場）"
+    assert "頸線進場停損 -7.5%" in row.invalidation
+    assert row.trigger_note == "站上 213.99（+6.6%）"
+
+
+def test_trend_row_keeps_the_wbottom_pattern_that_dedup_would_discard():
+    # 同一檔只能出現在一個桶，但「兩套策略同時看到它」不該跟著被丟掉
+    trend = {
+        "market_gate": {"bias": "mixed"},
+        "candidates": [{"code": "GD", "name": "GD", "state": "watch",
+                        "close": 383.42, "ma20": 376.49, "ma60": 356.98, "reasons": ["多頭排列"]}],
+    }
+    wbottom = {"market_gate": {"active": True}, "patterns": [
+        _wbottom_pattern("GD", "breakout_in_progress", 383.42, neckline=367.0),
+    ]}
+
+    rows = report._us_watch_rows(trend, wbottom)
+
+    assert len(rows) == 1
+    assert "W 底" in rows[0].reason and "367" in rows[0].reason
+
+
+def test_conclusion_names_the_price_that_would_make_a_stock_enterable(monkeypatch):
+    patterns = [
+        _wbottom_pattern("PG", "forming", 100.0, neckline=103.0),
+        _wbottom_pattern("VRT", "forming", 100.0, neckline=125.0),
+    ]
+
+    result = _us_report_with(patterns, monkeypatch)
+
+    assert "最接近可進場：PG 站上 103" in result
+    assert "VRT" not in result.split("## 今日可紙上追蹤")[0]  # 太遠的不進結論
+
+
+def test_next_trigger_note_says_so_when_nothing_is_close():
+    assert "等新型態成形" in report._next_trigger_note([])
 
 
 def test_invalidated_row_drops_prices_that_no_longer_mean_anything():

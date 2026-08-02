@@ -28,6 +28,19 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 
 from app.services.analysis_service import analyse_stock
+from app.services.signal_forward_validation_service import (
+    build_signal_forward_validation,
+    write_signal_forward_validation,
+)
+from app.services.pre_market_risk_service import (
+    estimate_pre_market_risk,
+    get_pre_market_risk_report,
+)
+from app.services.strategy_validation_service import (
+    ENTRY_GUARDRAIL_PROFILES,
+    _load_prices,
+    load_strategy_validation_report,
+)
 from app.services.trade_service import calculate_trade_amounts
 from app.services.us_market_service import get_us_market_status
 from app.services.us_strategy_service import get_us_trend_follow
@@ -573,8 +586,103 @@ def _tw_signal_label(value: object) -> str:
     return _TW_SIGNAL_LABELS.get(raw, raw.replace("_", " ") if raw else "—")
 
 
-def _tw_current_rows() -> tuple[list[list[str]], list[list[str]], str]:
-    entries, exits, blockers = _latest_tw_actions()
+GUARDRAILS_ENABLED = True
+
+_BLOCKED_HEADERS = ["股票", "訊號", "收盤", "擋下原因", "風險等級"]
+
+
+def _truthy(value: object) -> bool:
+    return str(value or "").strip().lower() in {"true", "1", "yes"}
+
+
+@lru_cache(maxsize=1)
+def _current_pre_market_risk() -> dict:
+    """production 每天都要出報告，不能像回放那樣在 unknown 時停手。"""
+    report = get_pre_market_risk_report()
+    signals = report.get("signals") or []
+    usable = sum(1 for item in signals if item.get("change_pct") is not None)
+    if str(report.get("level")) == "unknown" or usable < 2:
+        return estimate_pre_market_risk(signals, int(report.get("score") or 0))
+    return {**report, "degraded": False, "missing_inputs": [], "usable_count": usable}
+
+
+def _profile_match(row: dict, profile: str) -> bool:
+    if profile == "combined":
+        return _truthy(row.get("old_wang_flag")) or _truthy(row.get("steady_momentum_flag"))
+    return _truthy(row.get(f"{profile}_flag"))
+
+
+def _current_exposure_pct() -> float:
+    positions = _load_json(DATA / "positions.json", {}) or {}
+    cash = float(positions.get("cash") or 0)
+    holdings = positions.get("holdings") or {}
+    held = sum(
+        float(item.get("shares") or 0) * float(item.get("cost") or item.get("price") or 0)
+        for item in holdings.values() if isinstance(item, dict)
+    )
+    equity = cash + held
+    return (held / equity * 100) if equity else 0.0
+
+
+def _apply_entry_guardrails(
+    entries: list[dict], profile: str
+) -> tuple[list[dict], list[dict]]:
+    """回傳 (可進場, 被擋下)。被擋下的保留原因，不能無聲消失。"""
+    if not GUARDRAILS_ENABLED:
+        return entries, []
+
+    scoped = [row for row in entries if _profile_match(row, profile)]
+    dropped = [
+        {**row, "reason_code": "profile_mismatch",
+         "reason": f"不符合本報告策略（{PROFILE_LABELS.get(profile, profile)}）的選股條件"}
+        for row in entries if row not in scoped
+    ]
+
+    risk = _current_pre_market_risk()
+    level = str(risk.get("level") or "normal")
+    limits = ENTRY_GUARDRAIL_PROFILES.get(profile, {}).get(level) or {
+        "max_exposure_pct": 0, "max_new_positions": 0,
+    }
+    blocked: list[dict] = list(dropped)
+    allowed: list[dict] = []
+    exposure = _current_exposure_pct()
+
+    for row in scoped:
+        if profile in {"combined", "old_wang"} and row.get("old_wang_market_filter") == "block":
+            blocked.append({**row, "reason_code": "market_filter_block",
+                            "reason": "老王大盤濾網為風險模式，不新增短波段多單", "risk_level": level})
+        elif not limits["max_new_positions"]:
+            blocked.append({**row, "reason_code": "pre_market_gate",
+                            "reason": f"盤前風險 {risk.get('level_label') or level}，停止新倉",
+                            "risk_level": level})
+        elif exposure >= limits["max_exposure_pct"]:
+            blocked.append({**row, "reason_code": "total_exposure_limit",
+                            "reason": f"已達總曝險上限 {limits['max_exposure_pct']}%（目前 {exposure:.0f}%）",
+                            "risk_level": level})
+        elif len(allowed) >= limits["max_new_positions"]:
+            blocked.append({**row, "reason_code": "daily_entry_limit",
+                            "reason": f"每日新倉上限 {limits['max_new_positions']} 檔",
+                            "risk_level": level})
+        else:
+            allowed.append(row)
+    return allowed, blocked
+
+
+def _tw_blocked_rows(blocked: list[dict]) -> list[list[str]]:
+    return [[
+        f"{row.get('name')} {row.get('code')}",
+        _tw_signal_label(row.get("internal_signal")),
+        _fmt_num(float(row["close"])) if row.get("close") else "—",
+        row.get("reason") or "—",
+        row.get("risk_level") or "—",
+    ] for row in blocked]
+
+
+def _tw_current_rows(
+    profile: str = "combined",
+) -> tuple[list[list[str]], list[list[str]], str, list[list[str]]]:
+    raw_entries, exits, blockers = _latest_tw_actions()
+    entries, blocked = _apply_entry_guardrails(raw_entries, profile)
     entry_rows = [[
         f"{row.get('name')} {row.get('code')}",
         row.get("daily_action_label") or row.get("daily_action") or "—",
@@ -595,7 +703,7 @@ def _tw_current_rows() -> tuple[list[list[str]], list[list[str]], str]:
     ] for row in exits]
     raw_market_filter = blockers[0].get("old_wang_market_filter", "—") if blockers else "—"
     market_filter = _TW_MARKET_FILTER_LABELS.get(str(raw_market_filter), str(raw_market_filter))
-    return entry_rows, exit_rows, market_filter
+    return entry_rows, exit_rows, market_filter, _tw_blocked_rows(blocked)
 
 
 def build_tw_audit_report(trades: list[dict]) -> str:
@@ -605,7 +713,7 @@ def build_tw_audit_report(trades: list[dict]) -> str:
     price_warnings = _trade_price_warnings(trades)
     entry_checks = _tw_entry_check_rows(trades)
     compliant_count = sum(1 for row in entry_checks if row[9].startswith("合規："))
-    entry_rows, exit_rows, market_filter = _tw_current_rows()
+    entry_rows, exit_rows, market_filter, _blocked_rows = _tw_current_rows()
     summary = _load_json(OUT / "summary.json", {})
 
     lines = [
@@ -685,11 +793,11 @@ def build_tw_audit_report(trades: list[dict]) -> str:
     return "\n".join(lines)
 
 
-def build_tw_report(trades: list[dict]) -> str:
+def build_tw_report(trades: list[dict], profile: str = "combined") -> str:
     closed, open_lots = build_closed_trades(trades)
     total_pnl = sum(trade.realized_pnl for trade in closed)
     price_warnings = _trade_price_warnings(trades)
-    entry_rows, exit_rows, market_filter = _tw_current_rows()
+    entry_rows, exit_rows, market_filter, blocked_rows = _tw_current_rows(profile)
     summary = _load_json(OUT / "summary.json", {})
     freshness = _tw_report_freshness()
     data_complete = bool(freshness["is_complete"])
@@ -702,19 +810,30 @@ def build_tw_report(trades: list[dict]) -> str:
         for item in freshness["stale_items"][:8]
     )
 
+    if not data_complete:
+        blocked_rows = []
+    risk = _current_pre_market_risk()
     lines = [
-        "# 台股每日行動報告",
+        f"# 台股每日行動報告（{PROFILE_LABELS.get(profile, profile)}）",
         "",
         f"- 產生日期：{date.today().isoformat()}",
         f"- 訊號資料日：{summary.get('as_of', '—')}",
+        f"- 本報告只套用「{PROFILE_LABELS.get(profile, profile)}」的風控上限；"
+        "**上限僅在本報告內有效，同時依多份報告進場會放大實際曝險。**",
         "- 本報告只保留今天需要處理的項目；歷史交易細節另見 `strategy_trade_audit_tw_2026-05-01.md`。",
         "- 研究與復盤用途，不是下單指令。",
         "",
+        *_evidence_status_lines(_tw_forward_validation(), profile),
         "## 今日結論",
         "",
         f"- 大盤條件：{market_filter}；風險模式時不新增短波段多單。",
+        f"- 盤前風險：{risk.get('level_label') or risk.get('level')}"
+        + ("（降級推估：" + (risk.get("reason") or "") + "）" if risk.get("degraded") else "")
+        + "。",
         (
-            f"- 可小試／觀察 {len(entry_rows)} 檔；降風險／暫不進場 {len(exit_rows)} 檔。"
+            f"- 可小試／觀察 {len(entry_rows)} 檔；風控擋下 {len(blocked_rows)} 檔；"
+            f"降風險／暫不進場 {len(exit_rows)} 檔"
+            f"（今日候選合計 {len(entry_rows) + len(blocked_rows)} 檔）。"
             if data_complete
             else f"- **逐股資料日尚未對齊，今日動作清單暫停輸出。待確認 {freshness['stale_count']} 檔：{stale_preview or '無可讀逐股資料'}。**"
         ),
@@ -734,6 +853,13 @@ def build_tw_report(trades: list[dict]) -> str:
             "_逐股資料日未完全一致，暫不產生今日候選。_\n"
             if not data_complete else "_今日沒有符合條件的新候選。_\n"
         ),
+        "",
+        "## 今日不新增（風控擋下）",
+        "",
+        "- 這些是策略本來會列進候選、但被風控條件擋下的標的。列出來才知道系統擋了什麼。",
+        "",
+        _md_table(_BLOCKED_HEADERS, blocked_rows) if blocked_rows
+        else "_今日沒有被風控擋下的候選。_\n",
         "",
         "## 今日降風險／暫不進場",
         "",
@@ -764,6 +890,86 @@ def build_tw_report(trades: list[dict]) -> str:
     return "\n".join(lines)
 
 
+EVIDENCE_HEADING = "## 策略當前證據狀態"
+
+GUARDRAIL_PROFILES = ("combined", "old_wang", "steady_momentum")
+PROFILE_LABELS = {
+    "combined": "合併",
+    "old_wang": "老王大盤籌碼輪動",
+    "steady_momentum": "Quality Momentum Lite",
+}
+
+
+@lru_cache(maxsize=1)
+def _tw_forward_validation() -> dict:
+    prices, market_days = _load_prices(DATA)
+    return build_signal_forward_validation(prices, market_days)
+
+
+@lru_cache(maxsize=1)
+def _us_forward_validation() -> dict:
+    """美股走同一個契約，但沒有快照可讀，結果必然是樣本 0。"""
+    result = build_signal_forward_validation(
+        {}, [], snapshot_dir=OUT / "us_signal_snapshots", as_of=None
+    )
+    return {**result, "note": "美股尚未保存 signal snapshot，沒有可前推的歷史訊號"}
+
+
+def _guardrail_replay_line(profile: str) -> str:
+    report = load_strategy_validation_report(OUT, DATA)
+    result = (report or {}).get("results", {}).get(profile)
+    if not result:
+        return "- 護欄回放：尚無可用回放結果。"
+    config = (report or {}).get("config", {})
+    ret, mdd = result.get("return_pct"), result.get("max_drawdown_pct")
+    return (
+        f"- 護欄回放（{result.get('start_date') or config.get('signal_start', '—')}→"
+        f"{result.get('end_date') or config.get('end', '—')}，"
+        f"{PROFILE_LABELS.get(profile, profile)}）："
+        f"{f'{ret:+.2f}' if isinstance(ret, (int, float)) else '—'}%、"
+        f"最大回檔 {f'{mdd:.2f}' if isinstance(mdd, (int, float)) else '—'}%。"
+    )
+
+
+def _evidence_status_lines(result: dict, profile: str = "combined") -> list[str]:
+    """把「這套訊號最近實際表現如何」放在候選清單之前；放後面等於沒放。"""
+    lines = [EVIDENCE_HEADING, ""]
+    stats, market = result.get("stats") or {}, result.get("market_reference") or {}
+    count = result.get("signal_count") or 0
+    if not count:
+        lines += [
+            f"- 近 {result.get('window_days', '—')} 天可驗收樣本 **0 筆**："
+            f"{result.get('note') or '尚無可驗收樣本'}。",
+            "- 沒有前推證據可以支持或反對目前的訊號；不要把「沒有反證」當成有效。",
+            "",
+        ]
+        return lines
+    lines.append(
+        f"- 近 {result['window_days']} 天（涵蓋 {result['covered_snapshot_days']} 個快照日）"
+        f"共 {count} 個進場訊號，前推結果：平均 **{stats['avg_return_pct']}%**、"
+        f"勝率 {stats['win_rate_pct']}%（已出場 {result['closed_count']} 筆、"
+        f"未平倉 {result['open_count']} 筆）。"
+    )
+    if result.get("no_stop_defined_count"):
+        lines.append(
+            f"- 另有 {result['no_stop_defined_count']} 筆訊號沒有失效價，無從判斷出場，未計入上述統計。"
+        )
+    if market.get("median_return_pct") is not None:
+        lines.append(
+            f"- 同期對照：市場中位 {market['median_return_pct']}%"
+            f"（{market.get('falling_ratio_pct')}% 下跌）、"
+            f"{market.get('benchmark_code')} {market.get('benchmark_return_pct')}%。"
+            "「少跌」不等於「賺錢」。"
+        )
+    lines.append(_guardrail_replay_line(profile))
+    lines += [
+        f"- {result.get('note')}",
+        "- 樣本期短且集中，這裡的數字不能外推成策略長期有效或無效。",
+        "",
+    ]
+    return lines
+
+
 def _us_replay_rows() -> list[list[str]]:
     trend_summary = _read_replay_summary(OUT / "us_strategy_replay_2026-06-15_2026-06-30.json")
     wbottom_summary = _read_replay_summary(OUT / "us_wbottom_replay_2021-09-01_2026-07-10.json")
@@ -782,11 +988,16 @@ _BIAS_LABELS = {"bullish": "偏多", "bearish": "偏空", "mixed": "多空不明
 NEAR_TRIGGER_PCT = 0.08
 FAR_TRIGGER_PCT = 0.15
 
-# 觀望不是一種狀態，而是四種不同的等待理由；混成一桶就看不出今天該盯誰。
+# 觀望不是一種狀態，而是幾種不同的等待理由；混成一桶就看不出今天該盯誰。
 BUCKET_ENTER = "enter"
 BUCKET_WATCH = "watch"
 BUCKET_IGNORE = "ignore"
+BUCKET_DONE = "done"
 BUCKET_DEAD = "dead"
+
+# 觀望裡面還要再分：能不能變成新的進場，是兩件完全不同的事。
+GROUP_APPROACHING = "approaching"   # 只差收盤站上頸線
+GROUP_HOLD = "hold"                 # 追不得，或在等大盤
 
 
 def _bias_label(bias: Any) -> str:
@@ -798,6 +1009,25 @@ def _neckline_distance(pattern: dict) -> float:
     if not close or neckline is None:
         return float("inf")
     return (neckline - close) / close
+
+
+def _stop_distance_pct(entry: float | None, stop: float | None) -> str:
+    """在觸發價進場時，這一筆要冒多少 %。報酬風險比恆為 1:1 之下，這才是各檔真正的差別。"""
+    if not entry or stop is None or entry <= stop:
+        return "—"
+    return f"-{(entry - stop) / entry * 100:.1f}%"
+
+
+def _target_reached_reason(pattern: dict) -> str:
+    """已經走完的型態要說「它結束了」，不是重複當初突破的理由。"""
+    close, target = pattern.get("close"), pattern.get("target_price")
+    prefix = f"{pattern['breakout_date']} 突破後" if pattern.get("breakout_date") else ""
+    if target is None:
+        return f"{prefix}已觸及量幅目標，型態任務完成，不再是新進場對象"
+    return (
+        f"{prefix}已觸及量幅目標 {_fmt_num(target)}（現價 {_fmt_num(close)}），"
+        "型態任務完成，不再是新進場對象"
+    )
 
 
 def _invalidation_reason(pattern: dict) -> str:
@@ -824,6 +1054,8 @@ class UsWatchRow:
     target: str
     reward_risk: str
     reason: str
+    group: str = GROUP_HOLD
+    trigger_note: str = ""
 
     def cells(self) -> list[str]:
         return [
@@ -832,11 +1064,18 @@ class UsWatchRow:
         ]
 
 
-def _trend_watch_row(item: dict, gate_bias: str) -> UsWatchRow:
+def _trend_watch_row(item: dict, gate_bias: str, overlap: dict | None = None) -> UsWatchRow:
     code = str(item.get("code", "")).upper()
     close = item.get("close")
     ma20, ma60 = item.get("ma20"), item.get("ma60")
     fresh = gate_bias == "bullish" and item.get("state") == "candidate"
+    reason = _short("；".join(item.get("reasons", [])[:2]), 96)
+    if overlap:
+        # 去重讓同一檔只出現一次，但「兩套策略同時看到它」是選股資訊，不能一起丟掉
+        reason += (
+            f"；同時有 W 底型態（{overlap.get('state_label') or overlap.get('state')}，"
+            f"頸線 {_fmt_num(overlap.get('neckline'))}）"
+        )
     return UsWatchRow(
         bucket=BUCKET_ENTER if fresh else BUCKET_WATCH,
         code=code,
@@ -848,15 +1087,18 @@ def _trend_watch_row(item: dict, gate_bias: str) -> UsWatchRow:
         invalidation=f"連 2 日跌破 MA20 {_fmt_num(ma20)}，或跌破 MA60 {_fmt_num(ma60)}（{_gap_pct(close, ma60)}）",
         target="趨勢延續，不設固定目標",
         reward_risk="不適用（無固定目標）",
-        reason=_short("；".join(item.get("reasons", [])[:2]), 96),
+        reason=reason,
     )
 
 
 def _wbottom_watch_row(item: dict, gate_active: bool) -> UsWatchRow:
     code = str(item.get("code", "")).upper()
     close = item.get("close")
+    neckline, low = item.get("neckline"), item.get("pattern_low")
+    target_price = item.get("target_price")
     state = item.get("state")
     distance = _neckline_distance(item)
+    group = GROUP_HOLD
 
     if state == "breakout_today" and gate_active:
         bucket, action = BUCKET_ENTER, "可紙上追蹤：次一交易日開盤"
@@ -864,26 +1106,44 @@ def _wbottom_watch_row(item: dict, gate_active: bool) -> UsWatchRow:
         bucket, action = BUCKET_WATCH, "等待：大盤濾網重新開啟"
     elif state == "breakout_in_progress":
         bucket, action = BUCKET_WATCH, "只追蹤：原始次日觸發已過，不追價"
+    elif state == "target_reached":
+        bucket, action = BUCKET_DONE, "已達目標：觀察結束"
     elif state == "invalidated":
         bucket, action = BUCKET_DEAD, "已失效：移出追蹤"
     elif distance <= NEAR_TRIGGER_PCT:
-        bucket, action = BUCKET_WATCH, f"等突破：離頸線 {_gap_pct(close, item.get('neckline'))}"
+        bucket, action = BUCKET_WATCH, f"等突破：離頸線 {_gap_pct(close, neckline)}"
+        group = GROUP_APPROACHING
     elif distance <= FAR_TRIGGER_PCT:
-        bucket, action = BUCKET_IGNORE, f"暫不看：離頸線 {_gap_pct(close, item.get('neckline'))}"
+        bucket, action = BUCKET_IGNORE, f"暫不看：離頸線 {_gap_pct(close, neckline)}"
     else:
-        bucket, action = BUCKET_IGNORE, f"距離仍遠：離頸線 {_gap_pct(close, item.get('neckline'))}"
+        bucket, action = BUCKET_IGNORE, f"距離仍遠：離頸線 {_gap_pct(close, neckline)}"
 
-    if state == "invalidated":
-        # 型態已死，觸發價 / 目標 / 報酬風險比都不再有意義，留著只會被誤讀成還能追
+    trigger_note = ""
+    if bucket in (BUCKET_DEAD, BUCKET_DONE):
+        # 型態已走完，觸發價 / 目標 / 報酬風險比都不再有意義，留著只會被誤讀成還能追
         trigger, target, reward_risk = "—", "—", "—"
-        invalidation = f"已跌破型態低 {_fmt_num(item.get('pattern_low'))}"
-        reason = _invalidation_reason(item)
+        if bucket == BUCKET_DEAD:
+            invalidation = f"已跌破型態低 {_fmt_num(low)}"
+            reason = _invalidation_reason(item)
+        else:
+            invalidation = f"已觸及量幅目標 {_fmt_num(target_price)}"
+            reason = _target_reached_reason(item)
     else:
-        trigger = f"頸線 {_price_with_gap(close, item.get('neckline'))}"
-        invalidation = f"收盤跌破型態低 {_price_with_gap(close, item.get('pattern_low'))}"
-        target = _price_with_gap(close, item.get("target_price"))
-        reward_risk = _reward_risk(close, item.get("target_price"), item.get("pattern_low"))
+        trigger = f"頸線 {_price_with_gap(close, neckline)}"
+        target = _price_with_gap(close, target_price)
         reason = _short("；".join(item.get("reasons", [])[:1]), 96)
+        if state == "forming":
+            # 進場價是頸線不是今天的收盤；用收盤算會憑空造出各檔之間的差異
+            reward_risk = f"{_reward_risk(neckline, target_price, low)}（頸線進場）"
+            invalidation = (
+                f"收盤跌破型態低 {_fmt_num(low)}；"
+                f"頸線進場停損 {_stop_distance_pct(neckline, low)}"
+            )
+            trigger_note = f"站上 {_fmt_num(neckline)}（{_gap_pct(close, neckline)}）"
+        else:
+            entry_label = "次日開盤估" if state == "breakout_today" else "現價追進"
+            reward_risk = f"{_reward_risk(close, target_price, low)}（{entry_label}）"
+            invalidation = f"收盤跌破型態低 {_price_with_gap(close, low)}"
 
     return UsWatchRow(
         bucket=bucket,
@@ -897,6 +1157,8 @@ def _wbottom_watch_row(item: dict, gate_active: bool) -> UsWatchRow:
         target=target,
         reward_risk=reward_risk,
         reason=reason,
+        group=group,
+        trigger_note=trigger_note,
     )
 
 
@@ -906,13 +1168,16 @@ def _us_watch_rows(trend: dict, wbottom: dict) -> list[UsWatchRow]:
     seen: set[str] = set()
     gate_bias = (trend.get("market_gate") or {}).get("bias", "unknown")
     gate_active = bool((wbottom.get("market_gate") or {}).get("active"))
+    wbottom_by_code = {
+        str(p.get("code", "")).upper(): p for p in wbottom.get("patterns", [])
+    }
 
     for item in trend.get("candidates", []):
         code = str(item.get("code", "")).upper()
         if not code or code in seen:
             continue
         seen.add(code)
-        rows.append(_trend_watch_row(item, gate_bias))
+        rows.append(_trend_watch_row(item, gate_bias, wbottom_by_code.get(code)))
 
     patterns = sorted(wbottom.get("patterns", []), key=_neckline_distance)
     for item in patterns:
@@ -942,6 +1207,15 @@ def _us_bucket_section(rows: list[UsWatchRow], empty_note: str) -> str:
     return f"{table}\n**依據**\n\n{notes}\n"
 
 
+def _next_trigger_note(rows: list[UsWatchRow]) -> str:
+    """明講下一個進場要等到什麼價位；不寫出來，讀者只能自己從表裡逐列比。"""
+    approaching = [row for row in rows if row.group == GROUP_APPROACHING and row.trigger_note]
+    if not approaching:
+        return "目前沒有接近觸發的型態；新的進場只能等新型態成形，不從現有名單裡硬挑。"
+    parts = "、".join(f"{row.code} {row.trigger_note}" for row in approaching[:3])
+    return f"最接近可進場：{parts}；要收盤站上才算，站上當日才會進入可紙上追蹤。"
+
+
 def _us_daily_decision(trend: dict, wbottom: dict, actionable_count: int) -> str:
     trend_gate = trend.get("market_gate") or {}
     wbottom_gate = wbottom.get("market_gate") or {}
@@ -961,7 +1235,10 @@ def build_us_report(trades: list[dict], as_of: str | None = None) -> str:
     enter_rows = _bucket(rows, BUCKET_ENTER)
     watch_rows = _bucket(rows, BUCKET_WATCH)
     ignore_rows = _bucket(rows, BUCKET_IGNORE)
+    done_rows = _bucket(rows, BUCKET_DONE)
     dead_rows = _bucket(rows, BUCKET_DEAD)
+    approaching_rows = [row for row in watch_rows if row.group == GROUP_APPROACHING]
+    holding_rows = [row for row in watch_rows if row.group != GROUP_APPROACHING]
     daily_decision = _us_daily_decision(trend, wbottom, len(enter_rows))
     trend_gate = trend.get("market_gate") or {}
     wbottom_gate = wbottom.get("market_gate") or {}
@@ -982,14 +1259,18 @@ def build_us_report(trades: list[dict], as_of: str | None = None) -> str:
         "- 美股只有觀察策略，沒有正式推薦桶、沒有自動下單；「紙上追蹤」是記錄用途，不是買進指令。",
         "- 研究與復盤用途，不是下單指令。",
         "",
+        # 美股沒有 signal snapshot，樣本必然為 0；借用台股數字會讓美股看起來已被驗收
+        *_evidence_status_lines(_us_forward_validation()),
         "## 今日結論",
         "",
         f"- 大盤條件：趨勢濾網 {_bias_label(trend_gate.get('bias'))}"
         f"（{'開啟' if trend_gate.get('active') else '關閉'}）"
         f"、W 底濾網 {'開啟' if wbottom_gate.get('active') else '關閉'}；兩者都關閉時不新增紙上追蹤。",
-        f"- 可紙上追蹤 {len(enter_rows)} 檔；觀望 {len(watch_rows)} 檔；"
-        f"今日不必看 {len(ignore_rows)} 檔；已失效 {len(dead_rows)} 檔"
+        f"- 可紙上追蹤 {len(enter_rows)} 檔；觀望 {len(watch_rows)} 檔"
+        f"（其中 {len(approaching_rows)} 檔只差突破頸線）；今日不必看 {len(ignore_rows)} 檔；"
+        f"已達目標 {len(done_rows)} 檔；已失效 {len(dead_rows)} 檔"
         f"（合計 {len(rows)} 檔，涵蓋全部追蹤標的）。",
+        f"- {_next_trigger_note(rows)}",
         f"- 目前未平倉 0 筆；美股無已實現損益。{actual_note}",
         f"- **{daily_decision}**",
         "",
@@ -1001,10 +1282,22 @@ def build_us_report(trades: list[dict], as_of: str | None = None) -> str:
         "",
         "## 今日觀望",
         "",
-        "- 條件還差一步：可能是等大盤轉多、等突破頸線，或是已突破但錯過原始觸發日、不該追價。",
-        "- 括號裡的百分比是「離現價多遠」。報酬風險比 = 上檔空間 ÷ 下檔失效距離，低於 1 : 1 表示現在追進不划算。",
+        "- 括號裡的百分比是「離現價多遠」。觀望分兩種，差別在還能不能變成新的進場。",
         "",
-        _us_bucket_section(watch_rows, "今日沒有觀望名單。"),
+        "### 只差突破頸線（有機會變成可紙上追蹤）",
+        "",
+        "- 這是唯一可能轉成進場的一群：收盤站上頸線那天，才會進「可紙上追蹤」。",
+        "- W 底的量幅目標 ＝ 頸線 ＋（頸線 − 型態低），所以**在頸線進場時每一檔的報酬風險比都是 1 : 1**，"
+        "不能拿它比較誰比較好。真正的差別是「離觸發還有多遠」和「停損距離要冒多少 %」。",
+        "",
+        _us_bucket_section(approaching_rows, "今日沒有接近觸發的型態。"),
+        "",
+        "### 只追蹤，不追價",
+        "",
+        "- 已突破但原始次日觸發已過，或在等大盤轉多。這些不會再變成新的進場點。",
+        "- 這裡的報酬風險比是「現在追進去」的實際比值，低於 1 : 1 就是追進不划算。",
+        "",
+        _us_bucket_section(holding_rows, "今日沒有只追蹤的標的。"),
         "",
         "## 今日不必看",
         "",
@@ -1012,11 +1305,12 @@ def build_us_report(trades: list[dict], as_of: str | None = None) -> str:
         "",
         _us_bucket_section(ignore_rows, "今日沒有需要冷處理的型態。"),
         "",
-        "## 已失效 / 狀態變化",
+        "## 已完成 / 已失效（狀態變化）",
         "",
-        "- 曾經追蹤、現在條件已破壞的型態。不列出來就會以為它還在觀察名單裡。",
+        "- 走完的型態：已觸及量幅目標，或已跌破型態低。兩種都不再是進場對象。",
+        "- 不列出來就會以為它還在觀察名單裡，或誤把「已達目標」當成「還沒突破」。",
         "",
-        _us_bucket_section(dead_rows, "本期沒有型態失效。"),
+        _us_bucket_section(done_rows + dead_rows, "本期沒有型態走完或失效。"),
         "",
         "## 回放摘要（模擬，不能當進場依據）",
         "",
@@ -1056,6 +1350,22 @@ def build_combined_report(tw_report: str, us_report: str) -> str:
     ])
 
 
+def tw_report_path(profile: str) -> Path:
+    """combined 沿用原檔名，避免既有連結與排程失效。"""
+    if profile == "combined":
+        return TW_REPORT_PATH
+    return OUT / f"strategy_trade_report_tw_{profile}_2026-05-01.md"
+
+
+def _write_tw_profile_reports(tw_trades: list[dict]) -> list[Path]:
+    written: list[Path] = []
+    for profile in GUARDRAIL_PROFILES:
+        path = tw_report_path(profile)
+        path.write_text(build_tw_report(tw_trades, profile), encoding="utf-8")
+        written.append(path)
+    return written
+
+
 def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="產生 New Stock 台股／美股策略報告")
     parser.add_argument(
@@ -1077,10 +1387,11 @@ def main(argv: list[str] | None = None) -> int:
     trades = _load_json(DATA / "trades.json", [])
     tw_trades, us_trades = _split_market_trades(trades)
     if args.market == "tw":
-        TW_REPORT_PATH.write_text(build_tw_report(tw_trades), encoding="utf-8")
+        for path in _write_tw_profile_reports(tw_trades):
+            print(path)
         TW_AUDIT_REPORT_PATH.write_text(build_tw_audit_report(tw_trades), encoding="utf-8")
-        print(TW_REPORT_PATH)
         print(TW_AUDIT_REPORT_PATH)
+        print(write_signal_forward_validation(_tw_forward_validation(), OUT))
         return 0
     if args.market == "us":
         US_REPORT_PATH.write_text(build_us_report(us_trades, as_of=args.as_of), encoding="utf-8")
@@ -1094,10 +1405,12 @@ def main(argv: list[str] | None = None) -> int:
         build_combined_report(tw_report, us_report),
         encoding="utf-8",
     )
-    TW_REPORT_PATH.write_text(tw_report, encoding="utf-8")
+    tw_paths = _write_tw_profile_reports(tw_trades)
     TW_AUDIT_REPORT_PATH.write_text(tw_audit_report, encoding="utf-8")
     US_REPORT_PATH.write_text(us_report, encoding="utf-8")
-    for path in (COMBINED_REPORT_PATH, TW_REPORT_PATH, TW_AUDIT_REPORT_PATH, US_REPORT_PATH):
+    validation_path = write_signal_forward_validation(_tw_forward_validation(), OUT)
+    for path in (COMBINED_REPORT_PATH, *tw_paths, TW_AUDIT_REPORT_PATH,
+                 US_REPORT_PATH, validation_path):
         print(path)
     return 0
 

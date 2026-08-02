@@ -122,3 +122,37 @@ def test_write_snapshot_and_review_compares_before_writing_current_snapshot(tmp_
     review = json.loads(result["review_path"].read_text(encoding="utf-8"))
     assert review["previous_as_of"] == "2026-06-23"
     assert result["snapshot_path"].name == "signal_snapshot_2026-06-24.json"
+
+
+def test_snapshot_stores_the_risk_state_that_produced_the_signals(monkeypatch):
+    from app.services import signal_snapshot_service as svc
+
+    monkeypatch.setattr(svc, "_pre_market_risk_snapshot", lambda: {"level": "defensive"})
+    summary = _summary("2026-07-31", [{
+        "code": "2330", "old_wang_market_filter": "block", "old_wang_market_regime": "risk",
+    }])
+    summary["signals"][0].update(old_wang_market_filter="block", old_wang_market_regime="risk")
+
+    snapshot = svc.build_signal_snapshot(summary)
+
+    assert snapshot["pre_market_risk"] == {"level": "defensive"}
+    assert snapshot["items"][0]["old_wang_market_filter"] == "block"
+    assert snapshot["items"][0]["old_wang_market_regime"] == "risk"
+
+
+def test_snapshot_still_writes_when_the_risk_module_fails(monkeypatch):
+    """風險模組壞掉不該讓整份快照寫不出來——那會直接斷掉日後的驗收資料。"""
+    from app.services import signal_snapshot_service as svc
+
+    def boom():
+        raise RuntimeError("US 資料缺失")
+
+    monkeypatch.setattr(
+        "app.services.pre_market_risk_service.get_pre_market_risk_report", boom
+    )
+
+    snapshot = svc.build_signal_snapshot(_summary("2026-07-31", [{"code": "2330"}]))
+
+    assert snapshot["pre_market_risk"]["level"] is None
+    assert "US 資料缺失" in snapshot["pre_market_risk"]["error"]
+    assert snapshot["item_count"] == 1
