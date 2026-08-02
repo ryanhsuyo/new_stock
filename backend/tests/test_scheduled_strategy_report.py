@@ -27,7 +27,9 @@ def _run_market(monkeypatch, tmp_path, market: str, produce: list[str]):
 
     def fake_run(command, cwd):
         for name in produce:
-            (tmp_path / name).write_text("x", encoding="utf-8")
+            path = tmp_path / name
+            path.parent.mkdir(parents=True, exist_ok=True)
+            path.write_text("x", encoding="utf-8")
         commands.append(command)
         return _Result()
 
@@ -39,13 +41,26 @@ def _run_market(monkeypatch, tmp_path, market: str, produce: list[str]):
     return _MOD.main(["--market", market, "--force"]), commands
 
 
+_US_FULL = _MOD.REPORTS["us"]["artifacts"] + [
+    "us_signal_snapshots/us_signal_snapshot_2026-07-31.json"
+]
+
+
 def test_report_refreshes_market_before_generating(monkeypatch, tmp_path):
-    code, commands = _run_market(monkeypatch, tmp_path, "us", _MOD.REPORTS["us"]["artifacts"])
+    code, commands = _run_market(monkeypatch, tmp_path, "us", _US_FULL)
 
     assert code == 0
     assert commands[0][-3:] == ["--market", "us", "--force"]
     assert commands[1][-2:] == ["--market", "us"]
     assert (tmp_path / ".strategy_report_last_success_us").exists()
+
+
+def test_us_run_without_a_snapshot_is_not_successful(monkeypatch, tmp_path):
+    # 報告產出來但快照沒寫，等於今天的觀察永遠驗不回來
+    code, _commands = _run_market(monkeypatch, tmp_path, "us", _MOD.REPORTS["us"]["artifacts"])
+
+    assert code == 1
+    assert not (tmp_path / ".strategy_report_last_success_us").exists()
 
 
 def test_tw_expects_all_three_profile_reports():

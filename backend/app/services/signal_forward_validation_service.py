@@ -20,8 +20,19 @@ _OUT = _BACKEND / "out"
 
 VALIDATION_FILENAME = "signal_forward_validation.json"
 WINDOW_DAYS = 30
-BENCHMARK_CODE = "0050"
 BUY_SIGNAL = "BUY"
+US_TRACKABLE_BUCKET = "enter"
+
+MARKET_TW = "tw"
+MARKET_US = "us"
+# 兩個市場的樣本不得混算：基準不同、訊號密度差一個量級
+_MARKET_CONFIG = {
+    MARKET_TW: {"snapshot_dir": "signal_snapshots", "benchmark": "0050",
+                "glob": "signal_snapshot_*.json"},
+    MARKET_US: {"snapshot_dir": "us_signal_snapshots", "benchmark": "SPY",
+                "glob": "us_signal_snapshot_*.json"},
+}
+BENCHMARK_CODE = _MARKET_CONFIG[MARKET_TW]["benchmark"]
 
 NO_STOP_DEFINED = "no_stop_defined"
 EXIT_STOP = "stop"
@@ -41,11 +52,11 @@ def _next_market_day(market_days: list[str], after: str) -> str | None:
     return None
 
 
-def _load_snapshots(snapshot_dir: Path) -> list[dict[str, Any]]:
+def _load_snapshots(snapshot_dir: Path, pattern: str = "signal_snapshot_*.json") -> list[dict[str, Any]]:
     if not snapshot_dir.exists():
         return []
     snapshots: list[dict[str, Any]] = []
-    for path in sorted(snapshot_dir.glob("signal_snapshot_*.json")):
+    for path in sorted(snapshot_dir.glob(pattern)):
         try:
             snapshots.append(json.loads(path.read_text(encoding="utf-8")))
         except Exception:
@@ -55,6 +66,46 @@ def _load_snapshots(snapshot_dir: Path) -> list[dict[str, Any]]:
 
 def _window_start(as_of: str, window_days: int) -> str:
     return (date.fromisoformat(as_of) - timedelta(days=window_days)).isoformat()
+
+
+def _us_stop_price(item: dict[str, Any]) -> float | None:
+    """美股失效條件是「收盤跌破型態低 197.97；頸線進場停損 -7.5%」這種字串。
+
+    只取第一個數字（型態低）。不用量幅目標當停利：紙上追蹤沒有定義停利動作，
+    加一條當時不存在的規則會把贏家封頂、輸家留到停損，系統性美化績效。
+    """
+    return _parse_stop(item.get("invalidation"))
+
+
+def collect_us_trackable_signals(
+    snapshots: list[dict[str, Any]], window_start: str
+) -> tuple[list[dict[str, Any]], list[str]]:
+    """只有「可紙上追蹤」桶計分；觀望名單沒有發生過進場，不能拿來充樣本。"""
+    signals: list[dict[str, Any]] = []
+    covered: list[str] = []
+    for snapshot in snapshots:
+        as_of = str(snapshot.get("as_of") or "")
+        if not as_of or as_of < window_start:
+            continue
+        covered.append(as_of)
+        available_at = str(snapshot.get("generated_at") or as_of)[:10]
+        gates = snapshot.get("market_gates") or {}
+        for item in snapshot.get("items") or []:
+            if item.get("bucket") != US_TRACKABLE_BUCKET:
+                continue
+            signals.append({
+                "code": str(item.get("code") or ""),
+                "name": item.get("label"),
+                "signal_date": as_of,
+                "available_at": available_at,
+                "stop_price": _us_stop_price(item),
+                "invalidation_text": item.get("invalidation"),
+                "market_filter": gates.get("trend_bias"),
+                "market_regime": None,
+                "pre_market_risk": None,
+                "risk_source": "snapshot",
+            })
+    return signals, sorted(set(covered))
 
 
 def collect_buy_signals(
@@ -151,7 +202,11 @@ def _period_return(bars: dict[str, dict[str, float]], days: list[str]) -> float 
 
 
 def _market_reference(
-    prices: dict[str, dict[str, dict[str, float]]], market_days: list[str], start: str, end: str
+    prices: dict[str, dict[str, dict[str, float]]],
+    market_days: list[str],
+    start: str,
+    end: str,
+    benchmark_code: str = BENCHMARK_CODE,
 ) -> dict[str, Any]:
     """策略報酬單看沒有意義：跌段裡「少跌」和「賺錢」長得完全不一樣。"""
     window = [d for d in market_days if start <= d <= end]
@@ -162,14 +217,14 @@ def _market_reference(
         value = _period_return(bars, window)
         if value is not None:
             returns.append(value)
-    benchmark = _period_return(prices.get(BENCHMARK_CODE) or {}, window)
+    benchmark = _period_return(prices.get(benchmark_code) or {}, window)
     return {
         "start": window[0] if window else None,
         "end": window[-1] if window else None,
         "universe_count": len(returns),
         "median_return_pct": round(median(returns), 2) if returns else None,
         "falling_ratio_pct": round(sum(1 for r in returns if r < 0) / len(returns) * 100, 1) if returns else None,
-        "benchmark_code": BENCHMARK_CODE,
+        "benchmark_code": benchmark_code,
         "benchmark_return_pct": round(benchmark, 2) if benchmark is not None else None,
     }
 
@@ -180,17 +235,24 @@ def build_signal_forward_validation(
     snapshot_dir: Path | None = None,
     window_days: int = WINDOW_DAYS,
     as_of: str | None = None,
+    market: str = MARKET_TW,
 ) -> dict[str, Any]:
-    snapshot_dir = snapshot_dir or (_OUT / SNAPSHOT_DIR_NAME)
-    snapshots = _load_snapshots(snapshot_dir)
+    config = _MARKET_CONFIG.get(market, _MARKET_CONFIG[MARKET_TW])
+    snapshot_dir = snapshot_dir or (_OUT / config["snapshot_dir"])
+    snapshots = _load_snapshots(snapshot_dir, config["glob"])
     data_as_of = as_of or (market_days[-1] if market_days else None)
     if not data_as_of:
-        return _empty_result(window_days, None, "沒有可用的市場資料日")
+        return _empty_result(window_days, None, "沒有可用的市場資料日", market=market)
 
     window_start = _window_start(data_as_of, window_days)
-    signals, covered_days = collect_buy_signals(snapshots, window_start)
+    collect = collect_us_trackable_signals if market == MARKET_US else collect_buy_signals
+    signals, covered_days = collect(snapshots, window_start)
     if not signals:
-        return _empty_result(window_days, data_as_of, "本窗口無訊號", covered_days, window_start)
+        return _empty_result(
+            window_days, data_as_of,
+            "本窗口沒有可紙上追蹤的訊號" if market == MARKET_US else "本窗口無訊號",
+            covered_days, window_start, market=market,
+        )
 
     trades = [t for t in (_forward_trade(s, prices, market_days) for s in signals) if t]
     # 沒有失效價的訊號無從判斷出場，補值只會製造出一個不存在的規則
@@ -198,6 +260,7 @@ def build_signal_forward_validation(
     returns = [t["return_pct"] for t in scored]
 
     return {
+        "market": market,
         "as_of": data_as_of,
         "window_days": window_days,
         "window_start": window_start,
@@ -213,7 +276,9 @@ def build_signal_forward_validation(
             for source in ("snapshot", "rebuilt")
         },
         "stats": _stats(returns),
-        "market_reference": _market_reference(prices, market_days, window_start, data_as_of),
+        "market_reference": _market_reference(
+            prices, market_days, window_start, data_as_of, config["benchmark"]
+        ),
         "trades": trades,
         "note": "進場基準為快照 generated_at 之後的第一個交易日開盤；出場條件取訊號當日記錄的失效價。",
     }
@@ -235,8 +300,10 @@ def _empty_result(
     reason: str,
     covered: list[str] | None = None,
     window_start: str | None = None,
+    market: str = MARKET_TW,
 ) -> dict[str, Any]:
     return {
+        "market": market,
         "as_of": as_of,
         "window_days": window_days,
         "window_start": window_start,
@@ -247,6 +314,7 @@ def _empty_result(
         "closed_count": 0,
         "open_count": 0,
         "no_stop_defined_count": 0,
+        "risk_source_counts": {"snapshot": 0, "rebuilt": 0},
         "stats": _stats([]),
         "market_reference": {},
         "trades": [],

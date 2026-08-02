@@ -29,6 +29,7 @@ sys.path.insert(0, str(ROOT))
 
 from app.services.analysis_service import analyse_stock
 from app.services.signal_forward_validation_service import (
+    MARKET_US,
     build_signal_forward_validation,
     write_signal_forward_validation,
 )
@@ -43,6 +44,10 @@ from app.services.strategy_validation_service import (
 )
 from app.services.trade_service import calculate_trade_amounts
 from app.services.us_market_service import get_us_market_status
+from app.services.us_signal_snapshot_service import (
+    build_us_signal_snapshot,
+    write_us_signal_snapshot,
+)
 from app.services.us_strategy_service import get_us_trend_follow
 from app.services.us_wbottom_service import get_us_wbottom
 
@@ -892,7 +897,16 @@ def build_tw_report(trades: list[dict], profile: str = "combined") -> str:
 
 EVIDENCE_HEADING = "## 策略當前證據狀態"
 
+# build_us_report 回傳 markdown 字串，快照另外接出來讓 main() 決定寫在哪
+_US_SNAPSHOT: dict[str, dict | None] = {"value": None}
+
+
+def last_us_snapshot() -> dict | None:
+    return _US_SNAPSHOT["value"]
+
 GUARDRAIL_PROFILES = ("combined", "old_wang", "steady_momentum")
+# 美股「可紙上追蹤」的條件少見，用台股的 30 天窗口幾乎必然是 0 筆
+US_WINDOW_DAYS = 180
 PROFILE_LABELS = {
     "combined": "合併",
     "old_wang": "老王大盤籌碼輪動",
@@ -908,11 +922,29 @@ def _tw_forward_validation() -> dict:
 
 @lru_cache(maxsize=1)
 def _us_forward_validation() -> dict:
-    """美股走同一個契約，但沒有快照可讀，結果必然是樣本 0。"""
-    result = build_signal_forward_validation(
-        {}, [], snapshot_dir=OUT / "us_signal_snapshots", as_of=None
+    """美股只有「可紙上追蹤」那一桶計分；條件少見，樣本會累積得很慢。"""
+    prices, market_days = _load_us_prices_for_validation()
+    return build_signal_forward_validation(
+        prices, market_days, window_days=US_WINDOW_DAYS, market=MARKET_US
     )
-    return {**result, "note": "美股尚未保存 signal snapshot，沒有可前推的歷史訊號"}
+
+
+@lru_cache(maxsize=1)
+def _load_us_prices_for_validation() -> tuple[dict, list[str]]:
+    prices: dict[str, dict[str, dict[str, float]]] = defaultdict(dict)
+    path = DATA / "ohlcv_us.csv"
+    if not path.exists():
+        return {}, []
+    with path.open(newline="", encoding="utf-8") as handle:
+        for row in csv.DictReader(handle):
+            try:
+                prices[str(row["code"]).upper()][row["date"]] = {
+                    key: float(row[key]) for key in ("open", "high", "low", "close")
+                }
+            except (TypeError, ValueError, KeyError):
+                continue
+    days = sorted({day for bars in prices.values() for day in bars})
+    return dict(prices), days
 
 
 def _guardrail_replay_line(profile: str) -> str:
@@ -1242,6 +1274,11 @@ def build_us_report(trades: list[dict], as_of: str | None = None) -> str:
     daily_decision = _us_daily_decision(trend, wbottom, len(enter_rows))
     trend_gate = trend.get("market_gate") or {}
     wbottom_gate = wbottom.get("market_gate") or {}
+    data_as_of = trend.get("as_of") or status.get("last_data_as_of")
+    # 分桶只存在於產生報告的這一瞬間；不存下來就沒有任何東西可以事後驗
+    _US_SNAPSHOT["value"] = build_us_signal_snapshot(
+        rows, trend_gate, wbottom_gate, str(data_as_of or "")
+    ) if data_as_of else None
 
     if trades:
         actual_note = (
@@ -1357,6 +1394,14 @@ def tw_report_path(profile: str) -> Path:
     return OUT / f"strategy_trade_report_tw_{profile}_2026-05-01.md"
 
 
+def _write_us_snapshot() -> Path:
+    """快照寫不出來就讓這次執行失敗；靜默跳過會直接斷掉未來的驗收資料。"""
+    snapshot = last_us_snapshot()
+    if not snapshot:
+        raise RuntimeError("美股報告沒有產生快照（缺少資料日），不視為成功")
+    return write_us_signal_snapshot(snapshot, OUT)
+
+
 def _write_tw_profile_reports(tw_trades: list[dict]) -> list[Path]:
     written: list[Path] = []
     for profile in GUARDRAIL_PROFILES:
@@ -1396,6 +1441,7 @@ def main(argv: list[str] | None = None) -> int:
     if args.market == "us":
         US_REPORT_PATH.write_text(build_us_report(us_trades, as_of=args.as_of), encoding="utf-8")
         print(US_REPORT_PATH)
+        print(_write_us_snapshot())
         return 0
 
     tw_report = build_tw_report(tw_trades)
@@ -1410,7 +1456,7 @@ def main(argv: list[str] | None = None) -> int:
     US_REPORT_PATH.write_text(us_report, encoding="utf-8")
     validation_path = write_signal_forward_validation(_tw_forward_validation(), OUT)
     for path in (COMBINED_REPORT_PATH, *tw_paths, TW_AUDIT_REPORT_PATH,
-                 US_REPORT_PATH, validation_path):
+                 US_REPORT_PATH, _write_us_snapshot(), validation_path):
         print(path)
     return 0
 

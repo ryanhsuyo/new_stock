@@ -22,6 +22,8 @@ REPORTS = {
     "us": {
         "threshold": dtime(10, 0),
         "artifacts": ["strategy_trade_report_us_2026-05-01.md"],
+        # 快照沒寫出來，今天的觀察就永遠驗不回來了
+        "artifact_globs": ["us_signal_snapshots/us_signal_snapshot_*.json"],
     },
     "tw": {
         "threshold": dtime(15, 40),
@@ -51,11 +53,15 @@ def stale_artifacts(market: str, started_at: datetime, out_dir: Path | None = No
     """
     out_dir = out_dir or _OUT
     cutoff = started_at.timestamp()
+    config = REPORTS[market]
     stale: list[str] = []
-    for name in REPORTS[market]["artifacts"]:
+    for name in config["artifacts"]:
         path = out_dir / name
         if not path.exists() or path.stat().st_mtime < cutoff:
             stale.append(name)
+    for pattern in config.get("artifact_globs", []):
+        if not any(p.stat().st_mtime >= cutoff for p in out_dir.glob(pattern)):
+            stale.append(pattern)
     return stale
 
 
