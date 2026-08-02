@@ -233,12 +233,28 @@ def test_evidence_status_comes_before_the_candidate_list():
 
 def test_evidence_status_states_zero_sample_instead_of_going_blank():
     lines = "\n".join(report._evidence_status_lines(
-        _forward_validation(signal_count=0, note="美股尚未保存 signal snapshot")
+        _forward_validation(signal_count=0, covered_snapshot_days=1,
+                            note="美股尚未保存 signal snapshot")
     ))
 
     assert "0 筆" in lines
     assert "美股尚未保存 signal snapshot" in lines
-    assert "不要把「沒有反證」當成有效" in lines
+
+
+def test_zero_sample_says_records_are_missing_not_that_signals_never_fired():
+    """「近 180 天 0 筆」會被讀成 180 天都沒訊號；真相通常是只有 1 天的紀錄。"""
+    fresh = "\n".join(report._evidence_status_lines(
+        _forward_validation(signal_count=0, window_days=180, covered_snapshot_days=1)
+    ))
+    accumulating = "\n".join(report._evidence_status_lines(
+        _forward_validation(signal_count=0, window_days=180, covered_snapshot_days=40)
+    ))
+
+    assert "只有 1 個交易日留下紀錄" in fresh
+    assert "尚未開始累積" in fresh
+    assert "只有 40 個交易日留下紀錄" in accumulating
+    assert "仍在累積" in accumulating
+    assert "不是訊號不存在" in fresh
 
 
 def test_evidence_status_flags_signals_that_had_no_stop_price():

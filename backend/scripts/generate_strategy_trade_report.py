@@ -969,10 +969,13 @@ def _evidence_status_lines(result: dict, profile: str = "combined") -> list[str]
     stats, market = result.get("stats") or {}, result.get("market_reference") or {}
     count = result.get("signal_count") or 0
     if not count:
+        # 只印「0 筆」會被讀成「這段期間都沒訊號」，但多數時候真相是「才剛開始存紀錄」
+        covered = result.get("covered_snapshot_days") or 0
         lines += [
-            f"- 近 {result.get('window_days', '—')} 天可驗收樣本 **0 筆**："
-            f"{result.get('note') or '尚無可驗收樣本'}。",
-            "- 沒有前推證據可以支持或反對目前的訊號；不要把「沒有反證」當成有效。",
+            f"- 近 {result.get('window_days', '—')} 天可驗收樣本 **0 筆**"
+            f"（此窗口內只有 {covered} 個交易日留下紀錄）：{result.get('note') or '尚無可驗收樣本'}。",
+            f"- 0 筆的原因是紀錄不足，不是訊號不存在。**{'尚未開始累積' if covered <= 1 else '仍在累積'}**，"
+            "在累積出樣本之前，這裡不會有任何支持或反對的證據。",
             "",
         ]
         return lines
