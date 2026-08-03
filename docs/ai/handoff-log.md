@@ -12,6 +12,17 @@
 
 ---
 
+## 2026-08-02 — 護欄接 production、訊號前推驗收、美股快照
+
+- **Date:** 2026-08-02
+- **Task:** 使用者要「可以驗收的」策略證據，台股美股都要。先做美股報告可讀性，追查後發現更根本的問題：報告每天列出候選，卻沒有任何地方說這些候選近期實際表現如何。
+- **Completed:** 三件事。(1) **前推驗收**：`signal_forward_validation_service` 用系統自己的快照，以 `generated_at` 次一交易日開盤為進場基準（用 `as_of` 會拿到當時尚未產出的訊號，實測 −7.17% vs −6.94%），出場取訊號當日的失效價。台股近 30 天 37 個 BUY 訊號：**平均 −6.35%、勝率 10.8%、50/54 觸停損**；同期市場中位 −14.18%、0050 −6.33%。此區塊印在今日結論**之前**。(2) **護欄接 production**：先前結論是「不通過、不得接 production」，使用者在看過全部負面數字後決定接上，同時決定台股停止新單。台股報告拆成三份 per-profile artifact；盤前風險 `unknown` 改保守推估。(3) **美股快照**：`out/us_signal_snapshots/`，只有「可紙上追蹤」桶計分，出場只用型態失效價。
+- **Changed Files:** 新增 `backend/app/services/{signal_forward_validation_service,us_signal_snapshot_service}.py`；改 `backend/app/services/{pre_market_risk_service,signal_snapshot_service}.py`、`backend/scripts/{generate_strategy_trade_report,scheduled_strategy_report}.py`；新增 4 個測試檔；`openspec/changes/{guardrails-to-production,us-signal-snapshots}/`；`docs/ai/{current-status,roadmap,validation,handoff-log}.md`。
+- **Validation:** 完整 backend **1083 passed**。四份報告與快照已實際產生並人工核對（美股快照 15 檔與報告「合計 15 檔」一致）。
+- **Git Status:** 已 commit（`22d2c97`、`294f29b`、`f9f9342`、`c164683`），未 push。
+- **Next Steps:** 累積前推樣本；美股需數月。恢復台股下單前重新檢視 `GUARDRAILS_ENABLED`。Monitor/Dashboard 尚未呈現三份報告與證據狀態。
+- **Notes / Warnings:** **護欄不改善選股。** 回推 54 筆：護欄留下 33 筆平均 −8.33%／勝率 9.1%，擋下 21 筆平均 −4.75%／勝率 14.3%——它取 `daily_priority`／`score` 前 N 名，而該排序在此樣本上與後續報酬反向。護欄只限制曝險。**三份報告的上限互不知情**，同時依三份進場可放大曝險至三倍，系統擋不住只能揭露。本輪未調任何策略參數、未新增策略、未補建歷史快照。過程中發現的三個 bug：報告進場篩選從未使用 `old_wang_market_filter`（濾網只是提示文字）；`target_reached` 狀態未被分桶處理，已達目標的型態顯示成「等突破」；美股報酬風險比用今天收盤當進場價計算，造出各檔之間不存在的差異（實際在頸線進場恆為 1:1）。
+
 ## 2026-07-29 — 停損重進診斷與風險恢復確認
 
 - **Date:** 2026-07-29

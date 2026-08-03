@@ -2,7 +2,7 @@
 
 > 專案的方向與規劃。用 Now / Next / Later 分層，細節放在各 Phase。
 > 規劃改變時就更新這裡。
-> Last updated: 2026-07-24
+> Last updated: 2026-08-02
 
 ## Vision
 
@@ -17,7 +17,8 @@
 > 現在正在做 / 即將做的（對應 `current-status.md` 的 Current Phase）。
 
 - **日常報告完整性已落地**：台股每日行動與歷史稽核拆分，異常成交資料使績效標示暫估並提供安全的逐筆人工修正；逐股資料日混雜會阻擋 Today Scan 與台股日報動作清單，台股報告改在 15:40 執行；美股報告去重，固定 `as_of` 已有未來資料隔離測試。維持本機檔案架構，不自動改價、不新增資料庫。
-- **台股策略組合風控驗收（evaluation-only）已落地**：以歷史盤前風險、策略別單檔／總曝險與每日新倉上限重跑既有兩策略，不改訊號規則；老王可用較寬容量保留多數報酬並降低回撤，穩健動能的放寬候選反而惡化，已拒絕並維持嚴格設定。尚不接 production。規格與證據見 `openspec/changes/strategy-portfolio-guardrails/`。
+- **台股策略組合風控已接 production（2026-08-02，驗收未通過但依使用者決定接上）**：護欄實際擋下每日進場候選，被擋的列入「今日不新增（風控擋下）」並帶原因；台股報告拆成 combined／old_wang／steady_momentum 三份，**上限只在單一報告內有效，同時依多份進場會放大實際曝險**（系統擋不住，只能揭露）。盤前風險 `unknown` 改為保守推估等級，推估不得寬鬆於可得資料所支持的等級。規格見 `openspec/changes/guardrails-to-production/`，前提與失效條件見 `current-status.md`。
+- **訊號前推驗收上線**：台股／美股報告在今日結論前印出近期訊號的實際表現與同期市場對照；美股開始每日保存 signal snapshot，樣本需數月累積。規格見 `openspec/changes/us-signal-snapshots/`。
 - **美股第二套觀察策略 us_wbottom_target（W 底突破 + 量幅目標）上線**：使用者選定「勝率最高」（5 年 62.4%）；偵測 / 觀察輸出 / 回放單一規則來源、參數凍結；關鍵價位為觀察用非下單指令；已知代價（空頭年為負、贏家封頂、生存者折扣）寫死在 UI/API。證據：`docs/ai/us-wbottom-replay-5y.md`。**非推薦、非買賣建議、不下單。**
 - 前一輪：**us_wang_breakout（老王美股版）5 年回放驗證（evaluation-only）**：突破+量能+MA10 波段+硬止損，參數凍結後 5 年樣本外重測（含 2022 空頭）。機制通過、edge 被生存者敏感度測試否定（拿掉前 5 貢獻檔 → 5/6 年虧損）。**不建議照此下單；可考慮做成第二套觀察策略。** 證據：`docs/ai/us-wang-breakout-replay-5y.md`。
 - 前一輪：**us_trend_follow 逐日回放驗證（evaluation-only）**：walk-forward 回放 2026-06-15～06-30、兩套退出規則比較，證實 candidate_exit 太敏感、trend_protect 結構較合理；gate 本窗口未被壓力測試。**production 規則零改動**；結論與證據見 `docs/ai/us-trend-follow-replay-2026-06.md`。
@@ -27,8 +28,10 @@
 
 > 接下來會做的（Now 完成後）。
 
-- 以不同市場狀態與更長樣本外區間驗證台股組合 guardrails；已修正停損當日重進，並採 evaluation-only 的一日風險恢復確認。四窗口對照大致支持，但 6–7 月合併／穩健動能各小幅惡化約 0.1%，長窗口合併 MDD 增加 0.82%，仍需真正樣本外資料。不得加入任意個股冷卻或接 production。
-- 把本 session 未提交的前端 / 文件改動整合驗證後 commit。
+- 以不同市場狀態與更長樣本外區間驗證台股組合 guardrails；已修正停損當日重進，並採 evaluation-only 的一日風險恢復確認。四窗口對照大致支持，但 6–7 月合併／穩健動能各小幅惡化約 0.1%，長窗口合併 MDD 增加 0.82%，仍需真正樣本外資料。不得加入任意個股冷卻。
+  **（2026-08-02 更新：護欄已接 production，但驗收結論仍是未通過。**接上的前提是台股停止新單且護欄只減不增候選；恢復下單前必須重新檢視 `GUARDRAILS_ENABLED`。詳 `current-status.md` 與 `guardrails-to-production/handoff.md`。）
+- 累積台股與美股的訊號前推樣本，讓每日報告的證據狀態從「單一窗口快照」變成可比較的時間序列；美股需數月才有足夠樣本。不得為了湊樣本延長窗口、改用觀望桶或加停利出場口徑。
+- 恢復台股下單前，重新檢視護欄是否該維持在 production。
 - 連線偵測 `connectionLost` 抽成共用 hook（單例探測）。
 - 真實基本面資料匯入流程驗收（等外部 CSV）。
 
