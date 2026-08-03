@@ -37,6 +37,9 @@ BENCHMARK_CODE = _MARKET_CONFIG[MARKET_TW]["benchmark"]
 NO_STOP_DEFINED = "no_stop_defined"
 EXIT_STOP = "stop"
 EXIT_OPEN = "open_at_data_end"
+# 不當沖：進場當天不得出場。進場日就是資料末日時，這筆還沒有可衡量的結果，
+# 硬用當天開盤→收盤估值等於算出一筆當沖損益。
+AWAITING_NEXT_SESSION = "awaiting_next_session"
 
 
 def _parse_stop(text: Any) -> float | None:
@@ -156,6 +159,13 @@ def _forward_trade(
         return None
     entry_price = bars[entry_day]["open"]
     held = [d for d in market_days if d >= entry_day and d in bars]
+    if len(held) < 2:
+        # 只有進場當天的資料，出場最早也要等下一個交易日
+        return {
+            **signal, "entry_date": entry_day, "entry_price": round(entry_price, 4),
+            "exit_date": None, "exit_price": None, "exit_reason": AWAITING_NEXT_SESSION,
+            "return_pct": None, "closed": False,
+        }
 
     exit_day, exit_price, exit_reason = held[-1], bars[held[-1]]["close"], EXIT_OPEN
     stop = signal["stop_price"]
@@ -255,8 +265,10 @@ def build_signal_forward_validation(
         )
 
     trades = [t for t in (_forward_trade(s, prices, market_days) for s in signals) if t]
-    # 沒有失效價的訊號無從判斷出場，補值只會製造出一個不存在的規則
-    scored = [t for t in trades if t["exit_reason"] != NO_STOP_DEFINED]
+    # 沒有失效價的訊號無從判斷出場，補值只會製造出一個不存在的規則；
+    # 剛進場還沒隔夜的也不計分，否則就是把當沖損益算進來
+    excluded = {NO_STOP_DEFINED, AWAITING_NEXT_SESSION}
+    scored = [t for t in trades if t["exit_reason"] not in excluded]
     returns = [t["return_pct"] for t in scored]
 
     return {
@@ -270,7 +282,10 @@ def build_signal_forward_validation(
         "evaluated_count": len(scored),
         "closed_count": sum(1 for t in scored if t["closed"]),
         "open_count": sum(1 for t in scored if not t["closed"]),
-        "no_stop_defined_count": len(trades) - len(scored),
+        "no_stop_defined_count": sum(1 for t in trades if t["exit_reason"] == NO_STOP_DEFINED),
+        "awaiting_next_session_count": sum(
+            1 for t in trades if t["exit_reason"] == AWAITING_NEXT_SESSION
+        ),
         "risk_source_counts": {
             source: sum(1 for t in trades if t["risk_source"] == source)
             for source in ("snapshot", "rebuilt")
