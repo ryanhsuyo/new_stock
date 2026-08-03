@@ -31,6 +31,10 @@ import urllib.error
 import urllib.parse
 
 _BACKEND = Path(__file__).resolve().parent.parent
+if str(_BACKEND) not in sys.path:
+    sys.path.insert(0, str(_BACKEND))
+
+from app.storage.atomic_write import atomic_write_csv  # noqa: E402
 
 _SSL_CTX = ssl.create_default_context()
 try:
@@ -673,11 +677,8 @@ def merge_and_save(path: Path, new_rows: list[dict]) -> tuple[int, int]:
 
     sorted_rows = sorted(existing.values(), key=lambda r: (r["code"], r["date"]))
 
-    path.parent.mkdir(parents=True, exist_ok=True)
-    with path.open("w", newline="", encoding="utf-8") as f:
-        writer = csv.DictWriter(f, fieldnames=CSV_FIELDS)
-        writer.writeheader()
-        writer.writerows(sorted_rows)
+    # 全檔重寫必須原子化：中途被中斷會留下截斷的檔，殘值可能通過下次合併的檢查
+    atomic_write_csv(path, CSV_FIELDS, sorted_rows)
 
     return added, len(sorted_rows)
 

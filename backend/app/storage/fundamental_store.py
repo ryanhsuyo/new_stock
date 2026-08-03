@@ -4,6 +4,8 @@ import csv
 import json
 from pathlib import Path
 
+from app.storage.atomic_write import atomic_write_csv
+
 _DATA = Path(__file__).resolve().parent.parent.parent / "data"
 FUNDAMENTALS_PATH = _DATA / "fundamentals.json"
 FUNDAMENTALS_CSV_PATH = _DATA / "fundamentals.csv"
@@ -261,20 +263,13 @@ def save_fundamentals_csv(
     codes: list[str],
     path: Path = FUNDAMENTALS_CSV_PATH,
 ) -> None:
-    path.parent.mkdir(parents=True, exist_ok=True)
     fieldnames = ["code", *REQUIRED_FIELDS]
-    with path.open("w", encoding="utf-8", newline="") as f:
-        writer = csv.DictWriter(f, fieldnames=fieldnames)
-        writer.writeheader()
-        for code in codes:
-            row = data.get(str(code), {})
-            writer.writerow({
-                "code": str(code),
-                **{
-                    field: _format_csv_value(row.get(field))
-                    for field in REQUIRED_FIELDS
-                },
-            })
+    rows = [{
+        "code": str(code),
+        **{field: _format_csv_value(data.get(str(code), {}).get(field))
+           for field in REQUIRED_FIELDS},
+    } for code in codes]
+    atomic_write_csv(path, fieldnames, rows)
 
 
 def sync_fundamentals_csv(

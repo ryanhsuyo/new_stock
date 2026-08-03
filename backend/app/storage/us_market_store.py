@@ -12,7 +12,20 @@ from __future__ import annotations
 
 import csv
 import json
+import re
 from pathlib import Path
+
+from app.storage.atomic_write import atomic_write_csv
+
+_DATE_RE = re.compile(r"\d{4}-\d{2}-\d{2}")
+_CODE_RE = re.compile(r"[A-Z][A-Z0-9.\-]*")
+
+
+def _valid_key(key: tuple[str, str]) -> bool:
+    """ticker 必須以字母開頭、日期必須是 YYYY-MM-DD；擋掉截斷寫入的殘值。"""
+    code, date = key
+    return bool(_CODE_RE.fullmatch(code) and _DATE_RE.fullmatch(date))
+
 
 _DATA = Path(__file__).resolve().parent.parent.parent / "data"
 US_LEADERS_PATH = _DATA / "us_leaders.json"
@@ -76,22 +89,19 @@ def merge_write_us_ohlcv(new_rows: list[dict]) -> int:
             with OHLCV_US_PATH.open(encoding="utf-8", newline="") as f:
                 for row in csv.DictReader(f):
                     key = ((row.get("code") or "").strip().upper(), row.get("date") or "")
-                    if key[0] and key[1]:
+                    # 只檢查非空不夠：截斷寫入留下的殘值兩欄都非空，會被當成真資料
+                    # 一路傳承下去（曾有一筆 code=143.46…／date=7138672 存活數月）
+                    if _valid_key(key):
                         merged[key] = {k: row.get(k, "") for k in CSV_FIELDS}
         except OSError:
             pass
 
     for row in new_rows:
-        code = str(row.get("code") or "").strip().upper()
-        date = str(row.get("date") or "")
-        if not code or not date:
+        key = (str(row.get("code") or "").strip().upper(), str(row.get("date") or ""))
+        if not _valid_key(key):
             continue
-        merged[(code, date)] = {k: row.get(k, "") for k in CSV_FIELDS}
+        merged[key] = {k: row.get(k, "") for k in CSV_FIELDS}
 
     ordered = sorted(merged.values(), key=lambda r: (r["code"], r["date"]))
-    OHLCV_US_PATH.parent.mkdir(parents=True, exist_ok=True)
-    with OHLCV_US_PATH.open("w", encoding="utf-8", newline="") as f:
-        writer = csv.DictWriter(f, fieldnames=CSV_FIELDS)
-        writer.writeheader()
-        writer.writerows(ordered)
+    atomic_write_csv(OHLCV_US_PATH, CSV_FIELDS, ordered)
     return len(ordered)
