@@ -40,6 +40,13 @@ const fmtStrategy = (values: string[]) => values
   .join(' + ')
   .replace(/old_wang/g, '老王')
   .replace(/steady_momentum/g, '穩健動能')
+const fmtRiskLevel = (value: string) => ({
+  normal: '未加防守',
+  watch: '警戒',
+  defensive: '防守',
+  extreme: '極端',
+  unknown: '資料不足',
+}[value] ?? value)
 
 function UsStrategyValidationPanel() {
   const [startDate, setStartDate] = useState('2025-07-01')
@@ -263,7 +270,7 @@ function TaiwanStrategyValidationPanel({ onNavigateAnalysis }: { onNavigateAnaly
           <strong>組合風控已啟用</strong>
           <span>
             正常：單檔 {result.entry_guardrails.normal.max_position_pct}%／總曝險 {result.entry_guardrails.normal.max_exposure_pct}%／每日最多 {result.entry_guardrails.normal.max_new_positions} 個新倉；
-            警戒降至 {result.entry_guardrails.watch.max_position_pct}%／{result.entry_guardrails.watch.max_exposure_pct}%／{result.entry_guardrails.watch.max_new_positions} 檔；防守、極端或盤前資料未知時停止新倉。
+            警戒降至 {result.entry_guardrails.watch.max_position_pct}%／{result.entry_guardrails.watch.max_exposure_pct}%／{result.entry_guardrails.watch.max_new_positions} 檔；防守、極端或盤前資料未知時停止新倉；防守後首個正常日先沿用警戒容量確認恢復。
           </span>
         </div>
       )}
@@ -275,6 +282,19 @@ function TaiwanStrategyValidationPanel({ onNavigateAnalysis }: { onNavigateAnaly
               <p key={`${item.fill_date}-${item.code}-${index}`}>
                 <strong>{item.fill_date} · {item.name}（{item.code}）</strong>
                 <span>{item.reason}</span>
+              </p>
+            ))}
+          </div>
+        </details>
+      )}
+      {(result.stop_reentry_count ?? 0) > 0 && (
+        <details className="validation-skipped-entries validation-stop-reentries">
+          <summary>停損後再次進場 {result.stop_reentry_count} 次</summary>
+          <div>
+            {(result.stop_reentries ?? []).map(item => (
+              <p key={`${item.stop_date}-${item.reentry_date}-${item.code}`}>
+                <strong>{item.name}（{item.code}）· 相隔 {item.sessions_until_reentry} 個交易日</strong>
+                <span>{item.stop_date} {fmtRiskLevel(item.stop_risk_level)} → {item.reentry_date} {fmtRiskLevel(item.reentry_risk_level)}</span>
               </p>
             ))}
           </div>

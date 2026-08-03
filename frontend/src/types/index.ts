@@ -713,11 +713,27 @@ export interface StrategyValidationSkippedEntry {
 export interface StrategyValidationRiskDay {
   date: string
   level: string
+  effective_level?: string
+  recovery_confirmation?: boolean
   score: number
   data_as_of: string | null
   max_position_pct: number
   max_exposure_pct: number
   max_new_positions: number
+}
+
+export interface StrategyValidationStopReentry {
+  code: string
+  name: string
+  market: string
+  stop_date: string
+  reentry_date: string
+  sessions_until_reentry: number
+  stop_risk_level: string
+  reentry_risk_level: string
+  strategy: string
+  tradingview_url: string
+  analysis_hash: string
 }
 
 export interface StrategyValidationResult {
@@ -743,6 +759,10 @@ export interface StrategyValidationResult {
   equity_curve: { date: string; equity: number }[]
   skipped_entry_count?: number
   skipped_entries?: StrategyValidationSkippedEntry[]
+  same_day_stop_reentry_count?: number
+  stop_reentry_count?: number
+  stop_reentries?: StrategyValidationStopReentry[]
+  recovery_confirmation_count?: number
   risk_by_day?: StrategyValidationRiskDay[]
   entry_guardrails?: Record<string, { max_position_pct: number; max_exposure_pct: number; max_new_positions: number }>
 }

@@ -12,6 +12,28 @@
 
 ---
 
+## 2026-07-29 — 停損重進診斷與風險恢復確認
+
+- **Date:** 2026-07-29
+- **Task:** 繼續分析跨日再次進場與盤前 gate 恢復過快，提供可讀診斷並以多窗口決定最小 guardrail。
+- **Completed:** 每個 mode 新增 `stop_reentries`，列出停損日、再次進場日、精確交易日間隔及兩端風險；策略頁可展開查看。近期合併／老王各有 3 次（2、3、10 日），穩健動能 0 次，三次均由 defensive 恢復 normal。evaluation guardrail 新增一日恢復確認：防守／極端／資料不足後首個 normal 日先用 watch 容量。四窗口有／無規則對照共 12 組，9 組改善或持平；近期改善至合併 −10.06%／MDD 10.06%、老王 −10.66%／10.98%、穩健動能 −10.90%／11.28%。6–7 月合併／穩健動能約惡化 0.1%，長窗口合併 MDD 增加 0.82%，已保留限制說明。
+- **Changed Files:** `backend/app/services/strategy_validation_service.py`、`backend/tests/test_strategy_validation_api.py`、`frontend/src/{types/index.ts,pages/StrategyValidationPage.tsx}`、`openspec/changes/strategy-portfolio-guardrails/{design,tasks}.md`、`docs/ai/{current-status,roadmap,validation,handoff-log}.md`；重產 gitignored recent validation artifact。
+- **Validation:** strategy targeted **18 passed**；完整 backend **1008 passed**；frontend build 成功（僅既有 chunk warning）；四個日期窗口已各跑有／無恢復確認對照。
+- **Git Status:** 未 commit、未 push。
+- **Next Steps:** 等待新的真正樣本外交易日；不要再使用相同 2026-05～07 資料增加冷卻或調整門檻。若要繼續產品完善，可在 Dashboard 摘要顯示「策略仍未通過」而非只呈現數字。
+- **Notes / Warnings:** 所有變更均為 evaluation-only；production 推薦、訊號與交易流程未改。
+
+## 2026-07-29 — 停損當日重進訊號修正
+
+- **Date:** 2026-07-29
+- **Task:** 接續近期壓力驗收，定位並修正停損後立即重新進場的機制問題。
+- **Completed:** 發現 2408 在 D 日計畫停損後，D 日收盤仍以已失效訊號排入 D+1 重買。evaluation 回放新增 `same_day_stop_reentry` 阻擋與 audit/count；只阻擋停損當日訊號，不加入任意多日冷卻，也不改 production 推薦。重跑 2026-07-01～07-29：合併 −11.31%／MDD 11.31%，老王 −11.23%／11.54%，穩健動能 −13.09%／13.45%，三模式各阻擋 1 次同日重進。
+- **Changed Files:** `backend/app/services/strategy_validation_service.py`、`backend/tests/test_strategy_validation_api.py`、`openspec/changes/strategy-portfolio-guardrails/{design,tasks}.md`、`docs/ai/{current-status,roadmap,validation,handoff-log}.md`；重產 gitignored strategy validation artifact。
+- **Validation:** targeted strategy validation **16 passed**；相同壓力窗口已重跑並保存；完整 backend **1006 passed**。
+- **Git Status:** 本輪開始為乾淨 worktree；本輪修改未 commit、未 push。
+- **Next Steps:** 分析剩餘跨日再次進場與盤勢 gate 落後，但需用另一段樣本外窗口證明，不能直接加入 3／5 日冷卻。
+- **Notes / Warnings:** 報酬與回撤改善約 1.8～2.4 個百分點，但三模式仍為負，策略結論維持不通過。
+
 ## 2026-07-29 — 官方事件摘要與近期策略壓力驗收
 
 - **Date:** 2026-07-29

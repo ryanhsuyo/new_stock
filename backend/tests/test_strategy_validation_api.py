@@ -204,6 +204,61 @@ def test_planned_stop_does_not_trigger_above_stop():
     ) is None
 
 
+def test_same_day_stop_reentry_is_audited_without_arbitrary_cooldown():
+    from app.services.strategy_validation_service import _same_day_stop_reentry_audit
+
+    audit = _same_day_stop_reentry_audit(
+        "2408", "2026-07-14", "2026-07-15", {"2408"}
+    )
+
+    assert audit == {
+        "code": "2408",
+        "signal_date": "2026-07-14",
+        "fill_date": "2026-07-15",
+        "reason_code": "same_day_stop_reentry",
+        "reason": "計畫停損當日訊號已失效，不立即排入隔日重買",
+    }
+    assert _same_day_stop_reentry_audit(
+        "2615", "2026-07-14", "2026-07-15", {"2408"}
+    ) is None
+
+
+def test_stop_reentry_audit_reports_exact_session_gap_and_risk_levels():
+    from app.services.strategy_validation_service import _build_stop_reentry_audit
+
+    trades = [
+        {"code": "2301", "side": "sell", "fill_date": "2026-07-02", "reason_code": "planned_stop"},
+        {"code": "3017", "side": "buy", "fill_date": "2026-07-03"},
+        {"code": "2301", "side": "buy", "fill_date": "2026-07-07", "strategy": "old_wang"},
+    ]
+    days = ["2026-07-01", "2026-07-02", "2026-07-03", "2026-07-06", "2026-07-07"]
+    risks = [
+        {"date": "2026-07-02", "level": "defensive"},
+        {"date": "2026-07-07", "level": "normal"},
+    ]
+
+    assert _build_stop_reentry_audit(trades, days, risks) == [{
+        "code": "2301",
+        "stop_date": "2026-07-02",
+        "reentry_date": "2026-07-07",
+        "sessions_until_reentry": 3,
+        "stop_risk_level": "defensive",
+        "reentry_risk_level": "normal",
+        "strategy": "old_wang",
+    }]
+
+
+def test_entry_risk_recovers_through_watch_for_one_session():
+    from app.services.strategy_validation_service import _effective_entry_risk_level
+
+    assert _effective_entry_risk_level("normal", "defensive") == "watch"
+    assert _effective_entry_risk_level("normal", "extreme") == "watch"
+    assert _effective_entry_risk_level("normal", "unknown") == "watch"
+    assert _effective_entry_risk_level("normal", "watch") == "normal"
+    assert _effective_entry_risk_level("normal", "normal") == "normal"
+    assert _effective_entry_risk_level("defensive", "normal") == "defensive"
+
+
 def test_entry_guardrails_are_conservative_and_fail_closed():
     from app.services.strategy_validation_service import ENTRY_GUARDRAIL_PROFILES
 
