@@ -143,7 +143,14 @@ function buildLedgers(result: StrategyValidationResult): StockLedger[] {
       totalPnl,
       invested,
       returnPct: invested > 0 ? totalPnl / invested * 100 : null,
-      strategies: [...new Set(events.map(event => event.strategy).concat(open?.strategy ?? []).filter(Boolean))],
+      // 後端的 strategy 是複合字串（old_wang+steady_momentum），直接去重只比整串，
+      // 同一檔先後符合「只有老王」與「兩套都符合」時會印成「老王 + 老王+穩健動能」
+      strategies: [...new Set(
+        events.map(event => event.strategy)
+          .concat(open?.strategy ?? [])
+          .filter(Boolean)
+          .flatMap(tag => tag.split('+'))
+      )],
     }
   }).sort((a, b) => b.totalPnl - a.totalPnl)
 }
